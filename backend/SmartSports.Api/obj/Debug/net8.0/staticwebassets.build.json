@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "WSg17BZbTqsaxzIbhV3xEYzRz6cS91oMkbwlFXPpXnA=",
+  "Source": "SmartSports.Api",
+  "BasePath": "_content/SmartSports.Api",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}

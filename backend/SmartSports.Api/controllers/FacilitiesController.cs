@@ -1,0 +1,176 @@
+
+// Import ASP.NET Core MVC features.
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+
+// Import Entity Framework Core features.
+using Microsoft.EntityFrameworkCore;
+
+// Import our database context.
+using SmartSportsFacilityBooking.Data;
+
+// Import our Facility model.
+using SmartSportsFacilityBooking.Models;
+
+// Define this class as an API controller.
+[ApiController]
+
+// Require authentication for facility operations.
+[Authorize]
+
+// Define the base route as /api/Facilities.
+[Route("api/[controller]")]
+public class FacilitiesController : ControllerBase
+{
+    // Store the database context in a private variable.
+    private readonly AppDbContext _context;
+
+    // Constructor receives the database context through dependency injection.
+    public FacilitiesController(AppDbContext context)
+    {
+        // Store the database context for use inside the controller.
+        _context = context;
+    }
+
+    // Handle GET requests to /api/Facilities.
+    [AllowAnonymous]
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<Facility>>> GetFacilities()
+    {
+        // Retrieve all facilities from the database.
+        var facilities = await _context.Facilities.ToListAsync();
+
+        // Return the facilities with HTTP 200 OK.
+        return Ok(facilities);
+    }
+
+    // Handle GET requests to /api/Facilities/{id}.
+    [AllowAnonymous]
+    [HttpGet("{id}")]
+    public async Task<ActionResult<Facility>> GetFacility(int id)
+    {
+        // Search for a facility using its ID.
+        var facility = await _context.Facilities.FindAsync(id);
+
+        // Check whether the facility was found.
+        if (facility == null)
+        {
+            // Return HTTP 404 Not Found if the facility doesn't exist.
+            return NotFound();
+        }
+
+        // Return the facility with HTTP 200 OK.
+        return Ok(facility);
+    }
+
+    // Handle POST requests to /api/Facilities.
+    [Authorize]
+    [HttpPost]
+    public async Task<ActionResult<Facility>> CreateFacility(Facility facility)
+    {
+        if (facility == null)
+        {
+            return BadRequest("Facility payload is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(facility.Name) ||
+            string.IsNullOrWhiteSpace(facility.Type) ||
+            string.IsNullOrWhiteSpace(facility.Location))
+        {
+            return BadRequest("Facility name, type, and location are required.");
+        }
+
+        // Add the new facility to the database context.
+        _context.Facilities.Add(facility);
+
+        // Save the new facility to PostgreSQL.
+        await _context.SaveChangesAsync();
+
+        // Return HTTP 201 Created with a link to the created facility.
+        return CreatedAtAction(
+            nameof(GetFacility),
+            new { id = facility.Id },
+            facility
+        );
+    }
+
+    // Handle PUT requests to /api/Facilities/{id}.
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateFacility(int id, Facility facility)
+    {
+        if (facility == null)
+        {
+            return BadRequest("Facility payload is required.");
+        }
+
+        // Check whether the ID in the URL matches the ID in the request body.
+        if (id != facility.Id)
+        {
+            // Return HTTP 400 Bad Request when the IDs don't match.
+            return BadRequest("Facility ID does not match.");
+        }
+
+        var existingFacility = await _context.Facilities.FindAsync(id);
+        if (existingFacility == null)
+        {
+            return NotFound();
+        }
+
+        existingFacility.Name = facility.Name;
+        existingFacility.Type = facility.Type;
+        existingFacility.Location = facility.Location;
+        existingFacility.IsAvailable = facility.IsAvailable;
+
+        try
+        {
+            // Save the updated facility to PostgreSQL.
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Check whether the facility still exists.
+            if (!FacilityExists(id))
+            {
+                // Return HTTP 404 Not Found if it doesn't exist.
+                return NotFound();
+            }
+
+            // Throw the exception again if another unexpected error occurred.
+            throw;
+        }
+
+        // Return HTTP 204 No Content after a successful update.
+        return NoContent();
+    }
+  
+    // Handle DELETE requests to /api/Facilities/{id}.
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteFacility(int id)
+    {
+        // Find the facility using its ID.
+        var facility = await _context.Facilities.FindAsync(id);
+
+        // Check whether the facility exists.
+        if (facility == null)
+        {
+            // Return HTTP 404 Not Found if it doesn't exist.
+            return NotFound();
+        }
+
+        // Mark the facility for deletion.
+        _context.Facilities.Remove(facility);
+
+        // Save the deletion to PostgreSQL.
+        await _context.SaveChangesAsync();
+
+        // Return HTTP 204 No Content after successful deletion.
+        return NoContent();
+    }
+
+    // Check whether a facility exists in the database.
+    private bool FacilityExists(int id)
+    {
+        // Return true if a facility with the specified ID exists.
+        return _context.Facilities.Any(e => e.Id == id);
+    }
+}
