@@ -10,7 +10,6 @@ namespace SmartSportsFacilityBooking.Controllers;
   
 [ApiController]
 [Route("api/dashboard")]
-[Authorize]
 public class DashboardDataController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -71,6 +70,7 @@ public class DashboardDataController : ControllerBase
     }
 
     [HttpGet("support-requests")]
+    [Authorize]
     public async Task<IActionResult> GetSupportRequests()
     {
         var requestsQuery = _context.SupportRequests.AsQueryable();
@@ -89,6 +89,7 @@ public class DashboardDataController : ControllerBase
     }
 
     [HttpPost("support-requests")]
+    [Authorize]
     public async Task<IActionResult> CreateSupportRequest(CreateSupportRequest request)
     {
         var userId = GetUserId();
