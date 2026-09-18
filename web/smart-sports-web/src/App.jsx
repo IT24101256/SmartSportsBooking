@@ -127,6 +127,10 @@ function App() {
   const [showAuthPanel, setShowAuthPanel] = useState(false)
   const [isTicketOpen, setIsTicketOpen] = useState(false)
   const [isTimetableOpen, setIsTimetableOpen] = useState(false)
+  const [isRewardsOpen, setIsRewardsOpen] = useState(false)
+  const [isTeamOpen, setIsTeamOpen] = useState(false)
+  const [teamMemberName, setTeamMemberName] = useState('')
+  const [teamMembers, setTeamMembers] = useState([])
   const [selectedScheduleItem, setSelectedScheduleItem] = useState(null)
   const [isAIRequestOpen, setIsAIRequestOpen] = useState(false)
   const [aiRequestForm, setAIRequestForm] = useState({ objective: '', facilityType: 'Football', date: '2026-09-12', startTime: '18:00', endTime: '19:00', guests: '2', budget: '5000' })
@@ -323,6 +327,19 @@ function App() {
     }
   }
 
+  const openTeam = () => {
+    if (requireLogin('Please log in to manage your team.')) setIsTeamOpen(true)
+  }
+
+  const addTeamMember = (event) => {
+    event.preventDefault()
+    const name = teamMemberName.trim()
+    if (!name) return
+    setTeamMembers((current) => [...current, { id: `${name}-${Date.now()}`, name }])
+    setTeamMemberName('')
+    setBookingNotice(`${name} was added to your match team.`)
+  }
+
   const openAIRequest = () => {
     if (requireLogin('Please log in before asking AI to find a facility.')) setIsAIRequestOpen(true)
   }
@@ -422,7 +439,7 @@ function App() {
     if (activeTab === 'Facilities') return <FacilitiesPage facilities={facilitiesList} onViewTimetable={() => setIsTimetableOpen(true)} />
     if (activeTab === 'Bookings') return <BookingsPage bookings={bookingsList} onNewBooking={openBooking} />
     if (activeTab === 'Support') return <SupportPage requests={supportList} onAddTicket={openTicket} />
-    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setIsTimetableOpen(true)} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onTeam={() => { if (requireLogin('Please log in to manage your team.')) setBookingNotice('Team management is ready for your next match.') }} onNotice={setBookingNotice} />
+    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setIsTimetableOpen(true)} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onTeam={openTeam} onRewards={() => { if (requireLogin('Please log in to view your rewards.')) setIsRewardsOpen(true) }} />
   }
 
   const heroMessage = (() => {
@@ -784,8 +801,8 @@ function App() {
                 <button key={action} type="button" className="action-chip" onClick={() => {
                   if (action === 'Book court' && requireLogin('Please log in before booking a court.')) setIsBookingOpen(true)
                   else if (action === 'View schedule') setIsTimetableOpen(true)
-                  else if (action === 'Manage team' && requireLogin('Please log in to manage your team.')) setBookingNotice('Team management is ready for your next match.')
-                  else if (action === 'Rewards') setBookingNotice('Rewards are available after your first completed booking.')
+                  else if (action === 'Manage team') openTeam()
+                  else if (action === 'Rewards' && requireLogin('Please log in to view your rewards.')) setIsRewardsOpen(true)
                 }}>
                   {action}
                 </button>
@@ -1173,6 +1190,55 @@ function App() {
                 <button type="submit" className="primary-btn">Submit ticket</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {isRewardsOpen && (
+        <div className="booking-modal-backdrop" onClick={() => setIsRewardsOpen(false)}>
+          <div className="booking-modal rewards-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="booking-modal-header">
+              <div>
+                <p className="eyebrow subtle">Member benefits</p>
+                <h3>Your rewards</h3>
+              </div>
+              <button type="button" className="close-btn" onClick={() => setIsRewardsOpen(false)}>×</button>
+            </div>
+            <div className="rewards-summary">
+              <strong>12</strong>
+              <span>points available</span>
+            </div>
+            <div className="rewards-list">
+              <div><strong>First booking bonus</strong><span>+12 points earned</span></div>
+              <div><strong>Next reward</strong><span>Book 2 more sessions to unlock a club benefit</span></div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="primary-btn" onClick={() => { setIsRewardsOpen(false); openBooking() }}>Book a session</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isTeamOpen && (
+        <div className="booking-modal-backdrop" onClick={() => setIsTeamOpen(false)}>
+          <div className="booking-modal team-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="booking-modal-header">
+              <div>
+                <p className="eyebrow subtle">Match planning</p>
+                <h3>Manage your team</h3>
+              </div>
+              <button type="button" className="close-btn" onClick={() => setIsTeamOpen(false)}>×</button>
+            </div>
+            <p className="modal-description">Add the players joining your next session so your booking details stay organized.</p>
+            <form className="team-add-form" onSubmit={addTeamMember}>
+              <input value={teamMemberName} onChange={(event) => setTeamMemberName(event.target.value)} placeholder="Player name" aria-label="Player name" />
+              <button type="submit" className="primary-btn">Add player</button>
+            </form>
+            <div className="team-list">
+              <div className="team-member"><span className="avatar small-avatar">{currentUser?.name?.charAt(0) ?? 'Y'}</span><div><strong>{currentUser?.name ?? 'You'}</strong><small>Team captain</small></div></div>
+              {teamMembers.map((member) => <div className="team-member" key={member.id}><span className="avatar small-avatar">{member.name.charAt(0).toUpperCase()}</span><div><strong>{member.name}</strong><small>Player</small></div><button type="button" className="remove-member" onClick={() => setTeamMembers((current) => current.filter((item) => item.id !== member.id))}>Remove</button></div>)}
+              {!teamMembers.length && <p className="empty-state">No additional players added yet.</p>}
+            </div>
           </div>
         </div>
       )}
