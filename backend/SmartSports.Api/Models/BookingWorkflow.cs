@@ -12,18 +12,21 @@ public class BookingWorkflow
     public DateTime RequestedEnd { get; set; }
     public int Guests { get; set; }
     public decimal Budget { get; set; }
-    public string Status { get; set; } = "Planning";
+    public string Status { get; set; } = "Planning"; // Planning, PendingManagerApproval, RevisionRequested, Approved, Rejected, ValidationFailed, FailedSafe
     public string PlanJson { get; set; } = "{}";
     public string ProposalJson { get; set; } = "{}";
     public string ValidationJson { get; set; } = "{}";
     public string? ApprovalComment { get; set; }
+    public string? DecisionBy { get; set; }
     public string? FinalOutcome { get; set; }
+    public long ExecutionDurationMs { get; set; }
+    public int RevisionCount { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public ICollection<BookingWorkflowStep> Steps { get; set; } = new List<BookingWorkflowStep>();
     public ICollection<BookingWorkflowAuditEvent> AuditEvents { get; set; } = new List<BookingWorkflowAuditEvent>();
 }
- 
+
 public class BookingWorkflowStep
 {
     public int Id { get; set; }
@@ -33,7 +36,9 @@ public class BookingWorkflowStep
     public string Responsibility { get; set; } = string.Empty;
     public string InputJson { get; set; } = "{}";
     public string OutputJson { get; set; } = "{}";
+    public string ToolsCalledJson { get; set; } = "[]";
     public string Status { get; set; } = "Pending";
+    public long ExecutionDurationMs { get; set; }
     public string? Error { get; set; }
     public DateTime StartedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAtUtc { get; set; }

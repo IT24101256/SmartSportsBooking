@@ -1,0 +1,29 @@
+# .NET build output
+**/bin/
+**/obj/
+
+# Flutter generated files
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+
+# React/Vite output and dependencies
+web/smart-sports-web/node_modules/
+web/smart-sports-web/dist/
+
+# IDE and local environment files
+.idea/
+.vscode/*.local.json
+*.user
+*.suo
+
+# Local secrets and environment overrides
+.env
+.env.*
+!*.env.example
+
+# Test and coverage output
+coverage/
+test-results/

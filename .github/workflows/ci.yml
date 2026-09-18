@@ -1,0 +1,80 @@
+name: SmartSports CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: ASP.NET Core tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore API dependencies
+        run: dotnet restore SmartSports.Api/SmartSports.Api.csproj
+      - name: Test API and Agentic AI
+        run: dotnet test SmartSports.Api.Tests/SmartSports.Api.Tests.csproj --configuration Release --no-restore --logger trx
+      - name: Build API
+        run: dotnet build SmartSports.Api/SmartSports.Api.csproj --configuration Release --no-restore --no-incremental
+
+  web:
+    name: React build and lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/smart-sports-web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/smart-sports-web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+
+  mobile:
+    name: Flutter analysis, tests, and APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.35.0
+          cache: true
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+      - name: Analyze
+        working-directory: mobile
+        run: flutter analyze
+      - name: Test
+        working-directory: mobile
+        run: flutter test
+      - name: Build APK
+        working-directory: mobile
+        run: flutter build apk --release
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: smartsports-release-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk

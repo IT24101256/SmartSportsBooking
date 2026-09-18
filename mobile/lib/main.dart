@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'services/api_service.dart';
 
@@ -51,6 +52,7 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
   List<Map<String, dynamic>> _liveBookings = [];
   List<Map<String, dynamic>> _liveSchedule = [];
   List<Map<String, dynamic>> _liveSupport = [];
+  List<Map<String, dynamic>> _liveWorkflows = [];
 
   @override
   void initState() {
@@ -145,11 +147,16 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
     setState(() => _isDataLoading = true);
 
     try {
+      final isAdmin = _apiService.currentUser?.role.toLowerCase() == 'admin' ||
+          _apiService.currentUser?.role.toLowerCase() == 'manager';
+
       final results = await Future.wait([
         _apiService.getFacilities().catchError((_) => <Map<String, dynamic>>[]),
         _apiService.getBookings().catchError((_) => <Map<String, dynamic>>[]),
         _apiService.getSchedule().catchError((_) => <Map<String, dynamic>>[]),
         _apiService.getSupportRequests().catchError((_) => <Map<String, dynamic>>[]),
+        (isAdmin ? _apiService.getAdminWorkflows() : _apiService.getWorkflowHistory())
+            .catchError((_) => <Map<String, dynamic>>[]),
       ]);
 
       if (mounted) {
@@ -158,6 +165,7 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
           _liveBookings = results[1];
           _liveSchedule = results[2];
           _liveSupport = results[3];
+          _liveWorkflows = results[4];
           _isDataLoading = false;
         });
       }
@@ -176,6 +184,7 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
       _liveBookings.clear();
       _liveSchedule.clear();
       _liveSupport.clear();
+      _liveWorkflows.clear();
     });
   }
 
@@ -408,6 +417,267 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _openAIWorkflowDialog() {
+    final objectiveController = TextEditingController(text: '16-Team Inter-University Badminton Championship');
+    String facilityType = 'Badminton';
+    final startTimeController = TextEditingController(text: '09:00');
+    final endTimeController = TextEditingController(text: '12:00');
+    final guestsController = TextEditingController(text: '24');
+    final budgetController = TextEditingController(text: '35000');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.auto_awesome, color: Color(0xFF1D4ED8)),
+              SizedBox(width: 8),
+              Text('Launch AI Workflow', style: TextStyle(fontWeight: FontWeight.w800)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Quick Domain Presets:',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Color(0xFF5D7692)),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ActionChip(
+                      label: const Text('🏸 Badminton Cup', style: TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        setDialogState(() {
+                          objectiveController.text = '16-Team Inter-University Badminton Championship';
+                          facilityType = 'Badminton';
+                          startTimeController.text = '09:00';
+                          endTimeController.text = '12:00';
+                          guestsController.text = '24';
+                          budgetController.text = '35000';
+                        });
+                      },
+                    ),
+                    ActionChip(
+                      label: const Text('⚽ Football Match', style: TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        setDialogState(() {
+                          objectiveController.text = 'Weekend Corporate Cup 11v11 Match';
+                          facilityType = 'Football';
+                          startTimeController.text = '16:00';
+                          endTimeController.text = '18:00';
+                          guestsController.text = '22';
+                          budgetController.text = '25000';
+                        });
+                      },
+                    ),
+                    ActionChip(
+                      label: const Text('🏊 Swimming Gala', style: TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        setDialogState(() {
+                          objectiveController.text = 'Junior Squad Aquatic Training Gala';
+                          facilityType = 'Swimming';
+                          startTimeController.text = '07:00';
+                          endTimeController.text = '10:00';
+                          guestsController.text = '18';
+                          budgetController.text = '20000';
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: objectiveController,
+                  decoration: const InputDecoration(labelText: 'Domain Objective', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: facilityType,
+                  decoration: const InputDecoration(labelText: 'Sport Type', border: OutlineInputBorder()),
+                  items: ['Badminton', 'Football', 'Swimming', 'Tennis', 'Basketball', 'Cricket', 'Fitness'].map((s) {
+                    return DropdownMenuItem(value: s, child: Text(s));
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => facilityType = val);
+                  },
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: startTimeController,
+                        decoration: const InputDecoration(labelText: 'Start (HH:MM)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: endTimeController,
+                        decoration: const InputDecoration(labelText: 'End (HH:MM)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: guestsController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Guests (Max 30)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: budgetController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Budget (LKR)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final objective = objectiveController.text.trim();
+                final guests = int.tryParse(guestsController.text) ?? 10;
+                final budget = double.tryParse(budgetController.text) ?? 20000;
+                if (objective.isEmpty) return;
+
+                Navigator.pop(ctx);
+                try {
+                  final now = DateTime.now().toUtc();
+                  final tomorrow = DateTime.utc(now.year, now.month, now.day + 1);
+                  final startParts = startTimeController.text.split(':');
+                  final endParts = endTimeController.text.split(':');
+                  final startHour = int.tryParse(startParts.first) ?? 9;
+                  final startMin = int.tryParse(startParts.length > 1 ? startParts[1] : '0') ?? 0;
+                  final endHour = int.tryParse(endParts.first) ?? 12;
+                  final endMin = int.tryParse(endParts.length > 1 ? endParts[1] : '0') ?? 0;
+
+                  final reqStart = DateTime.utc(tomorrow.year, tomorrow.month, tomorrow.day, startHour, startMin);
+                  final reqEnd = DateTime.utc(tomorrow.year, tomorrow.month, tomorrow.day, endHour, endMin);
+
+                  final result = await _apiService.startBookingWorkflow(
+                    objective: objective,
+                    facilityType: facilityType,
+                    requestedStart: reqStart,
+                    requestedEnd: reqEnd,
+                    guests: guests,
+                    budget: budget,
+                  );
+
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('AI Workflow initiated! Status: ${result['status']}')),
+                  );
+                  await _loadAllData();
+                  setState(() => _selectedTab = 3);
+                } catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Workflow failed: ${e.toString().replaceAll('Exception: ', '')}')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.rocket_launch, size: 16),
+              label: const Text('Start 4-Agent Pipeline'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1D4ED8),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openWorkflowActionDialog(String workflowId, String action) {
+    final commentController = TextEditingController();
+    final actionLabel = action == 'approve'
+        ? 'Approve & Commit'
+        : action == 'revise'
+            ? 'Request Revision'
+            : 'Reject Safely';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(actionLabel, style: const TextStyle(fontWeight: FontWeight.w800)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Audit Decision Note (Mandatory):',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF5D7692)),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: commentController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                hintText: 'Enter reason or verification comments...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final comment = commentController.text.trim();
+              if (comment.isEmpty) return;
+
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(ctx);
+              try {
+                await _apiService.decideWorkflow(workflowId, action, comment);
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Workflow $action action executed successfully.')),
+                );
+                _loadAllData();
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Action failed: ${e.toString().replaceAll('Exception: ', '')}')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: action == 'approve'
+                  ? const Color(0xFF10B981)
+                  : action == 'revise'
+                      ? const Color(0xFFF59E0B)
+                      : const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(actionLabel),
+          ),
+        ],
       ),
     );
   }
@@ -1306,10 +1576,277 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
       ],
     );
 
+    final aiWorkflowsContent = RefreshIndicator(
+      onRefresh: _loadAllData,
+      child: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F172A), Color(0xFF1E3A8A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2DD4BF).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'SE3090 Part 5',
+                        style: TextStyle(color: Color(0xFF2DD4BF), fontWeight: FontWeight.w800, fontSize: 11),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Human-in-the-Loop',
+                        style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w700, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Autonomous Agentic AI Pipeline',
+                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Decomposes sports objectives across 4 specialized agents with deterministic validation and manager approval gates.',
+                  style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _openAIWorkflowDialog,
+                  icon: const Icon(Icons.rocket_launch, size: 16),
+                  label: const Text('Launch AI Workflow'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (_liveWorkflows.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(32),
+              alignment: Alignment.center,
+              child: const Text('No AI Workflows found. Tap "Launch AI Workflow" to start one.'),
+            )
+          else
+            ..._liveWorkflows.map((w) {
+              final status = (w['status'] ?? 'Pending').toString();
+              final isPending = status == 'PendingManagerApproval' || status == 'Pending manager approval';
+              final isApproved = status == 'Approved';
+              final isRejected = status == 'Rejected';
+              final isRevision = status == 'RevisionRequested' || status == 'Revision requested';
+              final isManager = _apiService.currentUser?.role.toLowerCase() == 'admin' ||
+                  _apiService.currentUser?.role.toLowerCase() == 'manager';
+              final wfId = (w['workflowId'] ?? '').toString();
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isPending ? const Color(0xFF3B82F6) : const Color(0xFFE2E8F0),
+                    width: isPending ? 2 : 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                w['objective'] ?? 'Domain Objective',
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF10233E)),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Sport: ${w['facilityType'] ?? ''} • Budget: LKR ${(w['budget'] ?? 0)}',
+                                style: const TextStyle(color: Color(0xFF5D7692), fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isApproved
+                                ? const Color(0xFFD1FAE5)
+                                : isRejected
+                                    ? const Color(0xFFFEE2E2)
+                                    : isRevision
+                                        ? const Color(0xFFFEF3C7)
+                                        : const Color(0xFFDBEAFE),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            isPending
+                                ? '⏳ Gated (Review)'
+                                : isApproved
+                                    ? '✓ Approved'
+                                    : isRejected
+                                        ? '✕ Rejected'
+                                        : isRevision
+                                            ? '🔄 Revision'
+                                            : status,
+                            style: TextStyle(
+                              color: isApproved
+                                  ? const Color(0xFF0F766E)
+                                  : isRejected
+                                      ? const Color(0xFFB91C1C)
+                                      : isRevision
+                                          ? const Color(0xFFB45309)
+                                          : const Color(0xFF1D4ED8),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20),
+                    Text(
+                      'Facility: ${w['proposalJson'] != null ? _workflowFacilityName(w) : (w['facilityType'] ?? 'Sport facility')}',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF10233E)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Requested: ${_workflowWindow(w)} • Participants: ${w['guests'] ?? 0} Guests',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF5D7692)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Quotation / Budget: LKR ${w['budget'] ?? 0}',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF5D7692)),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '4-Agent Specialized Pipeline:',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF10233E)),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _agentChip('🧭 1. Planner', true),
+                        _agentChip('🏟️ 2. Analyst', true),
+                        _agentChip('🛡️ 3. Validator', true),
+                        _agentChip('⚡ 4. Executor', isApproved || isPending),
+                      ],
+                    ),
+                    if (w['finalOutcome'] != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Outcome: ${w['finalOutcome']}',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                        ),
+                      ),
+                    ],
+                    if (isManager && (isPending || isRevision)) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _openWorkflowActionDialog(wfId, 'revise'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFD97706),
+                                side: const BorderSide(color: Color(0xFFFBBF24)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              child: const Text('Revise', style: TextStyle(fontSize: 12)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _openWorkflowActionDialog(wfId, 'reject'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFDC2626),
+                                side: const BorderSide(color: Color(0xFFF87171)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              child: const Text('Reject', style: TextStyle(fontSize: 12)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => _openWorkflowActionDialog(wfId, 'approve'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF10B981),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              child: const Text('Approve', style: TextStyle(fontSize: 12)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+
     final tabContent = switch (_selectedTab) {
       1 => bookingsContent,
       2 => facilitiesContent,
-      3 => profileContent,
+      3 => aiWorkflowsContent,
+      4 => profileContent,
       _ => homeContent,
     };
 
@@ -1391,8 +1928,43 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.calendar_month_rounded), label: 'Bookings'),
           BottomNavigationBarItem(icon: Icon(Icons.sports_tennis_rounded), label: 'Facilities'),
+          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_rounded), label: 'AI Agent'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
         ],
+      ),
+    );
+  }
+
+  String _workflowFacilityName(Map<String, dynamic> workflow) {
+    try {
+      final proposal = jsonDecode(workflow['proposalJson'].toString()) as Map<String, dynamic>;
+      return (proposal['facilityName'] ?? workflow['facilityType'] ?? 'Sport facility').toString();
+    } catch (_) {
+      return (workflow['facilityType'] ?? 'Sport facility').toString();
+    }
+  }
+
+  String _workflowWindow(Map<String, dynamic> workflow) {
+    final value = workflow['requestedStart']?.toString();
+    if (value == null || value.isEmpty) return 'Not specified';
+    return value.replaceFirst('T', ' ').replaceFirst(RegExp(r'\.\d+Z$'), ' UTC');
+  }
+
+  Widget _agentChip(String label, bool active) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
+        border: Border.all(color: active ? const Color(0xFF93C5FD) : const Color(0xFFCBD5E1)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: active ? const Color(0xFF1D4ED8) : const Color(0xFF64748B),
+        ),
       ),
     );
   }

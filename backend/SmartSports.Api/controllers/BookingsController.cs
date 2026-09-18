@@ -21,7 +21,12 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetBookings()
+    public async Task<IActionResult> GetBookings(
+        [FromQuery] string? search,
+        [FromQuery] string? status,
+        [FromQuery] string? sort = "date",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
         var userId = GetUserId();
         if (userId == null)
@@ -30,18 +35,39 @@ public class BookingsController : ControllerBase
         }
 
         var bookingsQuery = _context.Bookings.AsQueryable();
-        if (!User.IsInRole("Admin"))
+        if (!User.IsInRole("Admin") && !User.IsInRole("Manager"))
         {
             bookingsQuery = bookingsQuery.Where(booking => booking.UserId == userId.Value);
         }
 
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            bookingsQuery = bookingsQuery.Where(booking => booking.Facility!.Name.ToLower().Contains(term) || booking.Facility.Type.ToLower().Contains(term));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            bookingsQuery = bookingsQuery.Where(booking => booking.Status == status);
+        }
+
+        bookingsQuery = sort?.ToLowerInvariant() switch
+        {
+            "status" => bookingsQuery.OrderBy(booking => booking.Status).ThenByDescending(booking => booking.BookingDate),
+            "facility" => bookingsQuery.OrderBy(booking => booking.Facility!.Name).ThenByDescending(booking => booking.BookingDate),
+            _ => bookingsQuery.OrderByDescending(booking => booking.BookingDate).ThenByDescending(booking => booking.StartTime)
+        };
+
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var totalCount = await bookingsQuery.CountAsync();
         var bookings = await bookingsQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Include(booking => booking.Facility)
-            .OrderByDescending(booking => booking.BookingDate)
-            .ThenByDescending(booking => booking.StartTime)
             .ToListAsync();
 
-        return Ok(bookings);
+        return Ok(new { items = bookings, totalCount, page, pageSize, totalPages = (int)Math.Ceiling(totalCount / (double)pageSize) });
     }
 
     [HttpPost]
@@ -53,9 +79,12 @@ public class BookingsController : ControllerBase
             return Unauthorized();
         }
 
-        if (request.EndTime <= request.StartTime || request.BookingDate.Kind != DateTimeKind.Utc)
+        // Normalise the date to UTC regardless of serialised Kind
+        var bookingDate = DateTime.SpecifyKind(request.BookingDate.Date, DateTimeKind.Utc);
+
+        if (request.EndTime <= request.StartTime)
         {
-            return BadRequest("Booking date must be UTC and the end time must be after the start time.");
+            return BadRequest("The end time must be after the start time.");
         }
 
         var facility = await _context.Facilities.FindAsync(request.FacilityId);
@@ -64,26 +93,33 @@ public class BookingsController : ControllerBase
             return NotFound("Facility not found.");
         }
 
-        var overlap = await _context.Bookings.AnyAsync(booking =>
-            booking.FacilityId == request.FacilityId &&
-            booking.BookingDate == request.BookingDate &&
-            booking.StartTime < request.EndTime &&
-            booking.EndTime > request.StartTime &&
-            booking.Status != "Cancelled");
+        // Admins and Managers may override schedule conflicts
+        bool isPrivileged = User.IsInRole("Admin") || User.IsInRole("Manager");
 
-        if (overlap)
+        if (!isPrivileged)
         {
-            return Conflict("This facility is already booked for that time.");
+            var overlap = await _context.Bookings.AnyAsync(booking =>
+                booking.FacilityId == request.FacilityId &&
+                booking.BookingDate == bookingDate &&
+                booking.StartTime < request.EndTime &&
+                booking.EndTime > request.StartTime &&
+                booking.Status != "Cancelled");
+
+            if (overlap)
+            {
+                return Conflict("This facility is already booked for that time.");
+            }
         }
 
+        var validStatuses = new[] { "Pending", "Confirmed" };
         var booking = new Booking
         {
             UserId = userId.Value,
             FacilityId = request.FacilityId,
-            BookingDate = request.BookingDate,
+            BookingDate = bookingDate,
             StartTime = request.StartTime,
             EndTime = request.EndTime,
-            Status = request.Status is "Pending" or "Confirmed" ? request.Status : "Pending"
+            Status = validStatuses.Contains(request.Status) ? request.Status : "Pending"
         };
 
         _context.Bookings.Add(booking);
@@ -91,6 +127,64 @@ public class BookingsController : ControllerBase
 
         await _context.Entry(booking).Reference(item => item.Facility).LoadAsync();
         return CreatedAtAction(nameof(GetBookings), new { id = booking.Id }, booking);
+    }
+
+    [HttpPut("{id:int}/status")]
+    [Authorize(Roles = "Admin,Manager")]
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateBookingStatusRequest request)
+    {
+        var booking = await _context.Bookings.FindAsync(id);
+        if (booking == null) return NotFound();
+
+        var validStatuses = new[] { "Pending", "Confirmed", "Cancelled" };
+        if (!validStatuses.Contains(request.Status))
+            return BadRequest("Invalid status value.");
+
+        booking.Status = request.Status;
+        await _context.SaveChangesAsync();
+        return Ok(booking);
+    }
+
+    [HttpPut("{id:int}")]
+    public async Task<IActionResult> UpdateBooking(int id, UpdateBookingRequest request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var booking = await _context.Bookings.FindAsync(id);
+        if (booking == null) return NotFound();
+        if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && booking.UserId != userId.Value) return Forbid();
+        if (request.EndTime <= request.StartTime) return BadRequest("The end time must be after the start time.");
+        if (!await _context.Facilities.AnyAsync(facility => facility.Id == request.FacilityId)) return NotFound("Facility not found.");
+
+        var bookingDate = DateTime.SpecifyKind(request.BookingDate.Date, DateTimeKind.Utc);
+        var overlap = await _context.Bookings.AnyAsync(other =>
+            other.Id != id && other.FacilityId == request.FacilityId && other.BookingDate == bookingDate &&
+            other.StartTime < request.EndTime && other.EndTime > request.StartTime && other.Status != "Cancelled");
+        if (overlap) return Conflict("This facility is already booked for that time.");
+
+        booking.FacilityId = request.FacilityId;
+        booking.BookingDate = bookingDate;
+        booking.StartTime = request.StartTime;
+        booking.EndTime = request.EndTime;
+        await _context.SaveChangesAsync();
+        return Ok(booking);
+    }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> CancelBooking(int id)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var booking = await _context.Bookings.FindAsync(id);
+        if (booking == null) return NotFound();
+        if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && booking.UserId != userId.Value) return Forbid();
+        if (booking.Status == "Cancelled") return NoContent();
+
+        booking.Status = "Cancelled";
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     private int? GetUserId()

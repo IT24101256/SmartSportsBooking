@@ -13,8 +13,8 @@ void main() {
   testWidgets('SmartSports dashboard loads', (WidgetTester tester) async {
     await tester.pumpWidget(const SmartSportsApp());
 
-    expect(find.text('SmartSports'), findsWidgets);
-    expect(find.text('Book now'), findsOneWidget);
-    expect(find.text('Play harder.\nBook smarter.'), findsOneWidget);
+    expect(find.text('Welcome Back'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Quick Demo Login (Admin)'), findsOneWidget);
   });
 }

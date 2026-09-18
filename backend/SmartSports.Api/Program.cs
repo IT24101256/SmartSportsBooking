@@ -9,6 +9,10 @@ using Microsoft.EntityFrameworkCore;
 // Import our application's database context.
 using SmartSportsFacilityBooking.Data;
 using SmartSportsFacilityBooking.Services;
+using SmartSportsFacilityBooking.AI.Contracts;
+using SmartSportsFacilityBooking.AI.Tools;
+using SmartSportsFacilityBooking.AI.Agents;
+using SmartSportsFacilityBooking.AI.Orchestration;
 
 using System.Text.Json.Serialization;
 // Create the application builder.
@@ -61,7 +65,31 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod()
         .AllowCredentials());
 });
+
+// Register Allow-Listed AI Tools
+builder.Services.AddScoped<ITool, SearchFacilitiesTool>();
+builder.Services.AddScoped<ITool, GetFacilityDetailsTool>();
+builder.Services.AddScoped<ITool, CheckScheduleConflictTool>();
+builder.Services.AddScoped<ITool, ValidateBusinessRulesTool>();
+builder.Services.AddScoped<ITool, StageBookingProposalTool>();
+builder.Services.AddScoped<ITool, CommitBookingActionTool>();
+builder.Services.AddScoped<IToolRegistry, DefaultToolRegistry>();
+
+// Register 4 Specialized Agents
+builder.Services.AddScoped<PlanningCoordinationAgent>();
+builder.Services.AddScoped<FacilityAnalysisAgent>();
+builder.Services.AddScoped<DeterministicValidationAgent>();
+builder.Services.AddScoped<ActionExecutionAgent>();
+
+// Register Orchestrator & Workflow Service
+builder.Services.AddScoped<AgenticWorkflowOrchestrator>();
 builder.Services.AddScoped<BookingWorkflowService>();
+
+// Register OTP & Email Services
+builder.Services.AddSingleton<SmartSportsFacilityBooking.Services.OtpStore>();
+builder.Services.AddScoped<SmartSportsFacilityBooking.Services.EmailService>();
+
+
 // Add controller support to the application.
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

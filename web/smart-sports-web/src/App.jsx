@@ -114,6 +114,8 @@ function App() {
   const [registerPassword, setRegisterPassword] = useState('')
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState('')
   const [authFeedback, setAuthFeedback] = useState('')
+  const [otpPendingEmail, setOtpPendingEmail] = useState('')
+  const [otpValue, setOtpValue] = useState('')
   const [registeredMembers, setRegisteredMembers] = useState(initialMembers)
   const [bookingsList, setBookingsList] = useState(bookings)
   const [scheduleList, setScheduleList] = useState(schedule)
@@ -186,7 +188,8 @@ function App() {
     })
 
     if (!response.ok) return
-    const savedBookings = await response.json()
+    const payload = await response.json()
+    const savedBookings = payload.items ?? payload
     setBookingsList(savedBookings.map(formatBooking))
     setScheduleList((current) => [
       ...current.filter((item) => !String(item.id).startsWith('booking-')),
@@ -208,7 +211,8 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/Facilities`)
       if (response.ok) {
-        const savedFacilities = await response.json()
+        const payload = await response.json()
+        const savedFacilities = payload.items ?? payload
         if (Array.isArray(savedFacilities) && savedFacilities.length > 0) {
           setFacilitiesList(savedFacilities.map(formatFacility))
         }
@@ -224,17 +228,45 @@ function App() {
   }, [])
 
   const formatWorkflow = (workflow) => {
-    const proposal = JSON.parse(workflow.proposalJson || '{}')
-    const validation = JSON.parse(workflow.validationJson || '{}')
+    let proposal = {}
+    let validation = {}
+    let plan = {}
+    try { proposal = JSON.parse(workflow.proposalJson || '{}') } catch {}
+    try { validation = JSON.parse(workflow.validationJson || '{}') } catch {}
+    try { plan = JSON.parse(workflow.planJson || '{}') } catch {}
+
+    const detailedSteps = (workflow.steps || []).map((step) => {
+      let toolsCalled = []
+      try { toolsCalled = JSON.parse(step.toolsCalledJson || '[]') } catch {}
+      return {
+        ...step,
+        toolsCalled
+      }
+    })
+
     return {
       id: workflow.workflowId,
       objective: workflow.objective,
       facility: proposal.facilityName ?? workflow.facilityType,
+      facilityType: workflow.facilityType,
       date: new Date(workflow.requestedStart).toLocaleString(),
+      requestedStart: workflow.requestedStart,
+      requestedEnd: workflow.requestedEnd,
+      guests: workflow.guests,
+      budget: workflow.budget,
       quotation: proposal.estimatedCost ? `LKR ${proposal.estimatedCost.toLocaleString()}` : `LKR ${workflow.budget.toLocaleString()}`,
-      status: workflow.status === 'PendingManagerApproval' ? 'Pending manager approval' : workflow.status,
-      validation: Object.entries(validation).map(([key, value]) => `${key}: ${value ? 'passed' : 'failed'}`),
+      status: workflow.status === 'PendingManagerApproval' ? 'Pending manager approval' : workflow.status === 'RevisionRequested' ? 'Revision requested' : workflow.status,
+      rawValidation: validation,
+      validation: validation.passedRules || Object.entries(validation).map(([key, value]) => `${key}: ${value ? 'passed' : 'failed'}`),
       steps: workflow.steps?.map((step) => step.agentName) ?? [],
+      detailedSteps,
+      plan,
+      proposal,
+      executionDurationMs: workflow.executionDurationMs || 0,
+      decisionBy: workflow.decisionBy,
+      approvalComment: workflow.approvalComment,
+      finalOutcome: workflow.finalOutcome,
+      auditEvents: workflow.auditEvents || [],
     }
   }
 
@@ -255,17 +287,18 @@ function App() {
       body: JSON.stringify({ comment: workflowDecision.trim() }),
     })
     if (!response.ok) {
-      setBookingNotice(await response.text() || 'Workflow decision could not be saved.')
+      const err = await response.json().catch(() => null)
+      setBookingNotice(err?.error || 'Workflow decision could not be saved.')
       return
     }
     const updatedWorkflow = formatWorkflow(await response.json())
     setWorkflowRequests((current) => current.map((item) => item.id === workflowId ? { ...item, ...updatedWorkflow, decision: workflowDecision.trim() } : item))
     setWorkflowDecision('')
     await loadBookings(authToken)
-    setBookingNotice(action === 'approve' ? 'Workflow approved and booking created.' : 'Workflow rejected and saved.')
+    setBookingNotice(action === 'approve' ? 'Workflow approved and booking created.' : action === 'revise' ? 'Revision requested and recorded.' : 'Workflow rejected safely.')
   }
 
-  const navItems = currentUser?.role === 'admin' ? adminNavItems : baseNavItems
+  const navItems = ['admin', 'manager'].includes(currentUser?.role) ? adminNavItems : baseNavItems
 
   const requireLogin = (message = 'Please log in to continue.') => {
     if (!loggedIn) {
@@ -355,20 +388,39 @@ function App() {
     setIsTicketOpen(false)
   }
 
+  const [dashStats, setDashStats] = useState({ bookingsToday: '--', memberSatisfaction: '--', facilitiesCount: 0, totalBookings: 0, confirmedBookings: 0, bookingsByFacility: [] })
+
+  const loadDashStats = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/dashboard/stats`)
+      if (response.ok) setDashStats(await response.json())
+    } catch {
+      // keep defaults on network error
+    }
+  }
+
+  // Load stats on mount and every 30 s
+  useEffect(() => {
+    loadDashStats()
+    const interval = setInterval(loadDashStats, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
   const renderPage = () => {
     const dynamicStats = [
-      { label: 'Facilities', value: String(facilitiesList.length), tone: 'green' },
-      { label: 'Bookings today', value: '142', tone: 'blue' },
-      { label: 'Member satisfaction', value: '96%', tone: 'orange' },
+      { label: 'Facilities', value: String(dashStats.facilitiesCount || facilitiesList.length), tone: 'green' },
+      { label: 'Bookings today', value: String(dashStats.bookingsToday), tone: 'blue' },
+      { label: 'Confirmed bookings', value: String(dashStats.confirmedBookings || 0), tone: 'purple' },
+      { label: 'Member satisfaction', value: dashStats.memberSatisfaction, tone: 'orange' },
     ]
 
     if (activeTab === 'Members') return <MembersPage members={registeredMembers} />
-    if (activeTab === 'AI Workflows') return <AIWorkflowsPage workflows={workflowRequests} decision={workflowDecision} onDecisionChange={setWorkflowDecision} onRequestRevision={(id) => { setWorkflowRequests((current) => current.map((item) => item.id === id ? { ...item, status: 'Revision requested', decision: workflowDecision.trim() } : item)); setWorkflowDecision('') }} onReject={(id) => decideWorkflow(id, 'reject')} onApprove={(id) => decideWorkflow(id, 'approve')} />
+    if (activeTab === 'AI Workflows') return <AIWorkflowsPage workflows={workflowRequests} decision={workflowDecision} onDecisionChange={setWorkflowDecision} onRequestRevision={(id) => decideWorkflow(id, 'revise')} onReject={(id) => decideWorkflow(id, 'reject')} onApprove={(id) => decideWorkflow(id, 'approve')} />
     if (activeTab === 'My AI Requests') return <WorkflowHistoryPage workflows={workflowHistory} />
     if (activeTab === 'Facilities') return <FacilitiesPage facilities={facilitiesList} onViewTimetable={() => setIsTimetableOpen(true)} />
     if (activeTab === 'Bookings') return <BookingsPage bookings={bookingsList} onNewBooking={openBooking} />
     if (activeTab === 'Support') return <SupportPage requests={supportList} onAddTicket={openTicket} />
-    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList} bookings={bookingsList} support={supportList} schedule={scheduleList} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setIsTimetableOpen(true)} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onTeam={() => { if (requireLogin('Please log in to manage your team.')) setBookingNotice('Team management is ready for your next match.') }} onNotice={setBookingNotice} />
+    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setIsTimetableOpen(true)} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onTeam={() => { if (requireLogin('Please log in to manage your team.')) setBookingNotice('Team management is ready for your next match.') }} onNotice={setBookingNotice} />
   }
 
   const heroMessage = (() => {
@@ -405,7 +457,7 @@ function App() {
       await loadSupportRequests()
       await loadFacilities()
       await loadWorkflowHistory(result.token)
-      if (result.role?.toLowerCase() === 'admin') {
+      if (['admin', 'manager'].includes(result.role?.toLowerCase())) {
         await loadMembers(result.token)
         await loadWorkflows(result.token)
       }
@@ -431,25 +483,58 @@ function App() {
       return
     }
 
-    const response = await fetch(`${API_BASE_URL}/Auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fullName: registerName.trim(), email: registerEmail.trim(), password: registerPassword }),
-    })
+    try {
+      const response = await fetch(`${API_BASE_URL}/Auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName: registerName.trim(), email: registerEmail.trim(), password: registerPassword }),
+      })
 
-    if (!response.ok) {
-      setAuthFeedback(await response.text() || 'Registration failed.')
+      if (!response.ok) {
+        const err = await response.text()
+        setAuthFeedback(err || 'Registration failed.')
+        return
+      }
+
+      // Move to OTP verification step
+      setOtpPendingEmail(registerEmail.trim().toLowerCase())
+      setOtpValue('')
+      setAuthFeedback('A 6-digit verification code has been sent to your email.')
+      setAuthMode('verify-otp')
+    } catch {
+      setAuthFeedback('The API is unavailable. Start the backend and try again.')
+    }
+  }
+
+  const handleVerifyOtp = async () => {
+    if (!otpValue.trim() || otpValue.trim().length !== 6) {
+      setAuthFeedback('Please enter the 6-digit OTP sent to your email.')
       return
     }
-
-    setEmail(registerEmail.trim().toLowerCase())
-    setPassword('')
-    setRegisterName('')
-    setRegisterEmail('')
-    setRegisterPassword('')
-    setRegisterConfirmPassword('')
-    setAuthFeedback('Registration successful. You can now sign in.')
-    setAuthMode('login')
+    try {
+      const response = await fetch(`${API_BASE_URL}/Auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: otpPendingEmail, otp: otpValue.trim() }),
+      })
+      if (!response.ok) {
+        const err = await response.text()
+        setAuthFeedback(err || 'OTP verification failed.')
+        return
+      }
+      setEmail(otpPendingEmail)
+      setPassword('')
+      setRegisterName('')
+      setRegisterEmail('')
+      setRegisterPassword('')
+      setRegisterConfirmPassword('')
+      setOtpPendingEmail('')
+      setOtpValue('')
+      setAuthFeedback('Account verified! You can now sign in.')
+      setAuthMode('login')
+    } catch {
+      setAuthFeedback('The API is unavailable. Start the backend and try again.')
+    }
   }
 
   const renderTabContent = () => {
@@ -688,7 +773,7 @@ function App() {
           </div>
 
           <aside className="panel side-panel">
-            <div className="panel-header">
+            <div className="panel-header" style={{ margin: '1rem', height: 'fit-content', border: '1px solid #ccc', }}>
               <h3>Quick actions</h3>
             </div>
 
@@ -842,16 +927,38 @@ function App() {
         <div className="auth-card">
           <div className="brand-mark-large">S</div>
           <p className="eyebrow">SmartSports</p>
-          <h1>{authMode === 'login' ? 'Welcome back' : 'Create account'}</h1>
+          <h1>
+            {authMode === 'login' ? 'Welcome back' : authMode === 'verify-otp' ? 'Verify your email' : 'Create account'}
+          </h1>
           <p className="auth-subtitle">
             {authMode === 'login'
               ? 'Register first, then sign in to manage bookings, facilities and rewards.'
+              : authMode === 'verify-otp'
+              ? `Enter the 6-digit code sent to ${otpPendingEmail}.`
               : 'Create a member account to access the SmartSports dashboard.'}
           </p>
 
           {authFeedback && <div className="auth-feedback">{authFeedback}</div>}
 
-          {authMode === 'register' ? (
+          {authMode === 'verify-otp' ? (
+            <>
+              <label className="field">
+                <span>Verification Code (OTP)</span>
+                <input
+                  value={otpValue}
+                  onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="e.g. 482910"
+                  maxLength={6}
+                  inputMode="numeric"
+                  onKeyDown={(e) => e.key === 'Enter' && handleVerifyOtp()}
+                  style={{ textAlign: 'center', letterSpacing: '0.3em', fontSize: '1.6rem', fontWeight: '800' }}
+                />
+              </label>
+
+              <button className="primary-btn full" onClick={handleVerifyOtp}>Verify & Create Account</button>
+              <button className="secondary-btn full" onClick={() => { setAuthMode('register'); setAuthFeedback('') }}>Back</button>
+            </>
+          ) : authMode === 'register' ? (
             <>
               <label className="field">
                 <span>Full name</span>
@@ -873,7 +980,7 @@ function App() {
                 <input type="password" value={registerConfirmPassword} onChange={(e) => setRegisterConfirmPassword(e.target.value)} placeholder="••••••••" />
               </label>
 
-              <button className="primary-btn full" onClick={handleRegister}>Create account</button>
+              <button className="primary-btn full" onClick={handleRegister}>Send verification code</button>
               <button className="secondary-btn full" onClick={() => {
                 setAuthMode('login')
                 setAuthFeedback('')

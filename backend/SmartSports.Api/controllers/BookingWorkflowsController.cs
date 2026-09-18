@@ -7,7 +7,7 @@ using SmartSportsFacilityBooking.Dtos.Workflow;
 using SmartSportsFacilityBooking.Services;
 
 namespace SmartSportsFacilityBooking.Controllers;
-  
+
 [ApiController]
 [Route("api/booking-workflows")]
 [Authorize]
@@ -57,6 +57,7 @@ public class BookingWorkflowsController : ControllerBase
         return Ok(await _context.BookingWorkflows
             .Where(w => w.Status == "PendingManagerApproval")
             .Include(w => w.Steps)
+            .Include(w => w.AuditEvents)
             .OrderBy(w => w.CreatedAtUtc)
             .ToListAsync());
     }
@@ -70,6 +71,7 @@ public class BookingWorkflowsController : ControllerBase
         return Ok(await _context.BookingWorkflows
             .Where(workflow => workflow.CustomerId == userId.Value)
             .Include(workflow => workflow.Steps)
+            .Include(workflow => workflow.AuditEvents)
             .OrderByDescending(workflow => workflow.CreatedAtUtc)
             .ToListAsync());
     }
@@ -80,6 +82,7 @@ public class BookingWorkflowsController : ControllerBase
     {
         return Ok(await _context.BookingWorkflows
             .Include(workflow => workflow.Steps)
+            .Include(workflow => workflow.AuditEvents)
             .OrderByDescending(workflow => workflow.CreatedAtUtc)
             .ToListAsync());
     }
@@ -88,6 +91,9 @@ public class BookingWorkflowsController : ControllerBase
     [Authorize(Roles = "Manager,Admin")]
     public async Task<IActionResult> Approve(Guid workflowId, ApprovalRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.Comment))
+            return BadRequest(new { error = "An approval explanation is required for the audit trail." });
+
         try
         {
             var workflow = await _service.ApproveAsync(workflowId, User.Identity?.Name ?? "manager", request.Comment);
@@ -97,15 +103,40 @@ public class BookingWorkflowsController : ControllerBase
         {
             return Conflict(new { error = ex.Message });
         }
+        catch (DbUpdateException)
+        {
+            return Conflict(new { error = "The booking could not be committed because the database rejected the transaction. No partial approval was recorded." });
+        }
     }
 
     [HttpPost("{workflowId:guid}/reject")]
     [Authorize(Roles = "Manager,Admin")]
     public async Task<IActionResult> Reject(Guid workflowId, ApprovalRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.Comment))
+            return BadRequest(new { error = "A rejection explanation is required for the audit trail." });
+
         try
         {
             var workflow = await _service.RejectAsync(workflowId, User.Identity?.Name ?? "manager", request.Comment);
+            return workflow == null ? NotFound() : Ok(workflow);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("{workflowId:guid}/revise")]
+    [Authorize(Roles = "Manager,Admin")]
+    public async Task<IActionResult> Revise(Guid workflowId, RevisionRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Comment))
+            return BadRequest(new { error = "A revision explanation is required for the audit trail." });
+
+        try
+        {
+            var workflow = await _service.RequestRevisionAsync(workflowId, User.Identity?.Name ?? "manager", request.Comment);
             return workflow == null ? NotFound() : Ok(workflow);
         }
         catch (InvalidOperationException ex)

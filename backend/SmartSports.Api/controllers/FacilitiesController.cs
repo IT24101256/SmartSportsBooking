@@ -35,13 +35,41 @@ public class FacilitiesController : ControllerBase
     // Handle GET requests to /api/Facilities.
     [AllowAnonymous]
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Facility>>> GetFacilities()
+    public async Task<IActionResult> GetFacilities(
+        [FromQuery] string? search,
+        [FromQuery] bool? available,
+        [FromQuery] string? sort = "name",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
-        // Retrieve all facilities from the database.
-        var facilities = await _context.Facilities.ToListAsync();
+        var facilitiesQuery = _context.Facilities.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            facilitiesQuery = facilitiesQuery.Where(facility => facility.Name.ToLower().Contains(term) || facility.Type.ToLower().Contains(term) || facility.Location.ToLower().Contains(term));
+        }
 
-        // Return the facilities with HTTP 200 OK.
-        return Ok(facilities);
+        if (available.HasValue)
+        {
+            facilitiesQuery = facilitiesQuery.Where(facility => facility.IsAvailable == available.Value);
+        }
+
+        facilitiesQuery = sort?.ToLowerInvariant() switch
+        {
+            "type" => facilitiesQuery.OrderBy(facility => facility.Type).ThenBy(facility => facility.Name),
+            "location" => facilitiesQuery.OrderBy(facility => facility.Location).ThenBy(facility => facility.Name),
+            _ => facilitiesQuery.OrderBy(facility => facility.Name)
+        };
+
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var totalCount = await facilitiesQuery.CountAsync();
+        var facilities = await facilitiesQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return Ok(new { items = facilities, totalCount, page, pageSize, totalPages = (int)Math.Ceiling(totalCount / (double)pageSize) });
     }
 
     // Handle GET requests to /api/Facilities/{id}.

@@ -141,7 +141,8 @@ class ApiService {
     try {
       final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        final list = jsonDecode(response.body) as List<dynamic>;
+        final payload = jsonDecode(response.body);
+        final list = payload is Map<String, dynamic> ? payload['items'] as List<dynamic> : payload as List<dynamic>;
         return list.map((item) => item as Map<String, dynamic>).toList();
       }
       throw Exception('Failed to load facilities (${response.statusCode})');
@@ -155,7 +156,8 @@ class ApiService {
     try {
       final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        final list = jsonDecode(response.body) as List<dynamic>;
+        final payload = jsonDecode(response.body);
+        final list = payload is Map<String, dynamic> ? payload['items'] as List<dynamic> : payload as List<dynamic>;
         return list.map((item) => item as Map<String, dynamic>).toList();
       }
       throw Exception('Failed to load schedule (${response.statusCode})');
@@ -211,7 +213,8 @@ class ApiService {
     try {
       final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        final list = jsonDecode(response.body) as List<dynamic>;
+        final payload = jsonDecode(response.body);
+        final list = payload is Map<String, dynamic> ? payload['items'] as List<dynamic> : payload as List<dynamic>;
         return list.map((item) => item as Map<String, dynamic>).toList();
       }
       throw Exception('Failed to load bookings (${response.statusCode})');
@@ -254,6 +257,92 @@ class ApiService {
       } else {
         final err = _extractErrorMessage(response);
         throw Exception(err.isNotEmpty ? err : 'Booking failed (${response.statusCode})');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> startBookingWorkflow({
+    required String objective,
+    required String facilityType,
+    required DateTime requestedStart,
+    required DateTime requestedEnd,
+    required int guests,
+    required double budget,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/booking-workflows');
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: _headers,
+            body: jsonEncode({
+              'objective': objective.trim(),
+              'facilityType': facilityType.trim(),
+              'requestedStart': requestedStart.toUtc().toIso8601String(),
+              'requestedEnd': requestedEnd.toUtc().toIso8601String(),
+              'guests': guests,
+              'budget': budget,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        final err = _extractErrorMessage(response);
+        throw Exception(err.isNotEmpty ? err : 'AI Workflow request failed (${response.statusCode})');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getWorkflowHistory() async {
+    final uri = Uri.parse('$_baseUrl/api/booking-workflows/history');
+    try {
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body) as List<dynamic>;
+        return list.map((item) => item as Map<String, dynamic>).toList();
+      }
+      throw Exception('Failed to load workflow history (${response.statusCode})');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAdminWorkflows() async {
+    final uri = Uri.parse('$_baseUrl/api/booking-workflows/admin-history');
+    try {
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body) as List<dynamic>;
+        return list.map((item) => item as Map<String, dynamic>).toList();
+      }
+      throw Exception('Failed to load admin workflows (${response.statusCode})');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> decideWorkflow(String workflowId, String action, String comment) async {
+    final uri = Uri.parse('$_baseUrl/api/booking-workflows/$workflowId/$action');
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: _headers,
+            body: jsonEncode({'comment': comment.trim()}),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        final err = _extractErrorMessage(response);
+        throw Exception(err.isNotEmpty ? err : 'Workflow action $action failed (${response.statusCode})');
       }
     } catch (e) {
       rethrow;

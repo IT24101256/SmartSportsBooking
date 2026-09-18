@@ -379,6 +379,7 @@
   font-weight: 700;
   color: #1d4ed8;
   text-decoration: none;
+  flex: 0 0 auto;
 }
 
 .text-action {
@@ -394,6 +395,44 @@
 .text-action:hover {
   color: #0f766e;
   text-decoration: underline;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.filter-row input,
+.filter-row select {
+  min-height: 40px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #fff;
+  color: #142d4d;
+  font: inherit;
+}
+
+.filter-row input {
+  flex: 1 1 220px;
+}
+
+.analytics-panel {
+  margin-top: 24px;
+}
+
+.analytics-list {
+  display: grid;
+  gap: 8px;
+}
+
+.analytics-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .facility-list,
@@ -469,32 +508,41 @@
 .side-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .action-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 7px;
 }
 
 .action-chip {
-  padding: 10px 12px;
+  padding: 7px 11px;
   background: #edf4ff;
   color: #214a85;
-  border-radius: 10px;
+  border-radius: 8px;
   font-weight: 700;
+  font-size: 0.82rem;
+  border: 1px solid rgba(29, 78, 216, 0.12);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.action-chip:hover {
+  background: #dbeafe;
 }
 
 .reward-card {
   margin-top: auto;
-  padding: 20px;
-  border-radius: 20px;
+  padding: 14px 16px;
+  border-radius: 16px;
   background: linear-gradient(135deg, #0f172a, #1d4ed8);
 }
 
 .reward-card strong {
-  font-size: 1.9rem;
+  font-size: 1.5rem;
 }
 
 .booking-item,
@@ -608,19 +656,29 @@
 .booking-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  z-index: 50;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 20px;
+  z-index: 100;
+  overflow-y: auto;
 }
 
 .booking-modal {
   width: min(100%, 540px);
+  overflow-y: visible;
   background: white;
   border-radius: 24px;
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.2);
   padding: 24px;
+  flex-shrink: 0;
+}
+
+.pro-modal {
+  width: min(100%, 620px);
+  overflow-y: visible;
 }
 
 .booking-modal-header {
@@ -1176,6 +1234,500 @@
   color: #f5f9ff;
   border-color: rgba(148, 163, 184, 0.2);
 }
+
+/* =========================================================
+   Part 5: Agentic AI Control Room & Pipeline Styles
+   ========================================================= */
+
+.admin-badge-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.count-badge {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #d97706 !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+.explainer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.explainer-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.workflow-card-pro {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+  transition: all 0.2s ease;
+}
+
+.workflow-card-pro:hover {
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.07);
+}
+
+.pending-glow {
+  border-left: 5px solid #3b82f6;
+}
+
+.workflow-id-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.workflow-id-badge code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: #475569;
+}
+
+.timing-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #ecfdf5;
+  color: #059669;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(5, 150, 105, 0.2);
+}
+
+.status.revision {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.workflow-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+  padding: 14px 18px;
+  background: #f8fafc;
+  border-radius: 12px;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meta-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.cost-highlight {
+  color: #059669;
+  font-size: 1.05rem;
+}
+
+/* Agent Pipeline Grid */
+.agent-pipeline-container {
+  margin: 20px 0;
+}
+
+.pipeline-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.agent-pipeline-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.agent-step-card {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: #fafbfc;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.agent-step-card.step-success {
+  border-left: 4px solid #10b981;
+}
+
+.agent-step-card.step-failed {
+  border-left: 4px solid #ef4444;
+}
+
+.step-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.step-card-header:hover {
+  background: #f1f5f9;
+}
+
+.step-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #e2e8f0;
+  padding: 4px 10px;
+  border-radius: 8px;
+  color: #334155;
+}
+
+.step-header-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.step-header-text strong {
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.step-header-text small {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.step-status-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ms-tag {
+  font-size: 0.75rem;
+  font-family: monospace;
+  background: #e0f2fe;
+  color: #0284c7;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot.green { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
+.dot.red { background: #ef4444; }
+
+.expand-indicator {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.step-inspector {
+  padding: 14px 18px;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+}
+
+.inspector-section {
+  margin-bottom: 12px;
+}
+
+.section-title {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.tool-call-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.tool-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.tool-name-row code {
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.tool-status {
+  font-size: 0.75rem;
+  color: #059669;
+}
+
+.tool-io-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.tool-io-grid pre,
+.summary-pre {
+  background: #0f172a;
+  color: #38bdf8;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  overflow-x: auto;
+  margin: 4px 0 0;
+}
+
+/* Validation Card */
+.workflow-validation-card {
+  background: #fdfefe;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 18px 0;
+}
+
+.validation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.validation-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 8px;
+}
+
+.rule-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.rule-item.passed {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.rule-item.failed {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.check-icon { font-weight: 900; color: #16a34a; }
+.fail-icon { font-weight: 900; color: #dc2626; }
+
+/* Manager Action Panel */
+.manager-action-panel {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 20px;
+}
+
+.comment-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.action-row {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.revision-btn {
+  background: #fffbeb !important;
+  color: #b45309 !important;
+  border: 1px solid #fde68a !important;
+}
+
+.revision-btn:hover {
+  background: #fef3c7 !important;
+}
+
+.reject-btn {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fecaca !important;
+}
+
+.reject-btn:hover {
+  background: #fee2e2 !important;
+}
+
+.approve-btn {
+  background: #059669 !important;
+  border-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+.approve-btn:hover {
+  background: #047857 !important;
+}
+
+.workflow-decision-banner {
+  background: #f8fafc;
+  border-left: 4px solid #3b82f6;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-top: 14px;
+}
+
+.revision-banner {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.workflow-outcome-text {
+  margin-top: 8px;
+  color: #64748b;
+}
+
+/* Template Presets */
+.template-presets {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f1f5f9;
+  border-radius: 12px;
+}
+
+.preset-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.preset-button-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.agent-pipeline-preview {
+  background: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+  color: #475569;
+}
+
+/* Dark mode adjustments */
+.dark-mode .workflow-card-pro {
+  background: #131f33;
+  border-color: rgba(148, 163, 184, 0.14);
+}
+
+.dark-mode .workflow-meta-grid,
+.dark-mode .workflow-validation-card,
+.dark-mode .agent-step-card,
+.dark-mode .template-presets {
+  background: #0f192b;
+  border-color: rgba(148, 163, 184, 0.12);
+}
+
+.dark-mode .step-inspector {
+  background: #142137;
+  border-color: rgba(148, 163, 184, 0.12);
+}
+
+.dark-mode .tool-call-box {
+  background: #0b1322;
+  border-color: rgba(148, 163, 184, 0.12);
+}
+
+.dark-mode .manager-action-panel {
+  background: #16243b;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.dark-mode .step-header-text strong,
+.dark-mode .pipeline-title {
+  color: #f1f5f9;
+}
+
+.dark-mode .preset-btn {
+  background: #1a2a44;
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
 
 @media (max-width: 980px) {
   .app-shell {

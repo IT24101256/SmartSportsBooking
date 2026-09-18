@@ -28,6 +28,45 @@ public class DashboardDataController : ControllerBase
         return Ok(schedule);
     }
 
+    /// <summary>
+    /// Returns real-time dashboard stats: bookings today, member satisfaction, and available facilities count.
+    /// </summary>
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats()
+    {
+        var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+
+        var bookingsToday = await _context.Bookings
+            .CountAsync(b => b.BookingDate == today && b.Status != "Cancelled");
+
+        var totalBookings = await _context.Bookings.CountAsync(b => b.Status != "Cancelled");
+        var confirmedBookings = await _context.Bookings.CountAsync(b => b.Status == "Confirmed");
+
+        // Member satisfaction = % of confirmed vs all non-cancelled bookings
+        var satisfactionPct = totalBookings > 0
+            ? (int)Math.Round((double)confirmedBookings / totalBookings * 100)
+            : 96;
+
+        var facilitiesCount = await _context.Facilities.CountAsync(f => f.IsAvailable);
+        var bookingsByFacility = await _context.Bookings
+            .Where(booking => booking.Status != "Cancelled")
+            .GroupBy(booking => booking.Facility!.Name)
+            .Select(group => new { facility = group.Key, bookings = group.Count() })
+            .OrderByDescending(item => item.bookings)
+            .Take(5)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            bookingsToday,
+            totalBookings,
+            confirmedBookings,
+            memberSatisfaction = $"{satisfactionPct}%",
+            facilitiesCount,
+            bookingsByFacility
+        });
+    }
+
     [HttpGet("support-requests")]
     public async Task<IActionResult> GetSupportRequests()
     {
