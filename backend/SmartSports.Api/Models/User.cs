@@ -24,4 +24,5 @@ public class User
 
     // This represents bookings made by the user.
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
+    public ICollection<SupportRequest> SupportRequests { get; set; } = new List<SupportRequest>();
 }

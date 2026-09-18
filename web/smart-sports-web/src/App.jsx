@@ -197,8 +197,10 @@ function App() {
     ])
   }
 
-  const loadSupportRequests = async () => {
-    const response = await fetch(`${API_BASE_URL}/dashboard/support-requests`)
+  const loadSupportRequests = async (token = authToken) => {
+    const response = await fetch(`${API_BASE_URL}/dashboard/support-requests`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
     if (response.ok) setSupportList(await response.json())
   }
 
@@ -370,7 +372,7 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/dashboard/support-requests`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ title: ticketForm.subject, detail: ticketForm.detail, priority: ticketForm.priority }),
       })
       if (!response.ok) {
@@ -454,7 +456,7 @@ function App() {
       setAuthFeedback('')
       setPassword('')
       await loadBookings(result.token)
-      await loadSupportRequests()
+      await loadSupportRequests(result.token)
       await loadFacilities()
       await loadWorkflowHistory(result.token)
       if (['admin', 'manager'].includes(result.role?.toLowerCase())) {

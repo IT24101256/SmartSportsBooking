@@ -68,6 +68,12 @@ public class AppDbContext : DbContext
             .HasForeignKey(a => a.BookingWorkflowId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<SupportRequest>()
+            .HasOne(request => request.User)
+            .WithMany(user => user.SupportRequests)
+            .HasForeignKey(request => request.UserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         modelBuilder.Entity<Role>().HasData(
             new Role { Id = 1, Name = "Customer" },
             new Role { Id = 2, Name = "Staff" },

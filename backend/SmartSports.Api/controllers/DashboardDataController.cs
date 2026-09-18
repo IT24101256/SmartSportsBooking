@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using SmartSportsFacilityBooking.Data;
 using SmartSportsFacilityBooking.Dtos.Support;
 using SmartSportsFacilityBooking.Models;
@@ -8,6 +10,7 @@ namespace SmartSportsFacilityBooking.Controllers;
   
 [ApiController]
 [Route("api/dashboard")]
+[Authorize]
 public class DashboardDataController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -70,7 +73,15 @@ public class DashboardDataController : ControllerBase
     [HttpGet("support-requests")]
     public async Task<IActionResult> GetSupportRequests()
     {
-        var requests = await _context.SupportRequests
+        var requestsQuery = _context.SupportRequests.AsQueryable();
+        if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && !User.IsInRole("Staff"))
+        {
+            var userId = GetUserId();
+            if (userId == null) return Unauthorized();
+            requestsQuery = requestsQuery.Where(request => request.UserId == userId.Value);
+        }
+
+        var requests = await requestsQuery
             .OrderByDescending(item => item.Id)
             .ToListAsync();
 
@@ -80,6 +91,9 @@ public class DashboardDataController : ControllerBase
     [HttpPost("support-requests")]
     public async Task<IActionResult> CreateSupportRequest(CreateSupportRequest request)
     {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
         if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Detail))
         {
             return BadRequest("Title and detail are required.");
@@ -87,6 +101,7 @@ public class DashboardDataController : ControllerBase
 
         var supportRequest = new SupportRequest
         {
+            UserId = userId.Value,
             Title = request.Title.Trim(),
             Detail = request.Detail.Trim(),
             Priority = request.Priority,
@@ -95,5 +110,10 @@ public class DashboardDataController : ControllerBase
         _context.SupportRequests.Add(supportRequest);
         await _context.SaveChangesAsync();
         return Created($"/api/dashboard/support-requests/{supportRequest.Id}", supportRequest);
+    }
+
+    private int? GetUserId()
+    {
+        return int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) ? userId : null;
     }
 }
