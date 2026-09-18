@@ -31,6 +31,8 @@ public class AppDbContext : DbContext
     public DbSet<ScheduleEvent> ScheduleEvents => Set<ScheduleEvent>();
 
     public DbSet<SupportRequest> SupportRequests => Set<SupportRequest>();
+    public DbSet<FacilityRating> FacilityRatings => Set<FacilityRating>();
+    public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
 
     // This represents the Bookings database table.
     public DbSet<Booking> Bookings => Set<Booking>();
@@ -73,6 +75,32 @@ public class AppDbContext : DbContext
             .WithMany(user => user.SupportRequests)
             .HasForeignKey(request => request.UserId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<FacilityRating>()
+            .HasOne(rating => rating.Facility)
+            .WithMany()
+            .HasForeignKey(rating => rating.FacilityId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<FacilityRating>()
+            .HasOne(rating => rating.User)
+            .WithMany()
+            .HasForeignKey(rating => rating.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<FacilityRating>()
+            .HasIndex(rating => new { rating.FacilityId, rating.UserId })
+            .IsUnique();
+
+        modelBuilder.Entity<TeamMember>()
+            .HasOne(member => member.OwnerUser)
+            .WithMany()
+            .HasForeignKey(member => member.OwnerUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TeamMember>()
+            .HasIndex(member => new { member.OwnerUserId, member.Name })
+            .IsUnique();
 
         modelBuilder.Entity<Role>().HasData(
             new Role { Id = 1, Name = "Customer" },

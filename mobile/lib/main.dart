@@ -53,6 +53,8 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
   List<Map<String, dynamic>> _liveSchedule = [];
   List<Map<String, dynamic>> _liveSupport = [];
   List<Map<String, dynamic>> _liveWorkflows = [];
+  List<Map<String, dynamic>> _teamMembers = [];
+  Map<String, dynamic> _rewards = {};
 
   @override
   void initState() {
@@ -157,15 +159,19 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
         _apiService.getSupportRequests().catchError((_) => <Map<String, dynamic>>[]),
         (isAdmin ? _apiService.getAdminWorkflows() : _apiService.getWorkflowHistory())
             .catchError((_) => <Map<String, dynamic>>[]),
+        _apiService.getTeam().catchError((_) => <Map<String, dynamic>>[]),
+        _apiService.getRewards().catchError((_) => <String, dynamic>{}),
       ]);
 
       if (mounted) {
         setState(() {
-          _liveFacilities = results[0];
-          _liveBookings = results[1];
-          _liveSchedule = results[2];
-          _liveSupport = results[3];
-          _liveWorkflows = results[4];
+          _liveFacilities = results[0] as List<Map<String, dynamic>>;
+          _liveBookings = results[1] as List<Map<String, dynamic>>;
+          _liveSchedule = results[2] as List<Map<String, dynamic>>;
+          _liveSupport = results[3] as List<Map<String, dynamic>>;
+          _liveWorkflows = results[4] as List<Map<String, dynamic>>;
+          _teamMembers = results[5] as List<Map<String, dynamic>>;
+          _rewards = results[6] as Map<String, dynamic>;
           _isDataLoading = false;
         });
       }
@@ -185,7 +191,34 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
       _liveSchedule.clear();
       _liveSupport.clear();
       _liveWorkflows.clear();
+      _teamMembers.clear();
+      _rewards.clear();
     });
+  }
+
+  Future<void> _addTeamMemberDialog() async {
+    final controller = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add team player'),
+        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'Player name')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () async {
+            if (controller.text.trim().isEmpty) return;
+            try {
+              final member = await _apiService.addTeamMember(controller.text);
+              if (mounted) setState(() => _teamMembers.add(member));
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            } catch (error) {
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+            }
+          }, child: const Text('Add')),
+        ],
+      ),
+    );
+    controller.dispose();
   }
 
   void _showServerSettingsDialog() {
@@ -709,17 +742,17 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
     final stats = [
       {
         'label': 'Facilities',
-        'value': _liveFacilities.isNotEmpty ? _liveFacilities.length.toString() : '14',
+        'value': _liveFacilities.length.toString(),
         'color': const Color(0xFF10B981),
       },
       {
         'label': 'Bookings',
-        'value': _liveBookings.isNotEmpty ? _liveBookings.length.toString() : '0',
+        'value': _liveBookings.length.toString(),
         'color': const Color(0xFF2563EB),
       },
       {
         'label': 'Rating',
-        'value': '4.9',
+        'value': _liveFacilities.where((f) => f['rating'] != null).isEmpty ? 'N/A' : (_liveFacilities.where((f) => f['rating'] != null).map((f) => (f['rating'] as num).toDouble()).reduce((a, b) => a + b) / _liveFacilities.where((f) => f['rating'] != null).length).toStringAsFixed(1),
         'color': const Color(0xFFF59E0B),
       },
     ];
@@ -731,34 +764,14 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
             return {
               'name': (f['name'] ?? 'Facility').toString(),
               'type': type,
-              'price': 'LKR 2,500 / hr',
+              'price': 'Live pricing in facility details',
               'emoji': _getEmojiForSport(type),
               'status': isAvailable ? 'Available now' : 'Booked',
+              'rating': f['rating'],
+              'ratingCount': f['ratingCount'] ?? 0,
             };
           }).toList()
-        : [
-            {
-              'name': 'Championship Turf',
-              'type': 'Football',
-              'price': 'LKR 4,500 / hour',
-              'emoji': '⚽',
-              'status': 'Available now',
-            },
-            {
-              'name': 'Skyline Court',
-              'type': 'Badminton',
-              'price': 'LKR 1,200 / hour',
-              'emoji': '🏸',
-              'status': 'Next slot 5:30 PM',
-            },
-            {
-              'name': 'Aqua Arena',
-              'type': 'Swimming',
-              'price': 'LKR 2,000 / session',
-              'emoji': '🏊',
-              'status': 'Open today',
-            },
-          ];
+        : <Map<String, dynamic>>[];
 
     final bookings = _liveBookings.isNotEmpty
         ? _liveBookings.map((b) {
@@ -773,9 +786,7 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
               'status': status.toString(),
             };
           }).toList()
-        : [
-            {'name': 'SLIIT Basketball Court', 'date': 'Today, 05:00 PM', 'status': 'Confirmed'},
-          ];
+        : <Map<String, dynamic>>[];
 
     final support = _liveSupport.isNotEmpty
         ? _liveSupport.map((s) {
@@ -785,9 +796,7 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
               'priority': (s['priority'] ?? 'Medium').toString(),
             };
           }).toList()
-        : [
-            {'title': 'Booking query', 'detail': 'Need to check weekend court availability', 'priority': 'Medium'},
-          ];
+        : <Map<String, dynamic>>[];
 
     final schedule = _liveSchedule.isNotEmpty
         ? _liveSchedule.map((ev) {
@@ -800,11 +809,7 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
               'coach': coach,
             };
           }).toList()
-        : [
-            {'time': '09:00', 'title': 'Basketball training', 'coach': 'Coach Liam'},
-            {'time': '11:30', 'title': 'Tennis clinic', 'coach': 'Coach Maya'},
-            {'time': '19:00', 'title': 'Community match', 'coach': 'Captain team'},
-          ];
+        : <Map<String, dynamic>>[];
 
     final heroCard = Container(
       padding: const EdgeInsets.all(22),
@@ -1017,7 +1022,7 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
                               ),
                             ),
                             Text(
-                              facility['status'] as String,
+                              '${facility['status']} · ${facility['rating'] != null ? '${facility['rating']} / 5 (${facility['ratingCount']})' : 'No ratings yet'}',
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: Color(0xFF10B981),
@@ -1482,6 +1487,52 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
         ? (user.fullName.split(' ').map((n) => n.isNotEmpty ? n[0] : '').take(2).join())
         : 'U';
 
+    final teamContent = RefreshIndicator(
+      onRefresh: _loadAllData,
+      child: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          const Text('Manage team', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+          const Text('Players saved to your account', style: TextStyle(color: Color(0xFF5D7692))),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(onPressed: _addTeamMemberDialog, icon: const Icon(Icons.person_add), label: const Text('Add player')),
+          const SizedBox(height: 12),
+          if (_teamMembers.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No additional players added yet.'))
+          else ..._teamMembers.map((member) => Card(
+            child: ListTile(
+              leading: CircleAvatar(child: Text((member['name'] ?? 'P').toString().substring(0, 1).toUpperCase())),
+              title: Text((member['name'] ?? 'Player').toString()),
+              subtitle: const Text('Team player'),
+              trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async {
+                await _apiService.removeTeamMember(member['id'] as int);
+                if (mounted) setState(() => _teamMembers.removeWhere((item) => item['id'] == member['id']));
+              }),
+            ),
+          )),
+        ],
+      ),
+    );
+
+    final rewardsContent = RefreshIndicator(
+      onRefresh: _loadAllData,
+      child: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          const Text('Rewards', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+          const Text('Calculated from your confirmed bookings', style: TextStyle(color: Color(0xFF5D7692))),
+          const SizedBox(height: 14),
+          Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(children: [
+            Text('${_rewards['points'] ?? 0}', style: const TextStyle(fontSize: 46, fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8))),
+            const Text('points available'),
+          ]))),
+          const SizedBox(height: 12),
+          ListTile(title: const Text('Confirmed bookings'), trailing: Text('${_rewards['confirmedBookings'] ?? 0}')),
+          ListTile(title: const Text('Completed bookings'), trailing: Text('${_rewards['completedBookings'] ?? 0}')),
+          ListTile(title: const Text('Points to next reward'), trailing: Text('${_rewards['pointsToNextReward'] ?? 50}')),
+        ],
+      ),
+    );
+
     final profileContent = ListView(
       padding: const EdgeInsets.all(18),
       children: [
@@ -1847,6 +1898,8 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
       2 => facilitiesContent,
       3 => aiWorkflowsContent,
       4 => profileContent,
+      5 => teamContent,
+      6 => rewardsContent,
       _ => homeContent,
     };
 
@@ -1930,6 +1983,8 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.sports_tennis_rounded), label: 'Facilities'),
           BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_rounded), label: 'AI Agent'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
+          BottomNavigationBarItem(icon: Icon(Icons.groups_rounded), label: 'Team'),
+          BottomNavigationBarItem(icon: Icon(Icons.card_giftcard_rounded), label: 'Rewards'),
         ],
       ),
     );

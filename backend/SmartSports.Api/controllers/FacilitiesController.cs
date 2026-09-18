@@ -11,6 +11,7 @@ using SmartSportsFacilityBooking.Data;
 
 // Import our Facility model.
 using SmartSportsFacilityBooking.Models;
+using System.Security.Claims;
 
 // Define this class as an API controller.
 [ApiController]
@@ -69,7 +70,19 @@ public class FacilitiesController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        return Ok(new { items = facilities, totalCount, page, pageSize, totalPages = (int)Math.Ceiling(totalCount / (double)pageSize) });
+        var facilityIds = facilities.Select(facility => facility.Id).ToArray();
+        var ratings = await _context.FacilityRatings
+            .Where(rating => facilityIds.Contains(rating.FacilityId))
+            .GroupBy(rating => rating.FacilityId)
+            .Select(group => new { facilityId = group.Key, average = group.Average(rating => rating.Score), count = group.Count() })
+            .ToDictionaryAsync(item => item.facilityId);
+
+        return Ok(new { items = facilities.Select(facility => new
+        {
+            facility.Id, facility.Name, facility.Type, facility.Location, facility.IsAvailable,
+            rating = ratings.TryGetValue(facility.Id, out var summary) ? Math.Round(summary.average, 1) : (double?)null,
+            ratingCount = ratings.TryGetValue(facility.Id, out summary) ? summary.count : 0
+        }), totalCount, page, pageSize, totalPages = (int)Math.Ceiling(totalCount / (double)pageSize) });
     }
 
     // Handle GET requests to /api/Facilities/{id}.
@@ -89,6 +102,36 @@ public class FacilitiesController : ControllerBase
 
         // Return the facility with HTTP 200 OK.
         return Ok(facility);
+    }
+
+    [HttpPost("{id}/ratings")]
+    public async Task<IActionResult> RateFacility(int id, [FromBody] RatingRequest request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+        if (request.Score is < 1 or > 5) return BadRequest("Rating must be between 1 and 5.");
+        if (!await _context.Facilities.AnyAsync(facility => facility.Id == id)) return NotFound("Facility not found.");
+
+        var rating = await _context.FacilityRatings.FirstOrDefaultAsync(item => item.FacilityId == id && item.UserId == userId.Value);
+        if (rating == null)
+        {
+            _context.FacilityRatings.Add(new FacilityRating { FacilityId = id, UserId = userId.Value, Score = request.Score });
+        }
+        else
+        {
+            rating.Score = request.Score;
+            rating.CreatedAtUtc = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(new { facilityId = id, request.Score });
+    }
+
+    private int? GetUserId() => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) ? userId : null;
+
+    public class RatingRequest
+    {
+        public int Score { get; set; }
     }
 
     // Handle POST requests to /api/Facilities.

@@ -113,6 +113,74 @@ public class DashboardDataController : ControllerBase
         return Created($"/api/dashboard/support-requests/{supportRequest.Id}", supportRequest);
     }
 
+    [HttpGet("team")]
+    [Authorize]
+    public async Task<IActionResult> GetTeam()
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+        return Ok(await _context.TeamMembers
+            .Where(member => member.OwnerUserId == userId.Value)
+            .OrderBy(member => member.Name)
+            .Select(member => new { member.Id, member.Name })
+            .ToListAsync());
+    }
+
+    [HttpPost("team")]
+    [Authorize]
+    public async Task<IActionResult> AddTeamMember(TeamMemberRequest request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+        if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest("Player name is required.");
+
+        var name = request.Name.Trim();
+        if (await _context.TeamMembers.AnyAsync(member => member.OwnerUserId == userId.Value && member.Name == name))
+            return Conflict("This player is already in your team.");
+
+        var member = new TeamMember { OwnerUserId = userId.Value, Name = name };
+        _context.TeamMembers.Add(member);
+        await _context.SaveChangesAsync();
+        return Created($"/api/dashboard/team/{member.Id}", new { member.Id, member.Name });
+    }
+
+    [HttpDelete("team/{id:int}")]
+    [Authorize]
+    public async Task<IActionResult> RemoveTeamMember(int id)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+        var member = await _context.TeamMembers.FirstOrDefaultAsync(item => item.Id == id && item.OwnerUserId == userId.Value);
+        if (member == null) return NotFound();
+        _context.TeamMembers.Remove(member);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpGet("rewards")]
+    [Authorize]
+    public async Task<IActionResult> GetRewards()
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+        var confirmedBookings = await _context.Bookings.CountAsync(booking => booking.UserId == userId.Value && booking.Status == "Confirmed");
+        var completedBookings = await _context.Bookings.CountAsync(booking => booking.UserId == userId.Value && booking.Status == "Confirmed" && booking.BookingDate < DateTime.UtcNow.Date);
+        var points = confirmedBookings * 10;
+        return Ok(new
+        {
+            points,
+            confirmedBookings,
+            completedBookings,
+            nextRewardAt = 50,
+            pointsToNextReward = Math.Max(50 - points, 0)
+        });
+    }
+
+    public class TeamMemberRequest
+    {
+        public string Name { get; set; } = string.Empty;
+    }
+
     private int? GetUserId()
     {
         return int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) ? userId : null;

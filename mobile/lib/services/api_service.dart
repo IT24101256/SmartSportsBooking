@@ -137,7 +137,7 @@ class ApiService {
   }
 
   Future<List<Map<String, dynamic>>> getFacilities() async {
-    final uri = Uri.parse('$_baseUrl/api/Facilities');
+    final uri = Uri.parse('$_baseUrl/api/Facilities?pageSize=100');
     try {
       final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
@@ -206,6 +206,32 @@ class ApiService {
     } catch (e) {
       rethrow;
     }
+  }
+
+  Future<List<Map<String, dynamic>>> getTeam() async {
+    final response = await http.get(Uri.parse('$_baseUrl/api/dashboard/team'), headers: _headers).timeout(const Duration(seconds: 10));
+    if (response.statusCode == 200) {
+      final list = jsonDecode(response.body) as List<dynamic>;
+      return list.map((item) => item as Map<String, dynamic>).toList();
+    }
+    throw Exception('Failed to load team (${response.statusCode})');
+  }
+
+  Future<Map<String, dynamic>> addTeamMember(String name) async {
+    final response = await http.post(Uri.parse('$_baseUrl/api/dashboard/team'), headers: _headers, body: jsonEncode({'name': name.trim()})).timeout(const Duration(seconds: 10));
+    if (response.statusCode == 201) return jsonDecode(response.body) as Map<String, dynamic>;
+    throw Exception(_extractErrorMessage(response));
+  }
+
+  Future<void> removeTeamMember(int id) async {
+    final response = await http.delete(Uri.parse('$_baseUrl/api/dashboard/team/$id'), headers: _headers).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 204) throw Exception('Failed to remove team member (${response.statusCode})');
+  }
+
+  Future<Map<String, dynamic>> getRewards() async {
+    final response = await http.get(Uri.parse('$_baseUrl/api/dashboard/rewards'), headers: _headers).timeout(const Duration(seconds: 10));
+    if (response.statusCode == 200) return jsonDecode(response.body) as Map<String, dynamic>;
+    throw Exception('Failed to load rewards (${response.statusCode})');
   }
 
   Future<List<Map<String, dynamic>>> getBookings() async {

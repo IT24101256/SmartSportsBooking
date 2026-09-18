@@ -1169,6 +1169,15 @@
   width: 100%;
 }
 
+.member-page {
+  max-width: 920px;
+}
+
+.page-intro {
+  color: #71809a;
+  margin-bottom: 20px;
+}
+
 .rewards-summary {
   display: grid;
   place-items: center;

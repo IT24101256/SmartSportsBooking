@@ -34,7 +34,7 @@ export default function FacilitiesPage({ facilities, onViewTimetable }) {
             <div className="facility-icon">{facility.icon}</div>
             <div className="facility-body">
               <div className="facility-topline"><h4>{facility.name}</h4><span>{facility.type}</span></div>
-              <div className="facility-meta"><strong>{facility.price}</strong><small>{facility.status}</small></div>
+              <div className="facility-meta"><strong>{facility.price}</strong><small>{facility.status} · {facility.rating != null ? `${facility.rating} / 5 (${facility.ratingCount})` : 'No ratings yet'}</small></div>
             </div>
           </div>
         ))}
