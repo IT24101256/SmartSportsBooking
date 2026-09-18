@@ -4,10 +4,10 @@
   display: flex;
   min-height: 100vh;
   background:
-    linear-gradient(rgba(243, 247, 255, 0.38), rgba(237, 248, 244, 0.44)),
+    linear-gradient(rgba(238, 241, 235, 0.82), rgba(231, 238, 230, 0.9)),
     url('/sports-background.svg'),
-    radial-gradient(circle at 90% 8%, rgba(16, 185, 129, 0.16), transparent 26%),
-    linear-gradient(180deg, #f3f7ff 0%, #edf8f4 100%);
+    radial-gradient(circle at 90% 8%, rgba(188, 227, 52, 0.2), transparent 26%),
+    linear-gradient(180deg, #eef1eb 0%, #e5ece4 100%);
   background-size: cover;
   background-attachment: fixed;
   color: #16324f;
@@ -28,9 +28,9 @@
 
 .sidebar {
   width: 280px;
-  background: rgba(15, 23, 42, 0.96);
+  background: #14221d;
   color: white;
-  padding: 28px 18px;
+  padding: 30px 18px 22px;
   display: flex;
   flex-direction: column;
   gap: 26px;
@@ -48,8 +48,9 @@
   height: 42px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #2dd4bf, #2563eb);
-  border-radius: 14px;
+  background: #c5ec3a;
+  border-radius: 12px;
+  color: #14221d;
   color: white;
   font-weight: 800;
 }
@@ -61,8 +62,8 @@
   place-items: center;
   margin: 0 auto 18px;
   border-radius: 20px;
-  background: linear-gradient(135deg, #2dd4bf, #2563eb);
-  color: white;
+  background: #c5ec3a;
+  color: #14221d;
   font-size: 2rem;
   font-weight: 800;
 }
@@ -81,7 +82,9 @@
 
 .sidebar h2 {
   margin: 4px 0 0;
-  font-size: 1.34rem;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.5rem;
+  letter-spacing: 0.03em;
   color: white;
 }
 
@@ -95,19 +98,20 @@
   width: 100%;
   border: none;
   background: transparent;
-  color: #dfeaf8;
+  color: #b7c8bc;
   text-align: left;
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: 9px;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.2), rgba(37, 99, 235, 0.2));
-  color: white;
-  border: 1px solid rgba(255,255,255,0.08);
+  background: #c5ec3a;
+  color: #14221d;
+  border: 1px solid #c5ec3a;
+  box-shadow: 0 8px 18px rgba(197, 236, 58, 0.16);
 }
 
 .profile-card {
@@ -142,7 +146,8 @@
 
 .workspace {
   flex: 1;
-  padding: 28px 30px 38px;
+  padding: 30px 34px 44px;
+  max-width: 1520px;
 }
 
 .topbar {
@@ -165,7 +170,9 @@
 
 .topbar h1 {
   margin: 6px 0 0;
-  font-size: clamp(2rem, 2.8vw, 3rem);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(2.2rem, 3vw, 3.5rem);
+  letter-spacing: -0.02em;
 }
 
 .topbar-actions {
@@ -184,12 +191,13 @@
 }
 
 .primary-btn {
-  background: linear-gradient(135deg, #0f172a, #1d4ed8);
+  background: #c5ec3a;
+  color: #14221d;
   color: white;
-  border-radius: 12px;
+  border-radius: 9px;
   padding: 12px 18px;
   font-weight: 700;
-  box-shadow: 0 12px 24px rgba(29, 78, 216, 0.2);
+  box-shadow: 0 12px 24px rgba(91, 117, 20, 0.18);
 }
 
 .secondary-btn {
@@ -220,11 +228,28 @@
   display: grid;
   grid-template-columns: 1.5fr 0.9fr;
   gap: 24px;
-  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
-  border-radius: 28px;
-  padding: 30px 28px;
+  background:
+    linear-gradient(105deg, rgba(20, 34, 29, 0.98), rgba(24, 61, 49, 0.9)),
+    url('/sports-background.svg');
+  border-radius: 18px;
+  padding: 38px 34px;
   color: white;
-  box-shadow: 0 24px 58px rgba(30, 64, 175, 0.22);
+  box-shadow: 0 24px 58px rgba(20, 34, 29, 0.2);
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+}
+
+.hero-panel::after {
+  content: 'SMARTSPORTS / 2026';
+  position: absolute;
+  right: 28px;
+  bottom: 18px;
+  color: rgba(197, 236, 58, 0.28);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  z-index: -1;
 }
 
 .chip {
@@ -241,7 +266,8 @@
 
 .hero-copy h2 {
   margin: 0 0 14px;
-  font-size: clamp(2.1rem, 3vw, 3.4rem);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(2.5rem, 4.4vw, 5rem);
   line-height: 1.07;
   color: white;
 }
@@ -311,15 +337,15 @@
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
   margin-top: 24px;
 }
 
 .stat-card {
-  background: white;
+  background: #fbfcf8;
   padding: 20px 22px;
-  border-radius: 20px;
+  border-radius: 12px;
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
   border: 1px solid rgba(15, 23, 42, 0.04);
 }
@@ -354,11 +380,11 @@
 }
 
 .panel {
-  background: rgba(255,255,255,0.92);
-  border: 1px solid rgba(15, 23, 42, 0.04);
-  border-radius: 24px;
+  background: rgba(251, 252, 248, 0.94);
+  border: 1px solid rgba(20, 34, 29, 0.08);
+  border-radius: 16px;
   padding: 24px;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 16px 40px rgba(20, 34, 29, 0.07);
 }
 
 .panel-header {
@@ -371,13 +397,14 @@
 
 .panel-header h3 {
   margin: 0;
-  font-size: 1.4rem;
-  color: #142d4d;
+  font-size: 1.55rem;
+  color: #14221d;
+  font-family: 'Barlow Condensed', sans-serif;
 }
 
 .panel-header a {
   font-weight: 700;
-  color: #1d4ed8;
+  color: #52710c;
   text-decoration: none;
   flex: 0 0 auto;
 }
@@ -386,14 +413,14 @@
   border: none;
   padding: 0;
   background: transparent;
-  color: #1d4ed8;
+  color: #52710c;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
 }
 
 .text-action:hover {
-  color: #0f766e;
+  color: #14221d;
   text-decoration: underline;
 }
 
@@ -411,7 +438,7 @@
   border-radius: 10px;
   padding: 0 12px;
   background: #fff;
-  color: #142d4d;
+  color: #14221d;
   font: inherit;
 }
 
@@ -520,25 +547,25 @@
 
 .action-chip {
   padding: 7px 11px;
-  background: #edf4ff;
-  color: #214a85;
+  background: #edf3df;
+  color: #3f5f0a;
   border-radius: 8px;
   font-weight: 700;
   font-size: 0.82rem;
-  border: 1px solid rgba(29, 78, 216, 0.12);
+  border: 1px solid rgba(82, 113, 12, 0.16);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .action-chip:hover {
-  background: #dbeafe;
+  background: #dfeeb4;
 }
 
 .reward-card {
   margin-top: auto;
   padding: 14px 16px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #0f172a, #1d4ed8);
+  background: linear-gradient(135deg, #14221d, #28604b);
 }
 
 .reward-card strong {
@@ -551,9 +578,9 @@
   display: grid;
   align-items: center;
   gap: 14px;
-  background: #f8fbff;
-  border: 1px solid rgba(15, 23, 42, 0.04);
-  border-radius: 18px;
+  background: #f4f7f0;
+  border: 1px solid rgba(20, 34, 29, 0.07);
+  border-radius: 12px;
   padding: 14px 16px;
 }
 
