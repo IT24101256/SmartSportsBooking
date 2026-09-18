@@ -1,3 +1,37 @@
+# SmartSports Web
+
+React + Vite web client for the SmartSports Booking system.
+
+## Run locally
+
+Start the ASP.NET Core API first from the repository root:
+
+```powershell
+cd backend\SmartSports.Api
+$env:JWT_KEY="replace-this-with-a-long-local-development-key"
+dotnet run
+```
+
+Then open a second terminal:
+
+```powershell
+cd web\smart-sports-web
+npm install
+npm run dev
+```
+
+Open the Vite URL shown in the terminal, normally `http://localhost:5173`.
+The client expects the API at `http://localhost:5187/api`.
+
+## Commands
+
+```powershell
+npm run lint
+npm run build
+npm run preview
+```
+
+For the complete PostgreSQL, API, Flutter, test, and troubleshooting instructions, see the repository [README](../../README.md).
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
