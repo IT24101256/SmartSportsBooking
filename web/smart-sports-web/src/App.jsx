@@ -792,7 +792,7 @@ function App() {
           </div>
 
           <aside className="panel side-panel">
-            <div className="panel-header" style={{ margin: '1rem', height: 'fit-content', border: '1px solid #ccc', }}>
+            <div className="panel-header">
               <h3>Quick actions</h3>
             </div>
 
