@@ -20,8 +20,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Restore API dependencies
-        run: dotnet restore SmartSports.Api/SmartSports.Api.csproj
+      - name: Restore API and test dependencies
+        run: dotnet restore SmartSports.Api.Tests/SmartSports.Api.Tests.csproj
       - name: Test API and Agentic AI
         run: dotnet test SmartSports.Api.Tests/SmartSports.Api.Tests.csproj --configuration Release --no-restore --logger trx
       - name: Build API
@@ -59,7 +59,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.35.0
+          flutter-version: 3.47.4
           cache: true
       - name: Install dependencies
         working-directory: mobile
