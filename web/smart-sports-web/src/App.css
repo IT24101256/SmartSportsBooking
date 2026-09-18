@@ -4,10 +4,10 @@
   display: flex;
   min-height: 100vh;
   background:
-    linear-gradient(rgba(238, 241, 235, 0.82), rgba(231, 238, 230, 0.9)),
+    linear-gradient(rgba(244, 247, 251, 0.82), rgba(235, 242, 251, 0.9)),
     url('/sports-background.svg'),
-    radial-gradient(circle at 90% 8%, rgba(188, 227, 52, 0.2), transparent 26%),
-    linear-gradient(180deg, #eef1eb 0%, #e5ece4 100%);
+    radial-gradient(circle at 90% 8%, rgba(61, 135, 255, 0.16), transparent 26%),
+    linear-gradient(180deg, #f4f7fb 0%, #eaf1fa 100%);
   background-size: cover;
   background-attachment: fixed;
   color: #16324f;
@@ -28,7 +28,7 @@
 
 .sidebar {
   width: 280px;
-  background: #14221d;
+  background: #101b31;
   color: white;
   padding: 30px 18px 22px;
   display: flex;
@@ -48,9 +48,9 @@
   height: 42px;
   display: grid;
   place-items: center;
-  background: #c5ec3a;
+  background: #4f8cff;
   border-radius: 12px;
-  color: #14221d;
+  color: white;
   color: white;
   font-weight: 800;
 }
@@ -62,8 +62,8 @@
   place-items: center;
   margin: 0 auto 18px;
   border-radius: 20px;
-  background: #c5ec3a;
-  color: #14221d;
+  background: #4f8cff;
+  color: white;
   font-size: 2rem;
   font-weight: 800;
 }
@@ -108,10 +108,10 @@
 }
 
 .nav-item.active {
-  background: #c5ec3a;
-  color: #14221d;
-  border: 1px solid #c5ec3a;
-  box-shadow: 0 8px 18px rgba(197, 236, 58, 0.16);
+  background: #4f8cff;
+  color: white;
+  border: 1px solid #4f8cff;
+  box-shadow: 0 8px 18px rgba(79, 140, 255, 0.22);
 }
 
 .profile-card {
@@ -191,13 +191,13 @@
 }
 
 .primary-btn {
-  background: #c5ec3a;
-  color: #14221d;
+  background: #4f8cff;
+  color: white;
   color: white;
   border-radius: 9px;
   padding: 12px 18px;
   font-weight: 700;
-  box-shadow: 0 12px 24px rgba(91, 117, 20, 0.18);
+  box-shadow: 0 12px 24px rgba(79, 140, 255, 0.22);
 }
 
 .secondary-btn {
@@ -245,7 +245,7 @@
   position: absolute;
   right: 28px;
   bottom: 18px;
-  color: rgba(197, 236, 58, 0.28);
+  color: rgba(117, 177, 255, 0.34);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: 0.8rem;
   letter-spacing: 0.18em;
@@ -380,11 +380,11 @@
 }
 
 .panel {
-  background: rgba(251, 252, 248, 0.94);
-  border: 1px solid rgba(20, 34, 29, 0.08);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(23, 36, 58, 0.08);
   border-radius: 16px;
   padding: 24px;
-  box-shadow: 0 16px 40px rgba(20, 34, 29, 0.07);
+  box-shadow: 0 16px 40px rgba(23, 36, 58, 0.07);
 }
 
 .panel-header {
@@ -398,13 +398,13 @@
 .panel-header h3 {
   margin: 0;
   font-size: 1.55rem;
-  color: #14221d;
+  color: #17243a;
   font-family: 'Barlow Condensed', sans-serif;
 }
 
 .panel-header a {
   font-weight: 700;
-  color: #52710c;
+  color: #2563c7;
   text-decoration: none;
   flex: 0 0 auto;
 }
@@ -413,14 +413,14 @@
   border: none;
   padding: 0;
   background: transparent;
-  color: #52710c;
+  color: #2563c7;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
 }
 
 .text-action:hover {
-  color: #14221d;
+  color: #17243a;
   text-decoration: underline;
 }
 
@@ -438,7 +438,7 @@
   border-radius: 10px;
   padding: 0 12px;
   background: #fff;
-  color: #14221d;
+  color: #17243a;
   font: inherit;
 }
 
@@ -547,25 +547,25 @@
 
 .action-chip {
   padding: 7px 11px;
-  background: #edf3df;
-  color: #3f5f0a;
+  background: #edf4ff;
+  color: #2459ac;
   border-radius: 8px;
   font-weight: 700;
   font-size: 0.82rem;
-  border: 1px solid rgba(82, 113, 12, 0.16);
+  border: 1px solid rgba(37, 99, 199, 0.16);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .action-chip:hover {
-  background: #dfeeb4;
+  background: #dbeafe;
 }
 
 .reward-card {
   margin-top: auto;
   padding: 14px 16px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #14221d, #28604b);
+  background: linear-gradient(135deg, #101b31, #2459ac);
 }
 
 .reward-card strong {
@@ -578,8 +578,8 @@
   display: grid;
   align-items: center;
   gap: 14px;
-  background: #f4f7f0;
-  border: 1px solid rgba(20, 34, 29, 0.07);
+  background: #f6f9fd;
+  border: 1px solid rgba(23, 36, 58, 0.07);
   border-radius: 12px;
   padding: 14px 16px;
 }
