@@ -19,28 +19,35 @@ public class EmailService
         _logger = logger;
     }
 
-    public async Task SendOtpEmailAsync(string toEmail, string toName, string otp)
+    public async Task<bool> SendOtpEmailAsync(string toEmail, string toName, string otp)
     {
-        var fromAddress = _config["Smtp:From"] ?? Environment.GetEnvironmentVariable("SMTP_FROM");
-        var password = _config["Smtp:Password"] ?? Environment.GetEnvironmentVariable("SMTP_PASSWORD");
+        var fromAddress = (_config["Smtp:From"] ?? Environment.GetEnvironmentVariable("SMTP_FROM"))?.Trim();
+        var password = (_config["Smtp:Password"] ?? Environment.GetEnvironmentVariable("SMTP_PASSWORD"))?.Trim();
         var host = _config["Smtp:Host"] ?? "smtp.gmail.com";
         var port = int.Parse(_config["Smtp:Port"] ?? "587");
+
+        if (!string.IsNullOrWhiteSpace(password) && host.Contains("gmail", StringComparison.OrdinalIgnoreCase))
+        {
+            password = password.Replace(" ", "");
+        }
 
         if (string.IsNullOrWhiteSpace(fromAddress) || string.IsNullOrWhiteSpace(password))
         {
             _logger.LogWarning("SMTP credentials are not configured. OTP email to {Email} skipped.", toEmail);
             // In development, log the OTP so it can be retrieved without email
             _logger.LogInformation("DEV OTP for {Email}: {Otp}", toEmail, otp);
-            return;
+            return false;
         }
 
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress("SmartSports", fromAddress));
         message.To.Add(new MailboxAddress(toName, toEmail));
         message.Subject = "Your SmartSports Verification Code";
+        message.Date = DateTimeOffset.Now;
 
         var body = new BodyBuilder
         {
+            TextBody = $"Hi {toName},\n\nYour SmartSports verification code is: {otp}\n\nThis code expires in 10 minutes. If you did not create a SmartSports account, please ignore this email.\n\nSmartSports Member Portal",
             HtmlBody = $@"
 <!DOCTYPE html>
 <html>
@@ -61,7 +68,7 @@ public class EmailService
       <p style='color:#58728d;margin:20px 0 0;font-size:0.85rem'>If you didn't create a SmartSports account, please ignore this email.</p>
     </div>
   </div>
-</body>
+ </body>
 </html>"
         };
         message.Body = body.ToMessageBody();
@@ -71,5 +78,6 @@ public class EmailService
         await client.AuthenticateAsync(fromAddress, password);
         await client.SendAsync(message);
         await client.DisconnectAsync(true);
+        return true;
     }
 }

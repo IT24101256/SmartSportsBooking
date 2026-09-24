@@ -546,10 +546,17 @@ function App() {
         return
       }
 
+      const data = await response.json().catch(() => ({}))
+
       // Move to OTP verification step
       setOtpPendingEmail(registerEmail.trim().toLowerCase())
-      setOtpValue('')
-      setAuthFeedback('A 6-digit verification code has been sent to your email.')
+      if (data.devOtp) {
+        setOtpValue(data.devOtp)
+        setAuthFeedback(`SMTP is not configured. For development testing, your verification code is ${data.devOtp} (auto-filled below).`)
+      } else {
+        setOtpValue('')
+        setAuthFeedback(data.message || 'A 6-digit verification code has been sent to your email.')
+      }
       setAuthMode('verify-otp')
     } catch {
       setAuthFeedback('The API is unavailable. Start the backend and try again.')

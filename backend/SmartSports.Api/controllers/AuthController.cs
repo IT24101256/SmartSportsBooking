@@ -18,12 +18,18 @@ public class AuthController : ControllerBase
     private readonly AppDbContext _context;
     private readonly OtpStore _otpStore;
     private readonly EmailService _emailService;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(AppDbContext context, OtpStore otpStore, EmailService emailService)
+    public AuthController(
+        AppDbContext context,
+        OtpStore otpStore,
+        EmailService emailService,
+        ILogger<AuthController> logger)
     {
         _context = context;
         _otpStore = otpStore;
         _emailService = emailService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -55,10 +61,40 @@ public class AuthController : ControllerBase
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
         var otp = _otpStore.GenerateAndStore(request.Email.Trim().ToLower(), request.FullName.Trim(), passwordHash);
 
-        // Send OTP email (fire-and-forget; if SMTP not configured the OTP is logged)
-        _ = _emailService.SendOtpEmailAsync(request.Email.Trim(), request.FullName.Trim(), otp);
+        try
+        {
+            var emailSent = await _emailService.SendOtpEmailAsync(
+                request.Email.Trim(),
+                request.FullName.Trim(),
+                otp);
 
-        return Ok(new { message = "OTP sent to your email. Please verify to complete registration." });
+            if (!emailSent)
+            {
+                var environment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>();
+                if (environment.IsDevelopment())
+                {
+                    return Ok(new
+                    {
+                        message = "SMTP is not configured. For local development, use the OTP shown below or in the API console.",
+                        devOtp = otp,
+                        smtpConfigured = false
+                    });
+                }
+
+                return StatusCode(503, "Email delivery is not configured. Configure an email provider and try again.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send registration OTP to {Email}.", request.Email);
+            return StatusCode(503, "Unable to send the verification email. Check the SMTP configuration and try again.");
+        }
+
+        return Ok(new
+        {
+            message = "OTP sent to your email. Please verify to complete registration.",
+            smtpConfigured = true
+        });
     }
 
     /// <summary>
