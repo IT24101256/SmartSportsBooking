@@ -53,8 +53,6 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
   List<Map<String, dynamic>> _liveSchedule = [];
   List<Map<String, dynamic>> _liveSupport = [];
   List<Map<String, dynamic>> _liveWorkflows = [];
-  List<Map<String, dynamic>> _teamMembers = [];
-  Map<String, dynamic> _rewards = {};
 
   @override
   void initState() {
@@ -159,8 +157,6 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
         _apiService.getSupportRequests().catchError((_) => <Map<String, dynamic>>[]),
         (isAdmin ? _apiService.getAdminWorkflows() : _apiService.getWorkflowHistory())
             .catchError((_) => <Map<String, dynamic>>[]),
-        _apiService.getTeam().catchError((_) => <Map<String, dynamic>>[]),
-        _apiService.getRewards().catchError((_) => <String, dynamic>{}),
       ]);
 
       if (mounted) {
@@ -170,8 +166,6 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
           _liveSchedule = results[2] as List<Map<String, dynamic>>;
           _liveSupport = results[3] as List<Map<String, dynamic>>;
           _liveWorkflows = results[4] as List<Map<String, dynamic>>;
-          _teamMembers = results[5] as List<Map<String, dynamic>>;
-          _rewards = results[6] as Map<String, dynamic>;
           _isDataLoading = false;
         });
       }
@@ -191,34 +185,7 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
       _liveSchedule.clear();
       _liveSupport.clear();
       _liveWorkflows.clear();
-      _teamMembers.clear();
-      _rewards.clear();
     });
-  }
-
-  Future<void> _addTeamMemberDialog() async {
-    final controller = TextEditingController();
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Add team player'),
-        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'Player name')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () async {
-            if (controller.text.trim().isEmpty) return;
-            try {
-              final member = await _apiService.addTeamMember(controller.text);
-              if (mounted) setState(() => _teamMembers.add(member));
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-            } catch (error) {
-              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
-            }
-          }, child: const Text('Add')),
-        ],
-      ),
-    );
-    controller.dispose();
   }
 
   void _showServerSettingsDialog() {
@@ -1513,52 +1480,6 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
       ),
     );
 
-    final rewardsContent = RefreshIndicator(
-      onRefresh: _loadAllData,
-      child: ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
-          const Text('Rewards', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-          const Text('Calculated from your confirmed bookings', style: TextStyle(color: Color(0xFF5D7692))),
-          const SizedBox(height: 14),
-          Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(children: [
-            Text('${_rewards['points'] ?? 0}', style: const TextStyle(fontSize: 46, fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8))),
-            const Text('points available'),
-          ]))),
-          const SizedBox(height: 12),
-          ListTile(title: const Text('Confirmed bookings'), trailing: Text('${_rewards['confirmedBookings'] ?? 0}')),
-          ListTile(title: const Text('Completed bookings'), trailing: Text('${_rewards['completedBookings'] ?? 0}')),
-          ListTile(title: const Text('Points to next reward'), trailing: Text('${_rewards['pointsToNextReward'] ?? 50}')),
-        ],
-      ),
-    );
-
-    final profileContent = ListView(
-      padding: const EdgeInsets.all(18),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0F172A), Color(0xFF1D4ED8)],
-            ),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Center(
-                  child: Text(
-                    initials,
-                    style: const TextStyle(
-                      color: Colors.white,
                       fontWeight: FontWeight.w800,
                       fontSize: 24,
                     ),
@@ -1898,8 +1819,6 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
       2 => facilitiesContent,
       3 => aiWorkflowsContent,
       4 => profileContent,
-      5 => teamContent,
-      6 => rewardsContent,
       _ => homeContent,
     };
 
@@ -1983,8 +1902,6 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.sports_tennis_rounded), label: 'Facilities'),
           BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_rounded), label: 'AI Agent'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
-          BottomNavigationBarItem(icon: Icon(Icons.groups_rounded), label: 'Team'),
-          BottomNavigationBarItem(icon: Icon(Icons.card_giftcard_rounded), label: 'Rewards'),
         ],
       ),
     );

@@ -10,69 +10,18 @@ import SupportPage from './pages/SupportPage'
 import MembersPage from './pages/MembersPage'
 import AIWorkflowsPage from './pages/AIWorkflowsPage'
 import WorkflowHistoryPage from './pages/WorkflowHistoryPage'
-import TeamPage from './pages/TeamPage'
-import RewardsPage from './pages/RewardsPage'
 
 const API_BASE_URL = 'http://localhost:5187/api'
 
-const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support', 'Team', 'Rewards', 'My AI Requests']
+const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support', 'My AI Requests']
 const adminNavItems = [...baseNavItems, 'Members', 'AI Workflows']
 
 const initialBookingForm = {
   facility: 'Championship Turf',
   date: '2026-09-12',
-  time: '18:30',
+  time: '18:00',
   guests: '2',
-  status: 'Confirmed',
-}
-
-const initialMembers = [
-  { name: 'Aisha Jordan', email: 'member@smartsports.com', password: 'member123', role: 'member' },
-  { name: 'Admin User', email: 'admin@smartsports.com', password: 'admin123', role: 'admin' },
-]
-
-const getFacilityIcon = (type) => {
-  const normalized = (type || '').toLowerCase()
-  if (normalized.includes('football') || normalized.includes('turf')) return '🏟️'
-  if (normalized.includes('badminton')) return '🏸'
-  if (normalized.includes('swim')) return '🏊'
-  if (normalized.includes('tennis')) return '🎾'
-  if (normalized.includes('fitness') || normalized.includes('gym')) return '🏋️'
-  if (normalized.includes('basketball')) return '🏀'
-  if (normalized.includes('cricket')) return '🏏'
-  if (normalized.includes('volleyball')) return '🏐'
-  if (normalized.includes('table tennis')) return '🏓'
-  if (normalized.includes('squash')) return '🎾'
-  return '🏆'
-}
-
-const getFacilityPrice = (type) => {
-  const normalized = (type || '').toLowerCase()
-  if (normalized.includes('football')) return 'LKR 4,500 / hour'
-  if (normalized.includes('badminton')) return 'LKR 1,200 / hour'
-  if (normalized.includes('swim')) return 'LKR 2,000 / session'
-  if (normalized.includes('tennis')) return 'LKR 1,800 / hour'
-  if (normalized.includes('fitness') || normalized.includes('gym')) return 'LKR 1,500 / session'
-  if (normalized.includes('basketball')) return 'LKR 3,000 / hour'
-  if (normalized.includes('cricket')) return 'LKR 5,000 / hour'
-  return 'LKR 2,000 / hour'
-}
-
-const formatFacility = (facility, index = 0) => {
-  const accents = ['green', 'blue', 'purple']
-  const accent = accents[index % accents.length]
-  return {
-    id: facility.id,
-    name: facility.name,
-    type: facility.type,
-    location: facility.location,
-    price: getFacilityPrice(facility.type),
-    status: facility.isAvailable ? 'Available now' : 'Currently unavailable',
-    rating: facility.rating,
-    ratingCount: facility.ratingCount || 0,
-    accent,
-    icon: getFacilityIcon(facility.type),
-  }
+  status: 'Pending',
 }
 
 const facilities = [
@@ -92,7 +41,7 @@ const bookings = [
 
 const support = [
   { title: 'Booking issue', detail: 'Need to change the time for Friday match', priority: 'Medium' },
-  { title: 'Membership query', detail: 'Checking reward points balance', priority: 'Low' },
+  { title: 'Membership query', detail: 'Checking membership details', priority: 'Low' },
   { title: 'Facility request', detail: 'Request for extra lighting on court 5', priority: 'High' },
 ]
 
@@ -120,7 +69,7 @@ function App() {
   const [authFeedback, setAuthFeedback] = useState('')
   const [otpPendingEmail, setOtpPendingEmail] = useState('')
   const [otpValue, setOtpValue] = useState('')
-  const [registeredMembers, setRegisteredMembers] = useState(initialMembers)
+  const [registeredMembers, setRegisteredMembers] = useState([])
   const [bookingsList, setBookingsList] = useState([])
   const [scheduleList, setScheduleList] = useState([])
   const [supportList, setSupportList] = useState([])
@@ -131,11 +80,6 @@ function App() {
   const [showAuthPanel, setShowAuthPanel] = useState(false)
   const [isTicketOpen, setIsTicketOpen] = useState(false)
   const [isTimetableOpen, setIsTimetableOpen] = useState(false)
-  const [isRewardsOpen, setIsRewardsOpen] = useState(false)
-  const [isTeamOpen, setIsTeamOpen] = useState(false)
-  const [teamMemberName, setTeamMemberName] = useState('')
-  const [teamMembers, setTeamMembers] = useState([])
-  const [rewards, setRewards] = useState(null)
   const [selectedScheduleItem, setSelectedScheduleItem] = useState(null)
   const [isAIRequestOpen, setIsAIRequestOpen] = useState(false)
   const [aiRequestForm, setAIRequestForm] = useState({ objective: '', facilityType: 'Football', date: '2026-09-12', startTime: '18:00', endTime: '19:00', guests: '2', budget: '5000' })
@@ -332,40 +276,6 @@ function App() {
     }
   }
 
-  const openTeam = () => {
-    if (requireLogin('Please log in to manage your team.')) setActiveTab('Team')
-  }
-
-  const addTeamMember = (event) => {
-    event.preventDefault()
-    const name = teamMemberName.trim()
-    if (!name) return
-    fetch(`${API_BASE_URL}/dashboard/team`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify({ name }),
-    }).then(async (response) => {
-      if (!response.ok) {
-        setBookingNotice(await response.text() || 'Player could not be added.')
-        return
-      }
-      const member = await response.json()
-      setTeamMembers((current) => [...current, member])
-      setTeamMemberName('')
-      setBookingNotice(`${name} was added to your match team.`)
-    }).catch(() => setBookingNotice('The API is unavailable.'))
-  }
-
-  const loadMemberData = async (token) => {
-    const headers = { Authorization: `Bearer ${token}` }
-    const [teamResponse, rewardsResponse] = await Promise.all([
-      fetch(`${API_BASE_URL}/dashboard/team`, { headers }),
-      fetch(`${API_BASE_URL}/dashboard/rewards`, { headers }),
-    ])
-    if (teamResponse.ok) setTeamMembers(await teamResponse.json())
-    if (rewardsResponse.ok) setRewards(await rewardsResponse.json())
-  }
-
   const openAIRequest = () => {
     if (requireLogin('Please log in before asking AI to find a facility.')) setIsAIRequestOpen(true)
   }
@@ -460,8 +370,6 @@ function App() {
     ]
 
     if (activeTab === 'Members') return <MembersPage members={registeredMembers} />
-    if (activeTab === 'Team') return <TeamPage teamMembers={teamMembers} name={teamMemberName} onNameChange={setTeamMemberName} onAdd={addTeamMember} onRemove={async (id) => { const response = await fetch(`${API_BASE_URL}/dashboard/team/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${authToken}` } }); if (response.ok) setTeamMembers((current) => current.filter((member) => member.id !== id)) }} currentUser={currentUser} />
-    if (activeTab === 'Rewards') return <RewardsPage rewards={rewards} onBook={openBooking} />
     if (activeTab === 'AI Workflows') return <AIWorkflowsPage workflows={workflowRequests} decision={workflowDecision} onDecisionChange={setWorkflowDecision} onRequestRevision={(id) => decideWorkflow(id, 'revise')} onReject={(id) => decideWorkflow(id, 'reject')} onApprove={(id) => decideWorkflow(id, 'approve')} />
     if (activeTab === 'My AI Requests') return <WorkflowHistoryPage workflows={workflowHistory} />
     if (activeTab === 'Facilities') return <FacilitiesPage facilities={facilitiesList} onViewTimetable={() => setIsTimetableOpen(true)} />
@@ -469,7 +377,7 @@ function App() {
     if (activeTab === 'Support') return <SupportPage requests={supportList} onAddTicket={openTicket} />
     const ratedFacilities = facilitiesList.filter((facility) => facility.rating != null)
     const averageRating = ratedFacilities.length ? (ratedFacilities.reduce((sum, facility) => sum + facility.rating, 0) / ratedFacilities.length).toFixed(1) : null
-    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList.slice(0, 4)} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} rewards={rewards} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setIsTimetableOpen(true)} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onTeam={openTeam} onRewards={() => { if (requireLogin('Please log in to view your rewards.')) setActiveTab('Rewards') }} />
+    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList.slice(0, 4)} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setIsTimetableOpen(true)} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} />
   }
 
   const heroMessage = (() => {
@@ -506,7 +414,6 @@ function App() {
       await loadSupportRequests(result.token)
       await loadFacilities()
       await loadWorkflowHistory(result.token)
-      await loadMemberData(result.token)
       if (['admin', 'manager'].includes(result.role?.toLowerCase())) {
         await loadMembers(result.token)
         await loadWorkflows(result.token)
@@ -835,23 +742,16 @@ function App() {
             </div>
 
             <div className="action-list">
-              {['Book court', 'View schedule', 'Manage team', 'Rewards'].map((action) => (
+              {['Book court', 'View schedule'].map((action) => (
                 <button key={action} type="button" className="action-chip" onClick={() => {
                   if (action === 'Book court' && requireLogin('Please log in before booking a court.')) setIsBookingOpen(true)
                   else if (action === 'View schedule') setIsTimetableOpen(true)
-                  else if (action === 'Manage team') openTeam()
-                  else if (action === 'Rewards' && requireLogin('Please log in to view your rewards.')) setIsRewardsOpen(true)
                 }}>
                   {action}
                 </button>
               ))}
             </div>
 
-            <div className="reward-card">
-              <p>Member reward</p>
-              <strong>12 points</strong>
-              <span>Earned this week</span>
-            </div>
           </aside>
         </section>
 
@@ -907,7 +807,12 @@ function App() {
       const facilitiesResponse = await fetch(`${API_BASE_URL}/Facilities`, {
         headers: { Authorization: `Bearer ${authToken}` },
       })
-      const availableFacilities = await facilitiesResponse.json()
+      if (!facilitiesResponse.ok) {
+        setBookingNotice(await facilitiesResponse.text() || 'Facilities could not be loaded.')
+        return
+      }
+      const facilitiesPayload = await facilitiesResponse.json()
+      const availableFacilities = facilitiesPayload.items ?? facilitiesPayload
       const selectedFacility = availableFacilities.find((item) => item.name === facility)
 
       if (!selectedFacility) {
@@ -989,7 +894,7 @@ function App() {
           </h1>
           <p className="auth-subtitle">
             {authMode === 'login'
-              ? 'Register first, then sign in to manage bookings, facilities and rewards.'
+              ? 'Register first, then sign in to manage bookings and facilities.'
               : authMode === 'verify-otp'
               ? `Enter the 6-digit code sent to ${otpPendingEmail}.`
               : 'Create a member account to access the SmartSports dashboard.'}
@@ -1228,56 +1133,6 @@ function App() {
                 <button type="submit" className="primary-btn">Submit ticket</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {isRewardsOpen && (
-        <div className="booking-modal-backdrop" onClick={() => setIsRewardsOpen(false)}>
-          <div className="booking-modal rewards-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="booking-modal-header">
-              <div>
-                <p className="eyebrow subtle">Member benefits</p>
-                <h3>Your rewards</h3>
-              </div>
-              <button type="button" className="close-btn" onClick={() => setIsRewardsOpen(false)}>×</button>
-            </div>
-            <div className="rewards-summary">
-              <strong>{rewards?.points ?? 0}</strong>
-              <span>points available</span>
-            </div>
-            <div className="rewards-list">
-              <div><strong>Confirmed bookings</strong><span>{rewards?.confirmedBookings ?? 0}</span></div>
-              <div><strong>Completed bookings</strong><span>{rewards?.completedBookings ?? 0}</span></div>
-              <div><strong>Next reward</strong><span>{rewards?.pointsToNextReward ?? 50} points to go</span></div>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="primary-btn" onClick={() => { setIsRewardsOpen(false); openBooking() }}>Book a session</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isTeamOpen && (
-        <div className="booking-modal-backdrop" onClick={() => setIsTeamOpen(false)}>
-          <div className="booking-modal team-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="booking-modal-header">
-              <div>
-                <p className="eyebrow subtle">Match planning</p>
-                <h3>Manage your team</h3>
-              </div>
-              <button type="button" className="close-btn" onClick={() => setIsTeamOpen(false)}>×</button>
-            </div>
-            <p className="modal-description">Add the players joining your next session so your booking details stay organized.</p>
-            <form className="team-add-form" onSubmit={addTeamMember}>
-              <input value={teamMemberName} onChange={(event) => setTeamMemberName(event.target.value)} placeholder="Player name" aria-label="Player name" />
-              <button type="submit" className="primary-btn">Add player</button>
-            </form>
-            <div className="team-list">
-              <div className="team-member"><span className="avatar small-avatar">{currentUser?.name?.charAt(0) ?? 'Y'}</span><div><strong>{currentUser?.name ?? 'You'}</strong><small>Team captain</small></div></div>
-              {teamMembers.map((member) => <div className="team-member" key={member.id}><span className="avatar small-avatar">{member.name.charAt(0).toUpperCase()}</span><div><strong>{member.name}</strong><small>Player</small></div><button type="button" className="remove-member" onClick={async () => { const response = await fetch(`${API_BASE_URL}/dashboard/team/${member.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${authToken}` } }); if (response.ok) setTeamMembers((current) => current.filter((item) => item.id !== member.id)) }}>Remove</button></div>)}
-              {!teamMembers.length && <p className="empty-state">No additional players added yet.</p>}
-            </div>
           </div>
         </div>
       )}

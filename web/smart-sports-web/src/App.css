@@ -298,15 +298,12 @@
 }
 
 .summary-card p,
-.summary-card span,
-.reward-card p,
-.reward-card span {
+.summary-card span {
   margin: 0;
   color: rgba(255,255,255,0.75);
 }
 
-.summary-card strong,
-.reward-card strong {
+.summary-card strong {
   display: block;
   margin: 10px 0 6px;
   font-size: 1.8rem;
@@ -561,17 +558,6 @@
 
 .action-chip:hover {
   background: #dbeafe;
-}
-
-.reward-card {
-  margin-top: 8px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #101b31, #2459ac);
-}
-
-.reward-card strong {
-  font-size: 1.5rem;
 }
 
 .booking-item,
@@ -1178,86 +1164,6 @@
   margin-bottom: 20px;
 }
 
-.rewards-summary {
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  margin: 8px 0 18px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #101b31, #2459ac);
-  color: white;
-}
-
-.rewards-summary strong {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 3.8rem;
-  line-height: 0.9;
-}
-
-.rewards-summary span,
-.rewards-list span,
-.team-member small {
-  color: #71809a;
-  font-size: 0.85rem;
-}
-
-.rewards-list,
-.team-list {
-  display: grid;
-  gap: 10px;
-}
-
-.rewards-list > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(23, 36, 58, 0.08);
-}
-
-.team-add-form {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 18px;
-}
-
-.team-add-form input {
-  min-width: 0;
-  flex: 1;
-  border: 1px solid rgba(23, 36, 58, 0.14);
-  border-radius: 10px;
-  padding: 12px 14px;
-  font: inherit;
-}
-
-.team-member {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(23, 36, 58, 0.08);
-}
-
-.team-member > div {
-  display: grid;
-  flex: 1;
-}
-
-.small-avatar {
-  width: 34px;
-  height: 34px;
-  font-size: 0.9rem;
-}
-
-.remove-member {
-  border: 0;
-  background: transparent;
-  color: #b4233d;
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-}
 
 .dark-mode {
   background:
