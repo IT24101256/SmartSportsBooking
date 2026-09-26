@@ -161,11 +161,11 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
 
       if (mounted) {
         setState(() {
-          _liveFacilities = results[0] as List<Map<String, dynamic>>;
-          _liveBookings = results[1] as List<Map<String, dynamic>>;
-          _liveSchedule = results[2] as List<Map<String, dynamic>>;
-          _liveSupport = results[3] as List<Map<String, dynamic>>;
-          _liveWorkflows = results[4] as List<Map<String, dynamic>>;
+          _liveFacilities = results[0];
+          _liveBookings = results[1];
+          _liveSchedule = results[2];
+          _liveSupport = results[3];
+          _liveWorkflows = results[4];
           _isDataLoading = false;
         });
       }
@@ -1450,102 +1450,82 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
     );
 
     final user = _apiService.currentUser;
-    final initials = user != null && user.fullName.isNotEmpty
-        ? (user.fullName.split(' ').map((n) => n.isNotEmpty ? n[0] : '').take(2).join())
-        : 'U';
-
-    final teamContent = RefreshIndicator(
+    final profileContent = RefreshIndicator(
       onRefresh: _loadAllData,
       child: ListView(
         padding: const EdgeInsets.all(18),
         children: [
-          const Text('Manage team', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-          const Text('Players saved to your account', style: TextStyle(color: Color(0xFF5D7692))),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(onPressed: _addTeamMemberDialog, icon: const Icon(Icons.person_add), label: const Text('Add player')),
-          const SizedBox(height: 12),
-          if (_teamMembers.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No additional players added yet.'))
-          else ..._teamMembers.map((member) => Card(
-            child: ListTile(
-              leading: CircleAvatar(child: Text((member['name'] ?? 'P').toString().substring(0, 1).toUpperCase())),
-              title: Text((member['name'] ?? 'Player').toString()),
-              subtitle: const Text('Team player'),
-              trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async {
-                await _apiService.removeTeamMember(member['id'] as int);
-                if (mounted) setState(() => _teamMembers.removeWhere((item) => item['id'] == member['id']));
-              }),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F766E), Color(0xFF1D4ED8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
             ),
-          )),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Your profile',
+                  style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  user?.fullName.isNotEmpty == true ? user!.fullName : 'Member',
+                  style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Role: ${user?.role ?? 'Customer'} • User ID ${user?.id ?? 0}',
+                  style: const TextStyle(color: Color(0xFFE0F2FE), fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              children: [
+                _profileRow('Email', user?.email ?? 'Unknown'),
+                const Divider(height: 24),
+                _profileRow('Role', user?.role ?? 'Customer'),
+                const Divider(height: 24),
+                _profileRow('Backend URL', _apiService.baseUrl),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          OutlinedButton.icon(
+            onPressed: _showServerSettingsDialog,
+            icon: const Icon(Icons.settings),
+            label: const Text('Configure Backend URL'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+            onPressed: _logout,
+            icon: const Icon(Icons.logout),
+            label: const Text('Sign out'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
         ],
       ),
-    );
-
-                      fontWeight: FontWeight.w800,
-                      fontSize: 24,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                user?.fullName.isNotEmpty == true ? user!.fullName : 'Member',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Role: ${user?.role ?? 'Customer'} • User ID ${user?.id ?? 0}',
-                style: const TextStyle(
-                  color: Color(0xFFE0F2FE),
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: Column(
-            children: [
-              _profileRow('Email', user?.email ?? 'Unknown'),
-              const Divider(height: 24),
-              _profileRow('Role', user?.role ?? 'Customer'),
-              const Divider(height: 24),
-              _profileRow('Backend URL', _apiService.baseUrl),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
-        OutlinedButton.icon(
-          onPressed: _showServerSettingsDialog,
-          icon: const Icon(Icons.settings),
-          label: const Text('Configure Backend URL'),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          ),
-        ),
-        const SizedBox(height: 12),
-        ElevatedButton.icon(
-          onPressed: _logout,
-          icon: const Icon(Icons.logout),
-          label: const Text('Sign out'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFEF4444),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          ),
-        ),
-      ],
     );
 
     final aiWorkflowsContent = RefreshIndicator(
