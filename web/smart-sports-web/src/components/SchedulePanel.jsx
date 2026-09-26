@@ -1,9 +1,8 @@
-export default function SchedulePanel({ schedule, onDetails, onOpenCalendar }) {
+export default function SchedulePanel({ schedule, onDetails }) {
   return (
     <section className="panel schedule-panel">
       <div className="panel-header">
         <h3>Today’s schedule</h3>
-        <button className="text-action" type="button" onClick={onOpenCalendar}>Open calendar</button>
       </div>
       <div className="schedule-list">
         {schedule.map((item) => (

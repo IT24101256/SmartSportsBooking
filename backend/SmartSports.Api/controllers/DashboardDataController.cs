@@ -69,6 +69,45 @@ public class DashboardDataController : ControllerBase
         });
     }
 
+    [HttpGet("revenue")]
+    [Authorize(Roles = "Admin,Manager")]
+    public async Task<IActionResult> GetRevenue([FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null)
+    {
+        var today = DateTime.UtcNow.Date;
+        var start = DateTime.SpecifyKind((fromDate ?? new DateTime(today.Year, today.Month, 1)).Date, DateTimeKind.Utc);
+        var end = DateTime.SpecifyKind((toDate ?? today).Date.AddDays(1), DateTimeKind.Utc);
+        if (end <= start) return BadRequest("The to date must be on or after the from date.");
+
+        var bookings = await _context.Bookings
+            .Where(booking => booking.BookingDate >= start && booking.BookingDate < end &&
+                booking.Status != "Cancelled" && (booking.PaymentStatus == "Paid" || booking.PaymentStatus == "Approved" || booking.Status == "Confirmed"))
+            .Include(booking => booking.Facility)
+            .OrderByDescending(booking => booking.BookingDate)
+            .ThenByDescending(booking => booking.StartTime)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            fromDate = start,
+            toDate = end.AddDays(-1),
+            startDate = start,
+            endDate = end.AddDays(-1),
+            totalRevenue = bookings.Sum(booking => booking.TotalAmount),
+            bookingCount = bookings.Count,
+            items = bookings.Select(booking => new
+            {
+                booking.Id,
+                booking.BookingDate,
+                facility = booking.Facility!.Name,
+                customer = booking.CustomerName,
+                booking.TotalAmount,
+                booking.PaymentMethod,
+                paymentStatus = booking.PaymentStatus,
+                booking.Status
+            })
+        });
+    }
+
     [HttpGet("support-requests")]
     [Authorize]
     public async Task<IActionResult> GetSupportRequests()
@@ -106,11 +145,67 @@ public class DashboardDataController : ControllerBase
             Title = request.Title.Trim(),
             Detail = request.Detail.Trim(),
             Priority = request.Priority,
-            Status = "Open"
+            Status = "Pending"
         };
         _context.SupportRequests.Add(supportRequest);
         await _context.SaveChangesAsync();
         return Created($"/api/dashboard/support-requests/{supportRequest.Id}", supportRequest);
+    }
+
+    [HttpPut("support-requests/{id:int}/status")]
+    [Authorize(Roles = "Admin,Manager,Staff")]
+    public async Task<IActionResult> UpdateSupportStatus(int id, UpdateSupportStatus request)
+    {
+        var supportRequest = await _context.SupportRequests.FindAsync(id);
+        if (supportRequest == null) return NotFound();
+
+        var allowedStatuses = new[] { "Pending", "UnderReview", "Resolved" };
+        if (!allowedStatuses.Contains(request.Status)) return BadRequest("Invalid support request status.");
+        if (request.Status == "UnderReview" && supportRequest.Status != "Pending") return Conflict("Only pending requests can be opened for review.");
+        if (request.Status == "Resolved" && supportRequest.Status != "UnderReview") return Conflict("Only requests under review can be resolved.");
+
+        supportRequest.Status = request.Status;
+        await _context.SaveChangesAsync();
+        return Ok(supportRequest);
+    }
+
+    [HttpGet("support-requests/{id:int}/messages")]
+    [Authorize]
+    public async Task<IActionResult> GetSupportMessages(int id)
+    {
+        var supportRequest = await _context.SupportRequests.FindAsync(id);
+        if (supportRequest == null) return NotFound();
+        if (!CanAccessSupportRequest(supportRequest)) return Forbid();
+
+        return Ok(await _context.SupportMessages
+            .Where(message => message.SupportRequestId == id)
+            .OrderBy(message => message.CreatedAtUtc)
+            .Select(message => new { message.Id, message.Message, message.CreatedAtUtc, senderName = message.SenderUser!.FullName })
+            .ToListAsync());
+    }
+
+    [HttpPost("support-requests/{id:int}/messages")]
+    [Authorize]
+    public async Task<IActionResult> AddSupportMessage(int id, CreateSupportMessage request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+        var supportRequest = await _context.SupportRequests.FindAsync(id);
+        if (supportRequest == null) return NotFound();
+        if (!CanAccessSupportRequest(supportRequest)) return Forbid();
+        if (supportRequest.Status != "UnderReview") return Conflict("Chat is available only while the request is under review.");
+        if (string.IsNullOrWhiteSpace(request.Message)) return BadRequest("Message is required.");
+
+        var message = new SupportMessage { SupportRequestId = id, SenderUserId = userId.Value, Message = request.Message.Trim() };
+        _context.SupportMessages.Add(message);
+        await _context.SaveChangesAsync();
+        await _context.Entry(message).Reference(item => item.SenderUser).LoadAsync();
+        return Created($"/api/dashboard/support-requests/{id}/messages/{message.Id}", new { message.Id, message.Message, message.CreatedAtUtc, senderName = message.SenderUser?.FullName });
+    }
+
+    private bool CanAccessSupportRequest(SupportRequest request)
+    {
+        return User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Staff") || request.UserId == GetUserId();
     }
 
     [HttpGet("team")]

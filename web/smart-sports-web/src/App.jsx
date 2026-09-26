@@ -7,14 +7,20 @@ import OverviewPage from './pages/OverviewPage'
 import FacilitiesPage from './pages/FacilitiesPage'
 import BookingsPage from './pages/BookingsPage'
 import SupportPage from './pages/SupportPage'
+import SupportConversationPage from './pages/SupportConversationPage'
 import MembersPage from './pages/MembersPage'
 import AIWorkflowsPage from './pages/AIWorkflowsPage'
 import WorkflowHistoryPage from './pages/WorkflowHistoryPage'
+import BookingWizard from './components/BookingWizard'
+import FacilityDetailsPage from './pages/FacilityDetailsPage'
+import ReviewModal from './components/ReviewModal'
+import ReviewsPanel from './components/ReviewsPanel'
+import RevenuePage from './pages/RevenuePage'
 
 const API_BASE_URL = 'http://localhost:5187/api'
 
 const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support', 'My AI Requests']
-const adminNavItems = [...baseNavItems, 'Members', 'AI Workflows']
+const adminNavItems = [...baseNavItems, 'Revenue', 'Members', 'AI Workflows']
 
 const initialBookingForm = {
   facility: 'Championship Turf',
@@ -71,8 +77,11 @@ function App() {
   const [otpValue, setOtpValue] = useState('')
   const [registeredMembers, setRegisteredMembers] = useState([])
   const [bookingsList, setBookingsList] = useState([])
+  const [reviewsList, setReviewsList] = useState([])
+  const [reviewBooking, setReviewBooking] = useState(null)
   const [scheduleList, setScheduleList] = useState([])
   const [supportList, setSupportList] = useState([])
+  const [selectedSupportRequest, setSelectedSupportRequest] = useState(null)
   const [facilitiesList, setFacilitiesList] = useState([])
   const [isBookingOpen, setIsBookingOpen] = useState(false)
   const [bookingForm, setBookingForm] = useState(initialBookingForm)
@@ -81,6 +90,7 @@ function App() {
   const [isTicketOpen, setIsTicketOpen] = useState(false)
   const [isTimetableOpen, setIsTimetableOpen] = useState(false)
   const [selectedScheduleItem, setSelectedScheduleItem] = useState(null)
+  const [selectedFacility, setSelectedFacility] = useState(null)
   const [isAIRequestOpen, setIsAIRequestOpen] = useState(false)
   const [aiRequestForm, setAIRequestForm] = useState({ objective: '', facilityType: 'Football', date: '2026-09-12', startTime: '18:00', endTime: '19:00', guests: '2', budget: '5000' })
   const [ticketForm, setTicketForm] = useState({ subject: '', detail: '', priority: 'Medium' })
@@ -120,12 +130,36 @@ function App() {
     })
   }
 
-  const formatBooking = (booking) => ({
+  const formatBooking = (booking, review = null) => ({
     id: booking.id,
     name: `${booking.facility?.name ?? 'Facility'} • booking`,
     date: `${new Date(booking.bookingDate).toLocaleDateString()} • ${booking.startTime.slice(0, 5)}`,
     status: booking.status,
+    paymentMethod: booking.paymentMethod,
+    paymentStatus: booking.paymentStatus,
+    customerName: booking.customerName,
+    bookingDate: booking.bookingDate,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    bankSlipFileName: booking.bankSlipFileName,
+    review,
   })
+
+  const formatFacility = (facility) => ({
+    ...facility,
+    faq: parseJsonArray(facility.faq),
+    images: parseJsonArray(facility.images),
+    hourlyRate: Number(facility.hourlyRate ?? 0),
+    price: `LKR ${Number(facility.hourlyRate ?? 0).toLocaleString()} / hour`,
+    status: facility.isAvailable ? 'Available now' : 'Unavailable',
+    accent: ['green', 'blue', 'purple'][facility.id % 3] || 'green',
+    icon: '🏟️',
+  })
+
+  const parseJsonArray = (value) => {
+    if (Array.isArray(value)) return value
+    try { return JSON.parse(value || '[]') } catch { return [] }
+  }
 
   const formatScheduleBooking = (booking) => ({
     id: `booking-${booking.id}`,
@@ -143,11 +177,24 @@ function App() {
     if (!response.ok) return
     const payload = await response.json()
     const savedBookings = payload.items ?? payload
-    setBookingsList(savedBookings.map(formatBooking))
+    const reviewByBooking = Object.fromEntries(reviewsList.map((review) => [review.bookingId, review]))
+    setBookingsList(savedBookings.map((booking) => formatBooking(booking, reviewByBooking[booking.id])))
     setScheduleList((current) => [
       ...current.filter((item) => !String(item.id).startsWith('booking-')),
       ...savedBookings.filter((item) => item.bookingDate.slice(0, 10) === new Date().toISOString().slice(0, 10)).map(formatScheduleBooking),
     ])
+  }
+
+  const loadReviews = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/reviews`)
+      if (!response.ok) return
+      const savedReviews = await response.json()
+      setReviewsList(savedReviews)
+      setBookingsList((current) => current.map((booking) => ({ ...booking, review: savedReviews.find((review) => review.bookingId === booking.id) || null })))
+    } catch {
+      // Keep the dashboard usable when reviews are unavailable
+    }
   }
 
   const loadSupportRequests = async (token = authToken) => {
@@ -180,6 +227,7 @@ function App() {
   useEffect(() => {
     loadFacilities()
     loadSupportRequests()
+    loadReviews()
   }, [])
 
   const formatWorkflow = (workflow) => {
@@ -235,6 +283,74 @@ function App() {
     if (response.ok) setWorkflowHistory((await response.json()).map(formatWorkflow))
   }
 
+  const updateBookingStatus = async (booking, status) => {
+    const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ status }),
+    })
+    if (!response.ok) {
+      setBookingNotice(await response.text() || 'Booking status could not be updated.')
+      return
+    }
+    const updated = await response.json()
+    setBookingsList((current) => current.map((item) => item.id === updated.id ? formatBooking(updated) : item))
+    setBookingNotice(`Booking ${status.toLowerCase()}.`)
+  }
+
+  const openReview = (booking) => {
+    const selectedBooking = booking.bookingId
+      ? bookingsList.find((item) => item.id === booking.bookingId) || { id: booking.bookingId, name: `${booking.facilityName || 'Facility'} • booking`, review: booking }
+      : booking
+    if (requireLogin('Please log in before leaving a review.')) setReviewBooking(selectedBooking)
+  }
+
+  const saveReview = async (form) => {
+    const payload = new FormData()
+    payload.append('BookingId', String(form.bookingId))
+    payload.append('Name', form.name)
+    payload.append('Rating', String(form.rating))
+    payload.append('Review', form.review)
+    form.photos.forEach((photo) => payload.append('Photos', photo))
+    const response = await fetch(`${API_BASE_URL}/reviews${form.reviewId ? `/${form.reviewId}` : ''}`, {
+      method: form.reviewId ? 'PUT' : 'POST',
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: payload,
+    })
+    if (!response.ok) {
+      setBookingNotice(await response.text() || 'The review could not be saved.')
+      return
+    }
+    const savedReview = await response.json()
+    setReviewsList((current) => form.reviewId ? current.map((review) => review.id === savedReview.id ? savedReview : review) : [savedReview, ...current])
+    setBookingsList((current) => current.map((booking) => booking.id === savedReview.bookingId ? { ...booking, review: savedReview } : booking))
+    setReviewBooking(null)
+    setBookingNotice(form.reviewId ? 'Review updated.' : 'Review submitted. Thanks for sharing your experience.')
+  }
+
+  const deleteReview = async (review) => {
+    if (!window.confirm('Delete this review?')) return
+    const response = await fetch(`${API_BASE_URL}/reviews/${review.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${authToken}` } })
+    if (!response.ok) {
+      setBookingNotice(await response.text() || 'The review could not be deleted.')
+      return
+    }
+    setReviewsList((current) => current.filter((item) => item.id !== review.id))
+    setBookingsList((current) => current.map((booking) => booking.id === review.bookingId ? { ...booking, review: null } : booking))
+    setBookingNotice('Review deleted.')
+  }
+
+
+  const viewBankSlip = async (booking) => {
+    const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/bank-slip`, { headers: { Authorization: `Bearer ${authToken}` } })
+    if (!response.ok) {
+      setBookingNotice('The bank slip could not be loaded.')
+      return
+    }
+    const url = URL.createObjectURL(await response.blob())
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
   const decideWorkflow = async (workflowId, action) => {
     const response = await fetch(`${API_BASE_URL}/booking-workflows/${workflowId}/${action}`, {
       method: 'POST',
@@ -268,6 +384,33 @@ function App() {
     if (requireLogin('Please log in before creating a booking.')) {
       setIsBookingOpen(true)
     }
+  }
+
+  const openFacilityBooking = (facility) => {
+    setBookingForm((current) => ({ ...current, facility: facility.name }))
+    openBooking()
+  }
+
+  const saveFacility = async (facility, id) => {
+    const response = await fetch(`${API_BASE_URL}/Facilities${id ? `/${id}` : ''}`, {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ ...facility, id: id || 0, hourlyRate: Number(facility.hourlyRate), faq: JSON.stringify(facility.faq ?? []), images: JSON.stringify(facility.images ?? []) }),
+    })
+    if (!response.ok) throw new Error(await response.text() || 'Facility could not be saved.')
+    const saved = id ? { ...facility, id } : await response.json()
+    setFacilitiesList((current) => id
+      ? current.map((item) => item.id === id ? formatFacility(saved) : item)
+      : [...current, formatFacility(saved)])
+  }
+
+  const deleteFacility = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/Facilities/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+    if (!response.ok) throw new Error(await response.text() || 'Facility could not be deleted.')
+    setFacilitiesList((current) => current.filter((item) => item.id !== id))
   }
 
   const openTicket = () => {
@@ -343,6 +486,21 @@ function App() {
     setIsTicketOpen(false)
   }
 
+  const updateSupportStatus = async (request, status) => {
+    const response = await fetch(`${API_BASE_URL}/dashboard/support-requests/${request.id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ status }),
+    })
+    if (!response.ok) {
+      setBookingNotice(await response.text() || 'Support status could not be updated.')
+      return
+    }
+    const updated = await response.json()
+    setSupportList((current) => current.map((item) => item.id === updated.id ? updated : item))
+    setBookingNotice(`Support request marked ${status.toLowerCase()}.`)
+  }
+
   const [dashStats, setDashStats] = useState({ bookingsToday: '--', memberSatisfaction: '--', facilitiesCount: 0, totalBookings: 0, confirmedBookings: 0, bookingsByFacility: [] })
 
   const loadDashStats = async () => {
@@ -371,13 +529,14 @@ function App() {
 
     if (activeTab === 'Members') return <MembersPage members={registeredMembers} />
     if (activeTab === 'AI Workflows') return <AIWorkflowsPage workflows={workflowRequests} decision={workflowDecision} onDecisionChange={setWorkflowDecision} onRequestRevision={(id) => decideWorkflow(id, 'revise')} onReject={(id) => decideWorkflow(id, 'reject')} onApprove={(id) => decideWorkflow(id, 'approve')} />
+    if (activeTab === 'Revenue') return <RevenuePage apiBaseUrl={API_BASE_URL} token={authToken} />
     if (activeTab === 'My AI Requests') return <WorkflowHistoryPage workflows={workflowHistory} />
-    if (activeTab === 'Facilities') return <FacilitiesPage facilities={facilitiesList} onViewTimetable={() => setIsTimetableOpen(true)} />
-    if (activeTab === 'Bookings') return <BookingsPage bookings={bookingsList} onNewBooking={openBooking} />
-    if (activeTab === 'Support') return <SupportPage requests={supportList} onAddTicket={openTicket} />
+    if (activeTab === 'Facilities') return selectedFacility ? <FacilityDetailsPage facility={selectedFacility} onBack={() => setSelectedFacility(null)} onBook={openFacilityBooking} /> : <FacilitiesPage facilities={facilitiesList} isAdmin={currentUser?.role === 'admin'} onDetails={setSelectedFacility} onBook={openFacilityBooking} onSave={saveFacility} onDelete={deleteFacility} />
+    if (activeTab === 'Bookings') return <BookingsPage bookings={bookingsList} isAdmin={['admin', 'manager'].includes(currentUser?.role)} onNewBooking={openBooking} onStatusChange={updateBookingStatus} onViewSlip={viewBankSlip} onReview={openReview} />
+    if (activeTab === 'Support') return selectedSupportRequest ? <SupportConversationPage request={selectedSupportRequest} token={authToken} apiBaseUrl={API_BASE_URL} onBack={() => setSelectedSupportRequest(null)} /> : <SupportPage requests={supportList} onAddTicket={openTicket} isAdmin={['admin', 'manager', 'staff'].includes(currentUser?.role)} onStatusChange={updateSupportStatus} onOpenRequest={setSelectedSupportRequest} />
     const ratedFacilities = facilitiesList.filter((facility) => facility.rating != null)
     const averageRating = ratedFacilities.length ? (ratedFacilities.reduce((sum, facility) => sum + facility.rating, 0) / ratedFacilities.length).toFixed(1) : null
-    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList.slice(0, 4)} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setIsTimetableOpen(true)} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} />
+    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList.slice(0, 4)} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} reviews={reviewsList} apiBaseUrl={API_BASE_URL} currentUser={currentUser} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setActiveTab('Bookings')} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onReview={openReview} onEditReview={openReview} onDeleteReview={deleteReview} />
   }
 
   const heroMessage = (() => {
@@ -404,13 +563,14 @@ function App() {
 
       const result = await response.json()
       setAuthToken(result.token)
-      setCurrentUser({ name: result.fullName, email: result.email, role: result.role?.toLowerCase() })
+      setCurrentUser({ id: result.userId, name: result.fullName, email: result.email, role: result.role?.toLowerCase() })
       setLoggedIn(true)
       setShowAuthPanel(false)
       setActiveTab('Overview')
       setAuthFeedback('')
       setPassword('')
       await loadBookings(result.token)
+      await loadReviews()
       await loadSupportRequests(result.token)
       await loadFacilities()
       await loadWorkflowHistory(result.token)
@@ -430,8 +590,8 @@ function App() {
       return
     }
 
-    if (registerPassword.length < 6) {
-      setAuthFeedback('Password must be at least 6 characters long.')
+    if (registerPassword.length < 8 || !/[A-Z]/.test(registerPassword) || !/[a-z]/.test(registerPassword) || !/\d/.test(registerPassword) || !/[^A-Za-z0-9]/.test(registerPassword)) {
+      setAuthFeedback('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.')
       return
     }
 
@@ -611,7 +771,6 @@ function App() {
         <section className="panel full-width-panel">
           <div className="panel-header">
             <h3>Available facilities</h3>
-            <button className="text-action" type="button" onClick={() => setIsTimetableOpen(true)}>View timetable</button>
           </div>
           <div className="facility-list">
             {facilities.map((facility) => (
@@ -620,7 +779,6 @@ function App() {
                 <div className="facility-body">
                   <div className="facility-topline">
                     <h4>{facility.name}</h4>
-                    <span>{facility.type}</span>
                   </div>
                   <div className="facility-meta">
                     <strong>{facility.price}</strong>
@@ -677,7 +835,7 @@ function App() {
             <p>Reserve premium courts, track training time, and manage your active schedule in one place.</p>
             <div className="hero-actions">
               <button className="primary-btn" onClick={openBooking}>Book a facility</button>
-              <button className="secondary-btn light" onClick={() => setActiveTab('Bookings')}>View calendar</button>
+              <button className="secondary-btn light" onClick={openAIRequest}>Ask AI</button>
             </div>
           </div>
 
@@ -724,7 +882,6 @@ function App() {
                   <div className="facility-body">
                     <div className="facility-topline">
                       <h4>{facility.name}</h4>
-                      <span>{facility.type}</span>
                     </div>
                     <div className="facility-meta">
                       <strong>{facility.price}</strong>
@@ -736,23 +893,6 @@ function App() {
             </div>
           </div>
 
-          <aside className="panel side-panel">
-            <div className="panel-header">
-              <h3>Quick actions</h3>
-            </div>
-
-            <div className="action-list">
-              {['Book court', 'View schedule'].map((action) => (
-                <button key={action} type="button" className="action-chip" onClick={() => {
-                  if (action === 'Book court' && requireLogin('Please log in before booking a court.')) setIsBookingOpen(true)
-                  else if (action === 'View schedule') setIsTimetableOpen(true)
-                }}>
-                  {action}
-                </button>
-              ))}
-            </div>
-
-          </aside>
         </section>
 
         <section className="lower-grid">
@@ -785,7 +925,7 @@ function App() {
           </div>
         </section>
 
-        <SchedulePanel schedule={scheduleList} onDetails={setSelectedScheduleItem} onOpenCalendar={() => setActiveTab('Bookings')} />
+        <SchedulePanel schedule={scheduleList} onDetails={setSelectedScheduleItem} />
       </>
     )
   }
@@ -856,6 +996,14 @@ function App() {
     setIsBookingOpen(false)
     setBookingForm(initialBookingForm)
     setActiveTab('Bookings')
+  }
+
+  const handleWizardCreated = (savedBooking) => {
+    setBookingsList((current) => [formatBooking(savedBooking), ...current])
+    if (savedBooking.bookingDate?.slice(0, 10) === new Date().toISOString().slice(0, 10)) {
+      setScheduleList((current) => [...current, formatScheduleBooking(savedBooking)])
+    }
+    setBookingNotice(`Booking submitted for ${savedBooking.facility?.name ?? 'the selected facility'}.`)
   }
 
   if (!loggedIn && showAuthPanel) {
@@ -934,7 +1082,7 @@ function App() {
 
               <label className="field">
                 <span>Password</span>
-                <input type="password" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} placeholder="••••••••" />
+                <input type="password" minLength="8" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} placeholder="8+ chars, upper/lower/number/symbol" />
               </label>
 
               <label className="field">
@@ -1020,7 +1168,6 @@ function App() {
             <button className="secondary-btn theme-toggle" type="button" onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}>
               {theme === 'light' ? '🌙 Dark mode' : '☀️ Light mode'}
             </button>
-            <button className="secondary-btn" onClick={() => setActiveTab('Bookings')}>View calendar</button>
             {!loggedIn && <button className="primary-btn" type="button" onClick={() => {
               setAuthMode('login')
               setShowAuthPanel(true)
@@ -1044,62 +1191,11 @@ function App() {
         {renderPage()}
       </main>
 
-      {isBookingOpen && (
-        <div className="booking-modal-backdrop" onClick={() => setIsBookingOpen(false)}>
-          <div className="booking-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="booking-modal-header">
-              <div>
-                <p className="eyebrow subtle">New booking</p>
-                <h3>Reserve a facility</h3>
-              </div>
-              <button type="button" className="close-btn" onClick={() => setIsBookingOpen(false)}>×</button>
-            </div>
-
-            <form className="booking-form" onSubmit={handleBookingSubmit}>
-              <label>
-                <span>Facility</span>
-                <select value={bookingForm.facility} onChange={(event) => handleBookingChange('facility', event.target.value)}>
-                  {facilitiesList.map((item) => (
-                    <option key={item.id || item.name} value={item.name}>{item.name}</option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="form-row">
-                <label>
-                  <span>Date</span>
-                  <input type="date" value={bookingForm.date} onChange={(event) => handleBookingChange('date', event.target.value)} />
-                </label>
-
-                <label>
-                  <span>Time</span>
-                  <input type="time" value={bookingForm.time} onChange={(event) => handleBookingChange('time', event.target.value)} />
-                </label>
-              </div>
-
-              <label>
-                <span>Guests</span>
-                <input type="number" min="1" max="12" value={bookingForm.guests} onChange={(event) => handleBookingChange('guests', event.target.value)} />
-              </label>
-
-              <label>
-                <span>Status</span>
-                <select value={bookingForm.status} onChange={(event) => handleBookingChange('status', event.target.value)}>
-                  <option value="Pending">Pending</option>
-                  <option value="Confirmed">Confirmed</option>
-                </select>
-              </label>
-
-              <div className="modal-actions">
-                <button type="button" className="secondary-btn" onClick={() => setIsBookingOpen(false)}>Cancel</button>
-                <button type="submit" className="primary-btn">Confirm booking</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {isBookingOpen && <BookingWizard facilities={facilitiesList} initialFacilityName={bookingForm.facility} token={authToken} apiBaseUrl={API_BASE_URL} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsBookingOpen(false)} onCreated={handleWizardCreated} />}
 
       {isAIRequestOpen && <AIWorkflowRequestModal form={aiRequestForm} onChange={handleAIRequestChange} onSubmit={handleAIRequestSubmit} onClose={() => setIsAIRequestOpen(false)} />}
+
+      {reviewBooking && <ReviewModal booking={reviewBooking} existingReview={reviewBooking.review} onSubmit={saveReview} onClose={() => setReviewBooking(null)} />}
 
       {isTicketOpen && (
         <div className="booking-modal-backdrop" onClick={() => setIsTicketOpen(false)}>
@@ -1155,7 +1251,6 @@ function App() {
                     <span className="facility-icon">{facility.icon}</span>
                     <div>
                       <strong>{facility.name}</strong>
-                      <small>{facility.type}</small>
                     </div>
                   </div>
                   <div className="slot-list">
@@ -1201,7 +1296,7 @@ function App() {
                 <strong>{selectedScheduleItem.time}</strong>
               </div>
               <div>
-                <span>Coach: </span>
+                <span>Name: </span>
                 <strong>{selectedScheduleItem.coach}</strong>
               </div>
               <div>

@@ -45,9 +45,13 @@ public class AuthController : ControllerBase
             return BadRequest("All fields are required.");
         }
 
-        if (request.Password.Length < 6)
+        if (request.Password.Length < 8 ||
+            !request.Password.Any(char.IsUpper) ||
+            !request.Password.Any(char.IsLower) ||
+            !request.Password.Any(char.IsDigit) ||
+            !request.Password.Any(ch => !char.IsLetterOrDigit(ch)))
         {
-            return BadRequest("Password must be at least 6 characters.");
+            return BadRequest("Password must be at least 8 characters and include uppercase, lowercase, number, and special character.");
         }
 
         var existingUser = await _context.Users
