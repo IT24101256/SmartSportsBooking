@@ -28,6 +28,24 @@ public class Booking
     // This stores the booking end time.
     public TimeSpan EndTime { get; set; }
 
+    public int HoursNeeded { get; set; }
+
+    public decimal TotalAmount { get; set; }
+
+    public string CustomerName { get; set; } = string.Empty;
+
+    public string NicNumber { get; set; } = string.Empty;
+
+    public string ContactNumber { get; set; } = string.Empty;
+
+    public string PaymentMethod { get; set; } = "BankTransfer";
+
+    public string PaymentStatus { get; set; } = "Pending";
+
+    public string? BankSlipFileName { get; set; }
+
+    public string? CardLastFour { get; set; }
+
     // This stores the current booking status.
     public string Status { get; set; } = "Pending";
 } 

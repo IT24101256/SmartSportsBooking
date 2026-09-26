@@ -60,15 +60,14 @@ public class FacilityAnalysisAgent : IAgent
         {
             FacilityId = selected.Id,
             FacilityName = selected.Name,
-            FacilityType = selected.Type,
-            Location = selected.Location,
+            FacilityType = context.FacilityType,
             HourlyRate = hourlyRate,
             EstimatedCost = estimatedCost,
             Start = context.RequestedStart,
             End = context.RequestedEnd,
             Guests = context.Guests,
             Amenities = new List<string> { "Locker Rooms", "Lighting", "Scoreboard Support" },
-            MatchRationale = $"Selected '{selected.Name}' based on sport type '{selected.Type}', capacity alignment ({selected.Capacity} >= {context.Guests}), and active status."
+            MatchRationale = $"Selected '{selected.Name}' based on the requested facility, capacity alignment ({selected.Capacity} >= {context.Guests}), and active status."
         };
 
         context.SetMemory("FacilityProposalInfo", proposalInfo);
@@ -86,8 +85,6 @@ public class FacilityAnalysisAgent : IAgent
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
-        public string Type { get; set; } = string.Empty;
-        public string Location { get; set; } = string.Empty;
         public bool IsAvailable { get; set; }
         public decimal EstimatedHourlyRate { get; set; }
         public int Capacity { get; set; }

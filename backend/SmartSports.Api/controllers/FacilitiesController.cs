@@ -47,7 +47,7 @@ public class FacilitiesController : ControllerBase
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLower();
-            facilitiesQuery = facilitiesQuery.Where(facility => facility.Name.ToLower().Contains(term) || facility.Type.ToLower().Contains(term) || facility.Location.ToLower().Contains(term));
+            facilitiesQuery = facilitiesQuery.Where(facility => facility.Name.ToLower().Contains(term) || facility.Description.ToLower().Contains(term));
         }
 
         if (available.HasValue)
@@ -55,12 +55,7 @@ public class FacilitiesController : ControllerBase
             facilitiesQuery = facilitiesQuery.Where(facility => facility.IsAvailable == available.Value);
         }
 
-        facilitiesQuery = sort?.ToLowerInvariant() switch
-        {
-            "type" => facilitiesQuery.OrderBy(facility => facility.Type).ThenBy(facility => facility.Name),
-            "location" => facilitiesQuery.OrderBy(facility => facility.Location).ThenBy(facility => facility.Name),
-            _ => facilitiesQuery.OrderBy(facility => facility.Name)
-        };
+        facilitiesQuery = facilitiesQuery.OrderBy(facility => facility.Name);
 
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
@@ -79,7 +74,8 @@ public class FacilitiesController : ControllerBase
 
         return Ok(new { items = facilities.Select(facility => new
         {
-            facility.Id, facility.Name, facility.Type, facility.Location, facility.IsAvailable,
+            facility.Id, facility.Name, facility.IsAvailable,
+            facility.HourlyRate, facility.Description, facility.Faq, facility.Images,
             rating = ratings.TryGetValue(facility.Id, out var summary) ? Math.Round(summary.average, 1) : (double?)null,
             ratingCount = ratings.TryGetValue(facility.Id, out summary) ? summary.count : 0
         }), totalCount, page, pageSize, totalPages = (int)Math.Ceiling(totalCount / (double)pageSize) });
@@ -135,7 +131,7 @@ public class FacilitiesController : ControllerBase
     }
 
     // Handle POST requests to /api/Facilities.
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<Facility>> CreateFacility(Facility facility)
     {
@@ -144,11 +140,9 @@ public class FacilitiesController : ControllerBase
             return BadRequest("Facility payload is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(facility.Name) ||
-            string.IsNullOrWhiteSpace(facility.Type) ||
-            string.IsNullOrWhiteSpace(facility.Location))
+        if (string.IsNullOrWhiteSpace(facility.Name))
         {
-            return BadRequest("Facility name, type, and location are required.");
+            return BadRequest("Facility name is required.");
         }
 
         // Add the new facility to the database context.
@@ -166,6 +160,7 @@ public class FacilitiesController : ControllerBase
     }
 
     // Handle PUT requests to /api/Facilities/{id}.
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateFacility(int id, Facility facility)
     {
@@ -188,9 +183,11 @@ public class FacilitiesController : ControllerBase
         }
 
         existingFacility.Name = facility.Name;
-        existingFacility.Type = facility.Type;
-        existingFacility.Location = facility.Location;
         existingFacility.IsAvailable = facility.IsAvailable;
+        existingFacility.HourlyRate = facility.HourlyRate;
+        existingFacility.Description = facility.Description;
+        existingFacility.Faq = facility.Faq;
+        existingFacility.Images = facility.Images;
 
         try
         {
@@ -215,6 +212,7 @@ public class FacilitiesController : ControllerBase
     }
   
     // Handle DELETE requests to /api/Facilities/{id}.
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteFacility(int id)
     {

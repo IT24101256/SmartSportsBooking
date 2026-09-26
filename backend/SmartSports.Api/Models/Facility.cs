@@ -10,11 +10,13 @@ public class Facility
     // This stores the facility name.
     public string Name { get; set; } = string.Empty;
 
-    // This stores the type of sports facility.
-    public string Type { get; set; } = string.Empty;
+    public decimal HourlyRate { get; set; }
 
-    // This stores the location of the facility.
-    public string Location { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+
+    public string Faq { get; set; } = string.Empty;
+
+    public string Images { get; set; } = string.Empty;
 
     // This stores whether the facility is currently available.
     public bool IsAvailable { get; set; } = true;

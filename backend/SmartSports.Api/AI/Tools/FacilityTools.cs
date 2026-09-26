@@ -34,7 +34,7 @@ public class SearchFacilitiesTool : ITool
         if (!string.IsNullOrWhiteSpace(input.FacilityType))
         {
             var filter = input.FacilityType.Trim().ToLower();
-            query = query.Where(f => f.Type.ToLower() == filter || f.Name.ToLower().Contains(filter));
+            query = query.Where(f => f.Name.ToLower().Contains(filter) || f.Description.ToLower().Contains(filter));
         }
 
         var facilities = await query
@@ -43,11 +43,9 @@ public class SearchFacilitiesTool : ITool
             {
                 f.Id,
                 f.Name,
-                f.Type,
-                f.Location,
                 f.IsAvailable,
-                EstimatedHourlyRate = f.Type.ToLower() == "swimming" ? 2000m : f.Type.ToLower() == "football" ? 3500m : f.Type.ToLower() == "cricket" ? 4000m : 1500m,
-                Capacity = f.Type.ToLower() == "football" ? 30 : f.Type.ToLower() == "cricket" ? 30 : f.Type.ToLower() == "basketball" ? 20 : 10
+                EstimatedHourlyRate = f.HourlyRate,
+                Capacity = 30
             })
             .ToListAsync();
 
@@ -87,37 +85,14 @@ public class GetFacilityDetailsTool : ITool
             return ToolResult.Fail($"Facility with ID {input.FacilityId} was not found.");
         }
 
-        var hourlyRate = facility.Type.ToLower() switch
-        {
-            "swimming" => 2000m,
-            "football" => 3500m,
-            "cricket" => 4000m,
-            "tennis" => 2500m,
-            "basketball" => 2000m,
-            "badminton" => 1500m,
-            _ => 1500m
-        };
+        var hourlyRate = facility.HourlyRate;
 
         var amenities = new List<string> { "Standard Lighting", "Changing Rooms", "First Aid Kit" };
-        if (facility.Type.Equals("Football", StringComparison.OrdinalIgnoreCase))
-        {
-            amenities.AddRange(new[] { "FIFA Standard Turf", "Floodlights", "Goal Nets", "Corner Flags" });
-        }
-        else if (facility.Type.Equals("Badminton", StringComparison.OrdinalIgnoreCase))
-        {
-            amenities.AddRange(new[] { "Wooden Flooring", "Yonex Certified Nets", "Air Circulation" });
-        }
-        else if (facility.Type.Equals("Tennis", StringComparison.OrdinalIgnoreCase))
-        {
-            amenities.AddRange(new[] { "Hard Synthetic Court", "Umpire Chair", "Ball Machine (Optional)" });
-        }
 
         var details = new
         {
             facility.Id,
             facility.Name,
-            facility.Type,
-            facility.Location,
             facility.IsAvailable,
             HourlyRate = hourlyRate,
             MaxCapacity = 30,
