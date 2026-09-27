@@ -1,25 +1,39 @@
 import { useEffect, useState } from 'react'
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => {
+  const date = new Date()
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
 
-const initialDetails = { name: '', nic: '', contact: '' }
 const initialPayment = { method: 'BankTransfer', cardNumber: '', expiry: '', cvv: '', slip: null }
 const nicPattern = /^(\d{9}[vVxX]|\d{12})$/
 
-export default function BookingWizard({ facilities, initialFacilityName, token, apiBaseUrl, isAdmin, onClose, onCreated }) {
+export default function BookingWizard({ facilities, initialFacilityName, initialDate, initialStartTime, initialHoursNeeded, customer, skipCustomerDetails, token, apiBaseUrl, isAdmin, onClose, onCreated }) {
   const [step, setStep] = useState(1)
-  const [facilityName, setFacilityName] = useState(initialFacilityName || facilities[0]?.name || '')
-  const [date, setDate] = useState(today())
-  const [startTime, setStartTime] = useState('')
-  const [hoursNeeded, setHoursNeeded] = useState(1)
+  const [facilityName, setFacilityName] = useState(() => {
+    if (initialFacilityName && facilities.some((item) => item.name === initialFacilityName)) {
+      return initialFacilityName
+    }
+    return facilities[0]?.name || ''
+  })
+  const [date, setDate] = useState(initialDate && initialDate >= today() ? initialDate : today())
+  const [startTime, setStartTime] = useState(initialStartTime || '')
+  const [hoursNeeded, setHoursNeeded] = useState(initialHoursNeeded || 1)
   const [availability, setAvailability] = useState(null)
-  const [details, setDetails] = useState(initialDetails)
+  const [details, setDetails] = useState({ name: customer?.name || '', nic: customer?.nicNumber || '', contact: customer?.contactNumber || '' })
   const [payment, setPayment] = useState(initialPayment)
   const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => {
+    if (facilities.length > 0 && !facilities.some((item) => item.name === facilityName)) {
+      setFacilityName(facilities[0].name)
+    }
+  }, [facilities, facilityName])
+
   const facility = facilities.find((item) => item.name === facilityName) || facilities[0]
-  const selectedSlot = availability?.slots?.find((slot) => slot.startTime.slice(0, 5) === startTime)
+  const selectedSlot = availability?.slots?.find((slot) => slot.startTime.slice(0, 5) === startTime && String(slot.status).toLowerCase() === 'available')
+  const requiredHours = Number(hoursNeeded)
   const total = Number(facility?.hourlyRate || 0) * Number(hoursNeeded)
   const endTime = startTime ? Number(startTime.slice(0, 2)) + Number(hoursNeeded) === 24 ? '1.00:00' : `${String(Number(startTime.slice(0, 2)) + Number(hoursNeeded)).padStart(2, '0')}:00` : ''
   useEffect(() => {
@@ -27,10 +41,11 @@ export default function BookingWizard({ facilities, initialFacilityName, token, 
     if (!selectedFacility || !date) return
     const loadAvailability = async () => {
       setNotice('')
-      setStartTime('')
+      if (!initialStartTime) setStartTime('')
       setAvailability(null)
-      const response = await fetch(`${apiBaseUrl}/bookings/availability?facilityId=${selectedFacility.id}&date=${date}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const clientTime = new Date().toTimeString().slice(0, 8)
+      const response = await fetch(`${apiBaseUrl}/bookings/availability?facilityId=${selectedFacility.id}&date=${date}&clientTime=${encodeURIComponent(clientTime)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (!response.ok) {
         setNotice('Availability could not be loaded.')
@@ -39,13 +54,17 @@ export default function BookingWizard({ facilities, initialFacilityName, token, 
       setAvailability(await response.json())
     }
     loadAvailability().catch(() => setNotice('The API is unavailable. Start the backend and try again.'))
-  }, [apiBaseUrl, date, facilities, facilityName, token])
+  }, [apiBaseUrl, date, facilities, facilityName, token, initialStartTime])
 
   const canContinueReserve = Boolean(selectedSlot) && Number(hoursNeeded) >= 1 && Number.isInteger(Number(hoursNeeded)) && Number(startTime.slice(0, 2)) + Number(hoursNeeded) <= 24
 
   const submitBooking = async (event) => {
     event.preventDefault()
     setNotice('')
+    if (!startTime || !Number.isInteger(requiredHours) || requiredHours < 1) {
+      setNotice('Please choose a valid booking time and duration.')
+      return
+    }
     if (!details.name.trim() || !nicPattern.test(details.nic.trim())) {
       setNotice('NIC must be 12 digits or 9 digits followed by V or X.')
       return
@@ -132,11 +151,11 @@ export default function BookingWizard({ facilities, initialFacilityName, token, 
             </div>
             <div className="form-row"><label><span>Start time</span><input type="time" step="3600" min="08:00" max="23:00" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label><label><span>Hours needed</span><input type="number" min="1" max="16" step="1" value={hoursNeeded} onChange={(event) => setHoursNeeded(event.target.value)} /></label></div>
             <div className="booking-total"><span>Total amount</span><strong>LKR {total.toLocaleString()}</strong></div>
-            <div className="modal-actions"><button type="button" className="secondary-btn" onClick={onClose}>Cancel</button><button type="button" className="primary-btn" disabled={!canContinueReserve} onClick={() => setStep(2)}>Continue</button></div>
+            <div className="modal-actions"><button type="button" className="secondary-btn" onClick={onClose}>Cancel</button><button type="button" className="primary-btn" disabled={!canContinueReserve} onClick={() => setStep(skipCustomerDetails ? 3 : 2)}>Continue</button></div>
           </div>
         )}
 
-        {step === 2 && (
+        {!skipCustomerDetails && step === 2 && (
           <div className="booking-form">
             <label><span>Name</span><input value={details.name} onChange={(event) => setDetails({ ...details, name: event.target.value })} required /></label>
             <label><span>NIC number</span><input maxLength="12" value={details.nic} onChange={(event) => setDetails({ ...details, nic: event.target.value.replace(/[^0-9vVxX]/g, '').slice(0, 12) })} pattern="^(\d{9}[vVxX]|\d{12})$" required /></label>
@@ -150,11 +169,27 @@ export default function BookingWizard({ facilities, initialFacilityName, token, 
             <div className="payment-methods"><button type="button" className={payment.method === 'BankTransfer' ? 'payment-method active' : 'payment-method'} onClick={() => setPayment({ ...payment, method: 'BankTransfer' })}>Direct bank transfer</button><button type="button" className={payment.method === 'Card' ? 'payment-method active' : 'payment-method'} onClick={() => setPayment({ ...payment, method: 'Card' })}>Card payment</button>{isAdmin && <button type="button" className={payment.method === 'Cash' ? 'payment-method active' : 'payment-method'} onClick={() => setPayment({ ...payment, method: 'Cash' })}>Cash in hand</button>}</div>
             {payment.method === 'BankTransfer' ? <><div className="bank-details"><strong>SmartSports Bank Accounts</strong><span>People's Bank, Colombo: 1234567890</span><span>Commercial Bank, Colombo: 9876543210</span></div><label><span>Upload transfer slip</span><input type="file" accept="image/*,.pdf" onChange={(event) => setPayment({ ...payment, slip: event.target.files?.[0] || null })} required /></label></> : payment.method === 'Cash' ? <div className="bank-details"><strong>Cash payment</strong><span>This option is available only when an administrator creates the booking.</span></div> : <><label><span>Card number</span><input inputMode="numeric" maxLength="16" value={payment.cardNumber} onChange={(event) => setPayment({ ...payment, cardNumber: event.target.value.replace(/\D/g, '').slice(0, 16) })} placeholder="16 digit card number" required /></label><div className="form-row"><label><span>Expiry month</span><select value={payment.expiry.split('/')[0] || ''} onChange={(event) => setPayment({ ...payment, expiry: `${event.target.value}/${payment.expiry.split('/')[1] || ''}` })} required><option value="">Month</option>{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={String(index + 1).padStart(2, '0')}>{String(index + 1).padStart(2, '0')}</option>)}</select></label><label><span>Expiry year</span><select value={payment.expiry.split('/')[1] || ''} onChange={(event) => setPayment({ ...payment, expiry: `${payment.expiry.split('/')[0] || ''}/${event.target.value}` })} required><option value="">Year</option>{Array.from({ length: 11 }, (_, index) => new Date().getFullYear() + index).map((year) => <option key={year} value={year}>{year}</option>)}</select></label></div><label><span>CVV</span><input type="password" inputMode="numeric" maxLength="3" value={payment.cvv} onChange={(event) => setPayment({ ...payment, cvv: event.target.value.replace(/\D/g, '').slice(0, 3) })} required /></label></>}
             <div className="booking-total"><span>Amount to pay</span><strong>LKR {total.toLocaleString()}</strong></div>
-            <div className="modal-actions"><button type="button" className="secondary-btn" onClick={() => setStep(2)}>Back</button><button type="submit" className="primary-btn" disabled={saving}>{saving ? 'Submitting...' : 'Submit booking'}</button></div>
+            <div className="modal-actions"><button type="button" className="secondary-btn" onClick={() => setStep(skipCustomerDetails ? 1 : 2)}>Back</button><button type="submit" className="primary-btn" disabled={saving}>{saving ? 'Submitting...' : 'Submit booking'}</button></div>
           </form>
         )}
 
-        {step === 4 && <div className="confirmation-panel"><strong>Booking submitted successfully</strong><p>Your {facility.name} reservation is recorded for {date}, {startTime} to {endTime}.</p><p>Total: <b>LKR {total.toLocaleString()}</b></p><button type="button" className="primary-btn" onClick={onClose}>Done</button></div>}
+        {step === 4 && (payment.method === 'BankTransfer' ? (
+          <div className="confirmation-panel pending-confirmation">
+            <strong>Booking submitted for payment review</strong>
+            <p>Your bank slip has been submitted for review. The booking is currently <b>Pending</b>.</p>
+            <p>{facility.name} · {date} · {startTime} to {endTime}</p>
+            <p>An administrator will review the payment and confirm your booking.</p>
+            <p>Total: <b>LKR {total.toLocaleString()}</b></p>
+            <button type="button" className="primary-btn" onClick={onClose}>Done</button>
+          </div>
+        ) : (
+          <div className="confirmation-panel">
+            <strong>Booking confirmed</strong>
+            <p>Your {facility.name} reservation is confirmed for {date}, {startTime} to {endTime}.</p>
+            <p>Total: <b>LKR {total.toLocaleString()}</b></p>
+            <button type="button" className="primary-btn" onClick={onClose}>Done</button>
+          </div>
+        ))}
       </div>
     </div>
   )

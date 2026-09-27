@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'services/api_service.dart';
 
 void main() {
@@ -46,6 +47,8 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _contactNumberController = TextEditingController();
+  final _nicNumberController = TextEditingController();
   final _passwordController = TextEditingController();
 
   List<Map<String, dynamic>> _liveFacilities = [];
@@ -65,6 +68,8 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _contactNumberController.dispose();
+    _nicNumberController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -104,11 +109,29 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
   Future<void> _handleRegister() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
+    final contactNumber = _contactNumberController.text.trim();
+    final nicNumber = _nicNumberController.text.trim();
     final password = _passwordController.text;
 
-    if (name.isEmpty || email.isEmpty || password.length < 6) {
+    if (name.isEmpty || email.isEmpty || contactNumber.isEmpty || nicNumber.isEmpty || password.length < 8) {
       setState(() {
-        _authMessage = 'Enter your name, email and a password of at least 6 characters.';
+        _authMessage = 'Enter all fields and a password of at least 8 characters.';
+        _authIsError = true;
+      });
+      return;
+    }
+
+    if (!RegExp(r'^\d{10}$').hasMatch(contactNumber)) {
+      setState(() {
+        _authMessage = 'Contact number must contain exactly 10 digits.';
+        _authIsError = true;
+      });
+      return;
+    }
+
+    if (!RegExp(r'^(\d{9}[vVxX]|\d{12})$').hasMatch(nicNumber)) {
+      setState(() {
+        _authMessage = 'NIC must be 12 digits or 9 digits followed by V or X.';
         _authIsError = true;
       });
       return;
@@ -120,7 +143,7 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
     });
 
     try {
-      await _apiService.register(name, email, password);
+      await _apiService.register(name, email, contactNumber, nicNumber, password);
       setState(() {
         _isAuthLoading = false;
         _showRegister = false;
@@ -751,6 +774,7 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
               'name': facName.toString(),
               'date': '$bookingDate • $startTime',
               'status': status.toString(),
+              'cancellationReason': b['cancellationReason']?.toString(),
             };
           }).toList()
         : <Map<String, dynamic>>[];
@@ -1329,18 +1353,30 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
                             b['date'] as String,
                             style: const TextStyle(color: Color(0xFF5D7692), fontSize: 12),
                           ),
+                          if (b['status'] == 'Cancelled' && (b['cancellationReason'] as String? ?? '').isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                'Reason: ${b['cancellationReason']}',
+                                style: const TextStyle(color: Color(0xFFDC2626), fontSize: 11, fontStyle: FontStyle.italic),
+                              ),
+                            ),
                         ],
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD1FAE5),
+                        color: b['status'] == 'Cancelled' ? const Color(0xFFFEE2E2) : const Color(0xFFD1FAE5),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         b['status'] as String,
-                        style: const TextStyle(color: Color(0xFF0F766E), fontWeight: FontWeight.w700, fontSize: 11),
+                        style: TextStyle(
+                          color: b['status'] == 'Cancelled' ? const Color(0xFFDC2626) : const Color(0xFF0F766E),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
                   ],
@@ -2016,6 +2052,23 @@ class _SmartSportsHomePageState extends State<SmartSportsHomePage> {
                         keyboardType: TextInputType.emailAddress,
                         decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
                       ),
+                      if (_showRegister) ...[
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _contactNumberController,
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 10,
+                          decoration: const InputDecoration(labelText: 'Contact number', border: OutlineInputBorder(), counterText: ''),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _nicNumberController,
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9vVxX]'))],
+                          maxLength: 12,
+                          decoration: const InputDecoration(labelText: 'NIC number', border: OutlineInputBorder(), counterText: ''),
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       TextField(
                         controller: _passwordController,

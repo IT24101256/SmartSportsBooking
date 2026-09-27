@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartSportsFacilityBooking.Data;
@@ -11,9 +12,11 @@ using SmartSportsFacilityBooking.Data;
 namespace SmartSports.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260927065059_AddUserRegistrationDetails")]
+    partial class AddUserRegistrationDetails
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -35,9 +38,6 @@ namespace SmartSports.Api.Migrations
 
                     b.Property<DateTime>("BookingDate")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CancellationReason")
-                        .HasColumnType("text");
 
                     b.Property<string>("CardLastFour")
                         .HasColumnType("text");
@@ -562,19 +562,11 @@ namespace SmartSports.Api.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("ContactNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("FullName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("NicNumber")
                         .IsRequired()
                         .HasColumnType("text");
 

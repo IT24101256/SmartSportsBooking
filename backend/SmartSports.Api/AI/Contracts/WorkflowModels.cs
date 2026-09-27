@@ -112,7 +112,17 @@ public class FacilityProposalInfo
     public DateTime End { get; set; }
     public int Guests { get; set; }
     public List<string> Amenities { get; set; } = new();
+    public List<KnowledgeCitation> Sources { get; set; } = new();
     public string MatchRationale { get; set; } = string.Empty;
+}
+
+public class KnowledgeCitation
+{
+    public string SourceId { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public int FacilityId { get; set; }
+    public int ChunkIndex { get; set; }
+    public double RelevanceScore { get; set; }
 }
 
 public class DeterministicValidationMatrix

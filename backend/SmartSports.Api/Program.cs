@@ -13,6 +13,8 @@ using SmartSportsFacilityBooking.AI.Contracts;
 using SmartSportsFacilityBooking.AI.Tools;
 using SmartSportsFacilityBooking.AI.Agents;
 using SmartSportsFacilityBooking.AI.Orchestration;
+using SmartSportsFacilityBooking.AI.Retrieval;
+using SmartSportsFacilityBooking.AI.Memory;
 
 using System.Text.Json.Serialization;
 // Create the application builder.
@@ -66,8 +68,18 @@ builder.Services.AddCors(options =>
         .AllowCredentials());
 });
 
+// Register Agentic RAG Services (SE3090 Lecture 06)
+builder.Services.AddSingleton<IEmbeddingModel, SemanticEmbeddingGenerator>();
+builder.Services.AddSingleton<BM25Retriever>();
+builder.Services.AddScoped<HybridRetriever>();
+builder.Services.AddSingleton<QueryTransformer>();
+builder.Services.AddSingleton<AgentMemoryStore>();
+builder.Services.AddScoped<FacilityKnowledgeBase>();
+builder.Services.AddScoped<FacilityKnowledgeRetriever>();
+
 // Register Allow-Listed AI Tools
 builder.Services.AddScoped<ITool, SearchFacilitiesTool>();
+builder.Services.AddScoped<ITool, RetrieveFacilityKnowledgeTool>();
 builder.Services.AddScoped<ITool, GetFacilityDetailsTool>();
 builder.Services.AddScoped<ITool, CheckScheduleConflictTool>();
 builder.Services.AddScoped<ITool, ValidateBusinessRulesTool>();
@@ -157,6 +169,8 @@ using (var scope = app.Services.CreateScope())
         }
         AppDbContext.SeedFacilities(dbContext);
         AppDbContext.SeedDashboardData(dbContext);
+        var knowledgeBase = scope.ServiceProvider.GetRequiredService<FacilityKnowledgeBase>();
+        knowledgeBase.InitializeOrReindexAsync().GetAwaiter().GetResult();
     }
     catch (Exception ex)
     {

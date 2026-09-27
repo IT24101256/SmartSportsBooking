@@ -40,10 +40,18 @@ public class AuthController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.FullName) ||
             string.IsNullOrWhiteSpace(request.Email) ||
+            string.IsNullOrWhiteSpace(request.ContactNumber) ||
+            string.IsNullOrWhiteSpace(request.NicNumber) ||
             string.IsNullOrWhiteSpace(request.Password))
         {
             return BadRequest("All fields are required.");
         }
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(request.ContactNumber.Trim(), @"^\d{10}$"))
+            return BadRequest("Contact number must contain exactly 10 digits.");
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(request.NicNumber.Trim(), @"^(\d{9}[VvXx]|\d{12})$"))
+            return BadRequest("NIC must be 12 digits or 9 digits followed by V or X.");
 
         if (request.Password.Length < 8 ||
             !request.Password.Any(char.IsUpper) ||
@@ -63,7 +71,7 @@ public class AuthController : ControllerBase
         }
 
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-        var otp = _otpStore.GenerateAndStore(request.Email.Trim().ToLower(), request.FullName.Trim(), passwordHash);
+        var otp = _otpStore.GenerateAndStore(request.Email.Trim().ToLower(), request.FullName.Trim(), request.ContactNumber.Trim(), request.NicNumber.Trim(), passwordHash);
 
         try
         {
@@ -110,7 +118,7 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Otp))
             return BadRequest("Email and OTP are required.");
 
-        var (valid, fullName, passwordHash) = _otpStore.Verify(request.Email.Trim().ToLower(), request.Otp.Trim());
+        var (valid, fullName, contactNumber, nicNumber, passwordHash) = _otpStore.Verify(request.Email.Trim().ToLower(), request.Otp.Trim());
         if (!valid)
             return BadRequest("Invalid or expired OTP. Please register again.");
 
@@ -128,6 +136,8 @@ public class AuthController : ControllerBase
         {
             FullName = fullName!,
             Email = request.Email.Trim().ToLower(),
+            ContactNumber = contactNumber!,
+            NicNumber = nicNumber!,
             PasswordHash = passwordHash!,
             RoleId = customerRole.Id
         };
@@ -217,6 +227,8 @@ public class AuthController : ControllerBase
             userId = user.Id,
             fullName = user.FullName,
             email = user.Email,
+            contactNumber = user.ContactNumber,
+            nicNumber = user.NicNumber,
             role = user.Role?.Name
         });
     }

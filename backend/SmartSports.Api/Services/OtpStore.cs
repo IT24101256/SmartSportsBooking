@@ -11,35 +11,37 @@ public class OtpStore
     private record PendingRegistration(
         string FullName,
         string Email,
+        string ContactNumber,
+        string NicNumber,
         string PasswordHash,
         string Otp,
         DateTime ExpiresAtUtc);
 
     private readonly ConcurrentDictionary<string, PendingRegistration> _store = new(StringComparer.OrdinalIgnoreCase);
 
-    public string GenerateAndStore(string email, string fullName, string passwordHash)
+    public string GenerateAndStore(string email, string fullName, string contactNumber, string nicNumber, string passwordHash)
     {
         var otp = new Random().Next(100000, 999999).ToString();
-        var record = new PendingRegistration(fullName, email, passwordHash, otp, DateTime.UtcNow.AddMinutes(10));
+        var record = new PendingRegistration(fullName, email, contactNumber, nicNumber, passwordHash, otp, DateTime.UtcNow.AddMinutes(10));
         _store[email] = record;
         return otp;
     }
 
-    public (bool Valid, string? FullName, string? PasswordHash) Verify(string email, string otp)
+    public (bool Valid, string? FullName, string? ContactNumber, string? NicNumber, string? PasswordHash) Verify(string email, string otp)
     {
         if (!_store.TryGetValue(email, out var record))
-            return (false, null, null);
+            return (false, null, null, null, null);
 
         if (record.ExpiresAtUtc < DateTime.UtcNow)
         {
             _store.TryRemove(email, out _);
-            return (false, null, null);
+            return (false, null, null, null, null);
         }
 
         if (!string.Equals(record.Otp, otp.Trim(), StringComparison.Ordinal))
-            return (false, null, null);
+            return (false, null, null, null, null);
 
         _store.TryRemove(email, out _);
-        return (true, record.FullName, record.PasswordHash);
+        return (true, record.FullName, record.ContactNumber, record.NicNumber, record.PasswordHash);
     }
 }

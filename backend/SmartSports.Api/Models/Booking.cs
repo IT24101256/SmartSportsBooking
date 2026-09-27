@@ -48,4 +48,7 @@ public class Booking
 
     // This stores the current booking status.
     public string Status { get; set; } = "Pending";
+
+    // This stores the management cancellation reason if the booking is cancelled.
+    public string? CancellationReason { get; set; }
 } 

@@ -16,12 +16,25 @@ public class FacilityAnalysisAgent : IAgent
     public string Name => "Domain & Facility Analyst";
     public string Role => AgentRoles.FacilityAnalyst;
     public string Responsibility => "Evaluates sport type, finds optimal court/ground facilities, calculates estimated quotation, and checks amenities.";
-    public IReadOnlyList<string> AllowedTools => new[] { "search_facilities", "get_facility_details" };
+    public IReadOnlyList<string> AllowedTools => new[] { "retrieve_facility_knowledge", "search_facilities", "get_facility_details" };
 
     public async Task<AgentResult> ExecuteStepAsync(AgentExecutionContext context)
     {
         var sw = Stopwatch.StartNew();
         var toolCalls = new List<ToolCallRecord>();
+
+        var knowledgeInput = JsonSerializer.Serialize(new { Query = $"{context.FacilityType} {context.Objective}" });
+        var knowledgeRecord = await _toolRegistry.ExecuteToolAsync("retrieve_facility_knowledge", Role, knowledgeInput, context);
+        toolCalls.Add(knowledgeRecord);
+
+        if (!knowledgeRecord.Success)
+        {
+            sw.Stop();
+            return AgentResult.Failed($"Facility knowledge retrieval failed: {knowledgeRecord.Error}", toolCalls, sw.ElapsedMilliseconds);
+        }
+
+        var citations = JsonSerializer.Deserialize<List<KnowledgeCitation>>(knowledgeRecord.OutputJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+            ?? new List<KnowledgeCitation>();
 
         // Step 1: Call allow-listed tool `search_facilities`
         var searchInput = JsonSerializer.Serialize(new { FacilityType = context.FacilityType, MinCapacity = context.Guests });
@@ -43,7 +56,8 @@ public class FacilityAnalysisAgent : IAgent
             return AgentResult.Failed($"No active facility available for sport type '{context.FacilityType}'.", toolCalls, sw.ElapsedMilliseconds);
         }
 
-        var selected = facilities.First();
+        var selected = facilities.FirstOrDefault(facility => citations.Any(citation => citation.FacilityId == facility.Id))
+            ?? facilities.First();
 
         // Step 2: Call allow-listed tool `get_facility_details`
         var detailsInput = JsonSerializer.Serialize(new { FacilityId = selected.Id });
@@ -67,7 +81,11 @@ public class FacilityAnalysisAgent : IAgent
             End = context.RequestedEnd,
             Guests = context.Guests,
             Amenities = new List<string> { "Locker Rooms", "Lighting", "Scoreboard Support" },
-            MatchRationale = $"Selected '{selected.Name}' based on the requested facility, capacity alignment ({selected.Capacity} >= {context.Guests}), and active status."
+            Sources = citations
+                .Where(citation => citation.FacilityId == selected.Id)
+                .Take(3)
+                .ToList(),
+            MatchRationale = $"Selected '{selected.Name}' using retrieved facility knowledge, capacity alignment ({selected.Capacity} >= {context.Guests}), and active status."
         };
 
         context.SetMemory("FacilityProposalInfo", proposalInfo);

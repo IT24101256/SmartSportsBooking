@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import BookingList from './components/BookingList'
 import SchedulePanel from './components/SchedulePanel'
-import AIWorkflowRequestModal from './components/AIWorkflowRequestModal'
+import AgenticRagModal from './components/AgenticRagModal'
 import OverviewPage from './pages/OverviewPage'
 import FacilitiesPage from './pages/FacilitiesPage'
 import BookingsPage from './pages/BookingsPage'
@@ -14,17 +14,22 @@ import WorkflowHistoryPage from './pages/WorkflowHistoryPage'
 import BookingWizard from './components/BookingWizard'
 import FacilityDetailsPage from './pages/FacilityDetailsPage'
 import ReviewModal from './components/ReviewModal'
-import ReviewsPanel from './components/ReviewsPanel'
 import RevenuePage from './pages/RevenuePage'
 
 const API_BASE_URL = 'http://localhost:5187/api'
+const localDateString = (date = new Date()) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support', 'My AI Requests']
 const adminNavItems = [...baseNavItems, 'Revenue', 'Members', 'AI Workflows']
 
 const initialBookingForm = {
-  facility: 'Championship Turf',
-  date: '2026-09-12',
+  facility: 'Badminton Court',
+  date: localDateString(),
   time: '18:00',
   guests: '2',
   status: 'Pending',
@@ -70,6 +75,8 @@ function App() {
   const [password, setPassword] = useState('')
   const [registerName, setRegisterName] = useState('')
   const [registerEmail, setRegisterEmail] = useState('')
+  const [registerContactNumber, setRegisterContactNumber] = useState('')
+  const [registerNicNumber, setRegisterNicNumber] = useState('')
   const [registerPassword, setRegisterPassword] = useState('')
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState('')
   const [authFeedback, setAuthFeedback] = useState('')
@@ -84,6 +91,7 @@ function App() {
   const [selectedSupportRequest, setSelectedSupportRequest] = useState(null)
   const [facilitiesList, setFacilitiesList] = useState([])
   const [isBookingOpen, setIsBookingOpen] = useState(false)
+  const [isAIBooking, setIsAIBooking] = useState(false)
   const [bookingForm, setBookingForm] = useState(initialBookingForm)
   const [bookingNotice, setBookingNotice] = useState('')
   const [showAuthPanel, setShowAuthPanel] = useState(false)
@@ -92,7 +100,16 @@ function App() {
   const [selectedScheduleItem, setSelectedScheduleItem] = useState(null)
   const [selectedFacility, setSelectedFacility] = useState(null)
   const [isAIRequestOpen, setIsAIRequestOpen] = useState(false)
-  const [aiRequestForm, setAIRequestForm] = useState({ objective: '', facilityType: 'Football', date: '2026-09-12', startTime: '18:00', endTime: '19:00', guests: '2', budget: '5000' })
+  const [workflowForm, setWorkflowForm] = useState({
+    objective: '16-Team Inter-University Badminton Championship (4 Court Slots)',
+    facilityType: 'Badminton',
+    date: localDateString(new Date(Date.now() + 86400000)),
+    startTime: '09:00',
+    endTime: '12:00',
+    guests: '24',
+    budget: '35000'
+  })
+  const [workflowLoading, setWorkflowLoading] = useState(false)
   const [ticketForm, setTicketForm] = useState({ subject: '', detail: '', priority: 'Medium' })
   const [workflowRequests, setWorkflowRequests] = useState([
     {
@@ -142,6 +159,7 @@ function App() {
     startTime: booking.startTime,
     endTime: booking.endTime,
     bankSlipFileName: booking.bankSlipFileName,
+    cancellationReason: booking.cancellationReason,
     review,
   })
 
@@ -216,7 +234,12 @@ function App() {
         const payload = await response.json()
         const savedFacilities = payload.items ?? payload
         if (Array.isArray(savedFacilities) && savedFacilities.length > 0) {
-          setFacilitiesList(savedFacilities.map(formatFacility))
+          const formatted = savedFacilities.map(formatFacility)
+          setFacilitiesList(formatted)
+          setBookingForm((prev) => ({
+            ...prev,
+            facility: formatted.some((f) => f.name === prev.facility) ? prev.facility : formatted[0].name
+          }))
         }
       }
     } catch {
@@ -283,11 +306,11 @@ function App() {
     if (response.ok) setWorkflowHistory((await response.json()).map(formatWorkflow))
   }
 
-  const updateBookingStatus = async (booking, status) => {
+  const updateBookingStatus = async (booking, status, reason = null) => {
     const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, reason }),
     })
     if (!response.ok) {
       setBookingNotice(await response.text() || 'Booking status could not be updated.')
@@ -295,7 +318,7 @@ function App() {
     }
     const updated = await response.json()
     setBookingsList((current) => current.map((item) => item.id === updated.id ? formatBooking(updated) : item))
-    setBookingNotice(`Booking ${status.toLowerCase()}.`)
+    setBookingNotice(`Booking ${status.toLowerCase()}${reason ? ` with reason: "${reason}".` : '.'}`)
   }
 
   const openReview = (booking) => {
@@ -382,6 +405,7 @@ function App() {
 
   const openBooking = () => {
     if (requireLogin('Please log in before creating a booking.')) {
+      setIsAIBooking(false)
       setIsBookingOpen(true)
     }
   }
@@ -420,45 +444,54 @@ function App() {
   }
 
   const openAIRequest = () => {
-    if (requireLogin('Please log in before asking AI to find a facility.')) setIsAIRequestOpen(true)
+    setIsAIRequestOpen(true)
   }
 
-  const handleAIRequestChange = (field, value) => {
-    setAIRequestForm((current) => ({ ...current, [field]: value }))
+  const handleWorkflowFormChange = (field, value) => {
+    setWorkflowForm((current) => ({ ...current, [field]: value }))
   }
 
-  const handleAIRequestSubmit = async (event) => {
-    event.preventDefault()
-    if (aiRequestForm.endTime <= aiRequestForm.startTime) {
-      setBookingNotice('End time must be after start time.')
-      return
-    }
+  const handleLaunchWorkflow = async (event) => {
+    if (event) event.preventDefault()
+    if (!requireLogin('Please log in before launching an AI booking workflow.')) return
 
+    setWorkflowLoading(true)
     try {
+      const requestedStart = `${workflowForm.date}T${workflowForm.startTime}:00Z`
+      const requestedEnd = `${workflowForm.date}T${workflowForm.endTime}:00Z`
+
       const response = await fetch(`${API_BASE_URL}/booking-workflows`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
         body: JSON.stringify({
-          objective: aiRequestForm.objective,
-          facilityType: aiRequestForm.facilityType,
-          requestedStart: `${aiRequestForm.date}T${aiRequestForm.startTime}:00.000Z`,
-          requestedEnd: `${aiRequestForm.date}T${aiRequestForm.endTime}:00.000Z`,
-          guests: Number(aiRequestForm.guests),
-          budget: Number(aiRequestForm.budget),
+          objective: workflowForm.objective,
+          facilityType: workflowForm.facilityType,
+          requestedStart,
+          requestedEnd,
+          guests: Number(workflowForm.guests),
+          budget: Number(workflowForm.budget),
         }),
       })
+
       if (!response.ok) {
-        const error = await response.json().catch(() => null)
-        setBookingNotice(error?.error || 'The AI request could not be submitted.')
+        const err = await response.json().catch(() => null)
+        setBookingNotice(err?.error || 'AI workflow request could not be started.')
         return
       }
-      const workflow = await response.json()
-      setWorkflowHistory((current) => [formatWorkflow(workflow), ...current])
+
+      const workflow = formatWorkflow(await response.json())
+      setWorkflowRequests((current) => [workflow, ...current])
+      setWorkflowHistory((current) => [workflow, ...current])
       setIsAIRequestOpen(false)
-      setBookingNotice(`AI request submitted. Status: ${workflow.status}. A manager will review it.`)
-      setAIRequestForm((current) => ({ ...current, objective: '' }))
+      setActiveTab('My AI Requests')
+      setBookingNotice('AI Workflow initiated! The proposal is pending manager approval.')
     } catch {
-      setBookingNotice('The API is unavailable. Start the backend on port 5187 and try again.')
+      setBookingNotice('Could not connect to API to start the workflow.')
+    } finally {
+      setWorkflowLoading(false)
     }
   }
 
@@ -563,7 +596,7 @@ function App() {
 
       const result = await response.json()
       setAuthToken(result.token)
-      setCurrentUser({ id: result.userId, name: result.fullName, email: result.email, role: result.role?.toLowerCase() })
+      setCurrentUser({ id: result.userId, name: result.fullName, email: result.email, contactNumber: result.contactNumber, nicNumber: result.nicNumber, role: result.role?.toLowerCase() })
       setLoggedIn(true)
       setShowAuthPanel(false)
       setActiveTab('Overview')
@@ -585,8 +618,18 @@ function App() {
   }
 
   const handleRegister = async () => {
-    if (!registerName.trim() || !registerEmail.trim() || !registerPassword || !registerConfirmPassword) {
+    if (!registerName.trim() || !registerEmail.trim() || !registerContactNumber.trim() || !registerNicNumber.trim() || !registerPassword || !registerConfirmPassword) {
       setAuthFeedback('Please complete all registration fields.')
+      return
+    }
+
+    if (!/^\d{10}$/.test(registerContactNumber)) {
+      setAuthFeedback('Contact number must contain exactly 10 digits.')
+      return
+    }
+
+    if (!/^(\d{9}[VvXx]|\d{12})$/.test(registerNicNumber)) {
+      setAuthFeedback('NIC must be 12 digits or 9 digits followed by V or X.')
       return
     }
 
@@ -604,7 +647,7 @@ function App() {
       const response = await fetch(`${API_BASE_URL}/Auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName: registerName.trim(), email: registerEmail.trim(), password: registerPassword }),
+        body: JSON.stringify({ fullName: registerName.trim(), email: registerEmail.trim(), contactNumber: registerContactNumber.trim(), nicNumber: registerNicNumber.trim(), password: registerPassword }),
       })
 
       if (!response.ok) {
@@ -1081,6 +1124,16 @@ function App() {
               </label>
 
               <label className="field">
+                <span>Contact number</span>
+                <input type="tel" inputMode="numeric" maxLength={10} value={registerContactNumber} onChange={(e) => setRegisterContactNumber(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="0771234567" />
+              </label>
+
+              <label className="field">
+                <span>NIC number</span>
+                <input maxLength={12} value={registerNicNumber} onChange={(e) => setRegisterNicNumber(e.target.value.replace(/[^0-9vVxX]/g, '').slice(0, 12))} placeholder="123456789V or 200012345678" />
+              </label>
+
+              <label className="field">
                 <span>Password</span>
                 <input type="password" minLength="8" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} placeholder="8+ chars, upper/lower/number/symbol" />
               </label>
@@ -1168,6 +1221,9 @@ function App() {
             <button className="secondary-btn theme-toggle" type="button" onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}>
               {theme === 'light' ? '🌙 Dark mode' : '☀️ Light mode'}
             </button>
+            <button className="secondary-btn rag-btn" type="button" onClick={openAIRequest}>
+              🤖 Ask RAG AI
+            </button>
             {!loggedIn && <button className="primary-btn" type="button" onClick={() => {
               setAuthMode('login')
               setShowAuthPanel(true)
@@ -1191,9 +1247,20 @@ function App() {
         {renderPage()}
       </main>
 
-      {isBookingOpen && <BookingWizard facilities={facilitiesList} initialFacilityName={bookingForm.facility} token={authToken} apiBaseUrl={API_BASE_URL} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsBookingOpen(false)} onCreated={handleWizardCreated} />}
+      {isBookingOpen && <BookingWizard facilities={facilitiesList} initialFacilityName={bookingForm.facility} initialDate={bookingForm.date} initialStartTime={bookingForm.time} initialHoursNeeded={bookingForm.hoursNeeded} customer={currentUser} skipCustomerDetails={isAIBooking} token={authToken} apiBaseUrl={API_BASE_URL} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsBookingOpen(false)} onCreated={handleWizardCreated} />}
 
-      {isAIRequestOpen && <AIWorkflowRequestModal form={aiRequestForm} onChange={handleAIRequestChange} onSubmit={handleAIRequestSubmit} onClose={() => setIsAIRequestOpen(false)} />}
+      {isAIRequestOpen && (
+        <AgenticRagModal
+          apiBaseUrl={API_BASE_URL}
+          token={authToken}
+          currentUser={currentUser}
+          onClose={() => setIsAIRequestOpen(false)}
+          onLaunchWorkflow={handleLaunchWorkflow}
+          workflowForm={workflowForm}
+          onWorkflowFormChange={handleWorkflowFormChange}
+          isWorkflowLoading={workflowLoading}
+        />
+      )}
 
       {reviewBooking && <ReviewModal booking={reviewBooking} existingReview={reviewBooking.review} onSubmit={saveReview} onClose={() => setReviewBooking(null)} />}
 

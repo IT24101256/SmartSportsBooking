@@ -81,8 +81,8 @@ public class BookingsController : ControllerBase
 
         // Normalise the date to UTC regardless of serialised Kind
         var bookingDate = DateTime.SpecifyKind(request.BookingDate.Date, DateTimeKind.Utc);
-        var today = DateTime.Now.Date;
-        var now = DateTime.Now.TimeOfDay;
+        var today = DateTime.UtcNow.Date;
+        var now = DateTime.UtcNow.TimeOfDay;
 
         if (bookingDate.Date < today)
         {
@@ -202,7 +202,8 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet("availability")]
-    public async Task<IActionResult> GetAvailability([FromQuery] int facilityId, [FromQuery] DateTime date)
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAvailability([FromQuery] int facilityId, [FromQuery] DateTime date, [FromQuery] string? clientTime = null)
     {
         var facility = await _context.Facilities.FindAsync(facilityId);
         if (facility == null) return NotFound("Facility not found.");
@@ -213,12 +214,29 @@ public class BookingsController : ControllerBase
             .Select(booking => new { booking.StartTime, booking.EndTime })
             .ToListAsync();
 
-        var now = DateTime.Now;
+        // Determine current local reference time (Sri Lanka UTC+05:30 or client local time)
+        TimeSpan currentLocalTime;
+        DateTime todayLocalDate;
+
+        var slTimeZone = TimeZoneInfo.CreateCustomTimeZone("SLST", TimeSpan.FromMinutes(330), "Sri Lanka", "Sri Lanka");
+        var slNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, slTimeZone);
+
+        if (!string.IsNullOrWhiteSpace(clientTime) && TimeSpan.TryParse(clientTime, out var parsedClientTime))
+        {
+            currentLocalTime = parsedClientTime;
+            todayLocalDate = slNow.Date;
+        }
+        else
+        {
+            currentLocalTime = slNow.TimeOfDay;
+            todayLocalDate = slNow.Date;
+        }
+
         var slots = Enumerable.Range(8, 16).Select(hour =>
         {
             var start = TimeSpan.FromHours(hour);
             var end = start.Add(TimeSpan.FromHours(1));
-            var isPast = day.Date < DateTime.UtcNow.Date || (day.Date == DateTime.UtcNow.Date && start < now.TimeOfDay);
+            var isPast = day.Date < todayLocalDate || (day.Date == todayLocalDate && start <= currentLocalTime);
             var isBooked = bookings.Any(booking => booking.StartTime < end && booking.EndTime > start);
             return new { startTime = start, endTime = end, status = isPast ? "Past" : isBooked ? "Booked" : "Available" };
         });
@@ -254,6 +272,11 @@ public class BookingsController : ControllerBase
         {
             booking.PaymentStatus = "Approved";
         }
+        else if (request.Status == "Cancelled")
+        {
+            booking.CancellationReason = !string.IsNullOrWhiteSpace(request.Reason) ? request.Reason.Trim() : null;
+        }
+
         await _context.SaveChangesAsync();
         return Ok(booking);
     }

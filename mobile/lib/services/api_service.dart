@@ -102,7 +102,7 @@ class ApiService {
     }
   }
 
-  Future<void> register(String fullName, String email, String password) async {
+  Future<void> register(String fullName, String email, String contactNumber, String nicNumber, String password) async {
     final uri = Uri.parse('$_baseUrl/api/auth/register');
     try {
       final response = await http
@@ -112,6 +112,8 @@ class ApiService {
             body: jsonEncode({
               'fullName': fullName.trim(),
               'email': email.trim(),
+              'contactNumber': contactNumber.trim(),
+              'nicNumber': nicNumber.trim(),
               'password': password,
             }),
           )

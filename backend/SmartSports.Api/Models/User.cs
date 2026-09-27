@@ -13,6 +13,10 @@ public class User
     // This stores the user's email address.
     public string Email { get; set; } = string.Empty;
 
+    public string ContactNumber { get; set; } = string.Empty;
+
+    public string NicNumber { get; set; } = string.Empty;
+
     // This stores the hashed password.
     public string PasswordHash { get; set; } = string.Empty;
 
