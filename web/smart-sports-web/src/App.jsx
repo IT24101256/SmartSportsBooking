@@ -15,6 +15,7 @@ import BookingWizard from './components/BookingWizard'
 import FacilityDetailsPage from './pages/FacilityDetailsPage'
 import ReviewModal from './components/ReviewModal'
 import RevenuePage from './pages/RevenuePage'
+import NotificationBell from './components/NotificationBell'
 
 const API_BASE_URL = 'http://localhost:5187/api'
 const localDateString = (date = new Date()) => {
@@ -130,6 +131,53 @@ function App() {
   ])
   const [workflowDecision, setWorkflowDecision] = useState('')
   const [workflowHistory, setWorkflowHistory] = useState([])
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const stored = localStorage.getItem('smartsports_role_notifications')
+      return stored
+        ? JSON.parse(stored)
+        : [
+            {
+              id: 1,
+              role: 'admin',
+              type: 'refund_pending',
+              title: 'Refund Policy Alert',
+              message: 'Verify and confirm cancellation refunds in Bookings > To Refund filter.',
+              timestamp: new Date().toISOString(),
+              read: false,
+            },
+            {
+              id: 2,
+              role: 'user',
+              type: 'reschedule_requested',
+              title: 'Weather Policy Info',
+              message: 'Outdoor bookings impacted by adverse weather are eligible for 100% free rain-check rescheduling.',
+              timestamp: new Date().toISOString(),
+              read: false,
+            },
+          ]
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('smartsports_role_notifications', JSON.stringify(notifications))
+    } catch {}
+  }, [notifications])
+
+  const addNotification = (notif) => {
+    setNotifications((prev) => [
+      {
+        id: Date.now() + Math.random(),
+        timestamp: new Date().toISOString(),
+        read: false,
+        ...notif,
+      },
+      ...prev,
+    ])
+  }
 
   const setActiveTab = (tab) => {
     if (tab !== activeTab) {
@@ -149,17 +197,36 @@ function App() {
 
   const formatBooking = (booking, review = null) => ({
     id: booking.id,
+    userId: booking.userId,
+    facilityId: booking.facilityId,
+    facility: booking.facility,
+    facilityName: booking.facility?.name ?? 'Facility',
     name: `${booking.facility?.name ?? 'Facility'} • booking`,
     date: `${new Date(booking.bookingDate).toLocaleDateString()} • ${booking.startTime.slice(0, 5)}`,
     status: booking.status,
     paymentMethod: booking.paymentMethod,
     paymentStatus: booking.paymentStatus,
     customerName: booking.customerName,
+    contactNumber: booking.contactNumber,
+    nicNumber: booking.nicNumber,
     bookingDate: booking.bookingDate,
     startTime: booking.startTime,
     endTime: booking.endTime,
+    hoursNeeded: booking.hoursNeeded,
+    totalAmount: booking.totalAmount,
     bankSlipFileName: booking.bankSlipFileName,
     cancellationReason: booking.cancellationReason,
+    refundAmount: booking.refundAmount,
+    refundPercentage: booking.refundPercentage,
+    refundStatus: booking.refundStatus,
+    cancelledAt: booking.cancelledAt,
+    refundConfirmedAt: booking.refundConfirmedAt,
+    refundConfirmedBy: booking.refundConfirmedBy,
+    refundNotes: booking.refundNotes,
+    isExpired: booking.isExpired,
+    isRescheduleRequested: Boolean(booking.isRescheduleRequested || booking.status === 'RescheduleRequested'),
+    rescheduleReason: booking.rescheduleReason,
+    rescheduleRequestedAt: booking.rescheduleRequestedAt,
     review,
   })
 
@@ -188,7 +255,7 @@ function App() {
   })
 
   const loadBookings = async (token) => {
-    const response = await fetch(`${API_BASE_URL}/bookings`, {
+    const response = await fetch(`${API_BASE_URL}/bookings?pageSize=200`, {
       headers: { Authorization: `Bearer ${token}` },
     })
 
@@ -319,6 +386,200 @@ function App() {
     const updated = await response.json()
     setBookingsList((current) => current.map((item) => item.id === updated.id ? formatBooking(updated) : item))
     setBookingNotice(`Booking ${status.toLowerCase()}${reason ? ` with reason: "${reason}".` : '.'}`)
+  }
+
+  const cancelBookingWithRefund = async (booking, reason = '') => {
+    if (!authToken) {
+      requireLogin('Please log in before cancelling a booking.')
+      return
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ reason }),
+      })
+      if (!response.ok) {
+        const errorText = await response.text()
+        let parsed = errorText
+        try {
+          const json = JSON.parse(errorText)
+          parsed = json.message || json.title || errorText
+        } catch {}
+        setBookingNotice(parsed || 'Booking cancellation failed.')
+        return
+      }
+      const updated = await response.json()
+      setBookingsList((current) => current.map((item) => item.id === updated.id ? formatBooking(updated) : item))
+      // No green banner notice per user request ("We don't need this green colour sentence")
+
+      // Role-separated notifications
+      if (updated.refundPercentage > 0) {
+        addNotification({
+          role: 'admin',
+          type: 'refund_pending',
+          title: 'Refund Verification Required',
+          message: `Member ${updated.customerName || 'User'} cancelled booking #${updated.id}. Refund of LKR ${Number(updated.refundAmount || 0).toLocaleString()} (${updated.refundPercentage}%) requires confirmation.`,
+          bookingId: updated.id,
+        })
+        addNotification({
+          role: 'user',
+          type: 'cancelled',
+          title: 'Cancellation Submitted',
+          message: `Booking #${updated.id} cancelled. Refund of LKR ${Number(updated.refundAmount || 0).toLocaleString()} has been queued for admin verification.`,
+          bookingId: updated.id,
+        })
+      } else {
+        addNotification({
+          role: 'admin',
+          type: 'cancelled',
+          title: 'Member Cancellation',
+          message: `Booking #${updated.id} cancelled by member. Non-refundable policy applied.`,
+          bookingId: updated.id,
+        })
+        addNotification({
+          role: 'user',
+          type: 'cancelled',
+          title: 'Booking Cancelled',
+          message: `Your booking #${updated.id} has been cancelled. Non-refundable per club policy (<12 hrs notice).`,
+          bookingId: updated.id,
+        })
+      }
+
+      await loadBookings(authToken)
+    } catch {
+      setBookingNotice('Could not connect to the cancellation service.')
+    }
+  }
+
+  const confirmRefund = async (booking, notes = '') => {
+    if (!authToken) {
+      requireLogin('Please log in before confirming refunds.')
+      return
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/confirm-refund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ notes }),
+      })
+      if (!response.ok) {
+        const errorText = await response.text()
+        setBookingNotice(errorText || 'Failed to confirm refund.')
+        return
+      }
+      const updated = await response.json()
+      setBookingsList((current) => current.map((item) => item.id === updated.id ? formatBooking(updated) : item))
+      setBookingNotice(`Refund verified and confirmed for Booking #${updated.id} (LKR ${Number(updated.refundAmount || 0).toLocaleString()}).`)
+
+      // Role-separated notifications
+      addNotification({
+        role: 'admin',
+        type: 'refund_confirmed',
+        title: 'Refund Approved',
+        message: `Verified and confirmed refund of LKR ${Number(updated.refundAmount || 0).toLocaleString()} for booking #${updated.id}.`,
+        bookingId: updated.id,
+      })
+      addNotification({
+        role: 'user',
+        type: 'refund_confirmed',
+        title: 'Refund Confirmed',
+        message: `Your refund of LKR ${Number(updated.refundAmount || 0).toLocaleString()} for booking #${updated.id} has been verified and confirmed!`,
+        bookingId: updated.id,
+      })
+
+      await loadBookings(authToken)
+    } catch {
+      setBookingNotice('Could not connect to the refund confirmation service.')
+    }
+  }
+
+  const requestReschedule = async (booking, reason = '') => {
+    if (!authToken) {
+      requireLogin('Please log in before requesting a reschedule.')
+      return
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/request-reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ reason }),
+      })
+      if (!response.ok) {
+        const errorText = await response.text()
+        setBookingNotice(errorText || 'Failed to send reschedule request.')
+        return
+      }
+      const updated = await response.json()
+      setBookingsList((current) => current.map((item) => item.id === updated.id ? formatBooking(updated) : item))
+      setBookingNotice(`Reschedule request sent to member for booking #${updated.id}.`)
+
+      // Role-separated notifications
+      addNotification({
+        role: 'admin',
+        type: 'reschedule_requested',
+        title: 'Reschedule Request Sent',
+        message: `Rain-check reschedule offer sent to member for booking #${updated.id}.`,
+        bookingId: updated.id,
+      })
+      addNotification({
+        role: 'user',
+        type: 'reschedule_requested',
+        title: 'Free Reschedule Offered',
+        message: `Management offered a free rain-check reschedule for your booking #${updated.id} (${updated.facility?.name || 'facility'}) due to weather impact.`,
+        bookingId: updated.id,
+      })
+
+      await loadBookings(authToken)
+    } catch {
+      setBookingNotice('Could not connect to the rescheduling service.')
+    }
+  }
+
+  const rescheduleBooking = async (booking, newDate, newStartTime, newEndTime) => {
+    if (!authToken) {
+      requireLogin('Please log in before rescheduling a booking.')
+      return
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({
+          bookingDate: `${newDate}T00:00:00.000Z`,
+          startTime: newStartTime,
+          endTime: newEndTime,
+        }),
+      })
+      if (!response.ok) {
+        const errorMsg = await response.text()
+        throw new Error(errorMsg || 'Failed to reschedule booking.')
+      }
+      const updated = await response.json()
+      setBookingsList((current) => current.map((item) => item.id === updated.id ? formatBooking(updated) : item))
+      setBookingNotice(`Booking #${updated.id} successfully rescheduled for free!`)
+
+      // Role-separated notifications
+      addNotification({
+        role: 'user',
+        type: 'reschedule_accepted',
+        title: 'Booking Rescheduled',
+        message: `Your booking #${updated.id} has been successfully rescheduled for free!`,
+        bookingId: updated.id,
+      })
+      addNotification({
+        role: 'admin',
+        type: 'reschedule_accepted',
+        title: 'Reschedule Completed',
+        message: `Member ${updated.customerName || 'User'} has chosen a new slot for booking #${updated.id}.`,
+        bookingId: updated.id,
+      })
+
+      await loadBookings(authToken)
+    } catch (err) {
+      setBookingNotice(err.message || 'Rescheduling failed.')
+      throw err
+    }
   }
 
   const openReview = (booking) => {
@@ -565,11 +826,11 @@ function App() {
     if (activeTab === 'Revenue') return <RevenuePage apiBaseUrl={API_BASE_URL} token={authToken} />
     if (activeTab === 'My AI Requests') return <WorkflowHistoryPage workflows={workflowHistory} />
     if (activeTab === 'Facilities') return selectedFacility ? <FacilityDetailsPage facility={selectedFacility} onBack={() => setSelectedFacility(null)} onBook={openFacilityBooking} /> : <FacilitiesPage facilities={facilitiesList} isAdmin={currentUser?.role === 'admin'} onDetails={setSelectedFacility} onBook={openFacilityBooking} onSave={saveFacility} onDelete={deleteFacility} />
-    if (activeTab === 'Bookings') return <BookingsPage bookings={bookingsList} isAdmin={['admin', 'manager'].includes(currentUser?.role)} onNewBooking={openBooking} onStatusChange={updateBookingStatus} onViewSlip={viewBankSlip} onReview={openReview} />
+    if (activeTab === 'Bookings') return <BookingsPage bookings={bookingsList} facilities={facilitiesList} isAdmin={['admin', 'manager'].includes(currentUser?.role)} token={authToken} apiBaseUrl={API_BASE_URL} onNewBooking={openBooking} onStatusChange={updateBookingStatus} onCancelWithRefund={cancelBookingWithRefund} onConfirmRefund={confirmRefund} onRequestReschedule={requestReschedule} onRescheduleBooking={rescheduleBooking} onViewSlip={viewBankSlip} onReview={openReview} />
     if (activeTab === 'Support') return selectedSupportRequest ? <SupportConversationPage request={selectedSupportRequest} token={authToken} apiBaseUrl={API_BASE_URL} onBack={() => setSelectedSupportRequest(null)} /> : <SupportPage requests={supportList} onAddTicket={openTicket} isAdmin={['admin', 'manager', 'staff'].includes(currentUser?.role)} onStatusChange={updateSupportStatus} onOpenRequest={setSelectedSupportRequest} />
     const ratedFacilities = facilitiesList.filter((facility) => facility.rating != null)
     const averageRating = ratedFacilities.length ? (ratedFacilities.reduce((sum, facility) => sum + facility.rating, 0) / ratedFacilities.length).toFixed(1) : null
-    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList.slice(0, 4)} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} reviews={reviewsList} apiBaseUrl={API_BASE_URL} currentUser={currentUser} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setActiveTab('Bookings')} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onReview={openReview} onEditReview={openReview} onDeleteReview={deleteReview} />
+    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList.slice(0, 4)} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} reviews={reviewsList} apiBaseUrl={API_BASE_URL} currentUser={currentUser} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setActiveTab('Bookings')} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onReview={openReview} onEditReview={openReview} onDeleteReview={deleteReview} onCancel={() => setActiveTab('Bookings')} onReschedule={() => setActiveTab('Bookings')} />
   }
 
   const heroMessage = (() => {
@@ -1224,6 +1485,21 @@ function App() {
             <button className="secondary-btn rag-btn" type="button" onClick={openAIRequest}>
               🤖 Ask RAG AI
             </button>
+            <NotificationBell
+              currentUser={currentUser}
+              notifications={notifications}
+              onClearAll={() => {
+                const isAdmin = ['admin', 'manager'].includes(currentUser?.role?.toLowerCase())
+                setNotifications((prev) => prev.filter((n) => isAdmin ? n.role !== 'admin' : n.role === 'admin'))
+              }}
+              onDismiss={(id) => {
+                setNotifications((prev) => prev.filter((n) => n.id !== id))
+              }}
+              onNotificationClick={(item) => {
+                setNotifications((prev) => prev.map((n) => n.id === item.id ? { ...n, read: true } : n))
+                setActiveTab('Bookings')
+              }}
+            />
             {!loggedIn && <button className="primary-btn" type="button" onClick={() => {
               setAuthMode('login')
               setShowAuthPanel(true)

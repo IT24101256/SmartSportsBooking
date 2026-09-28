@@ -2683,3 +2683,702 @@
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+/* =========================================================================
+   SmartSports Cancellation & Refund Policy + Rescheduling UI
+   ========================================================================= */
+
+.status.reschedule-requested {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.dark-mode .status.reschedule-requested {
+  background: rgba(3, 105, 161, 0.2);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.reschedule-required-item {
+  border: 1.5px solid #38bdf8 !important;
+  background: linear-gradient(135deg, rgba(240, 249, 255, 0.95), rgba(224, 242, 254, 0.85)) !important;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.15) !important;
+}
+
+.dark-mode .reschedule-required-item {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(8, 47, 73, 0.8)) !important;
+  border-color: #0284c7 !important;
+}
+
+.booking-top-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reschedule-flag-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: #0284c7;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+.user-reschedule-alert-box {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #7dd3fc;
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: 0 2px 6px rgba(3, 105, 161, 0.06);
+}
+
+.dark-mode .user-reschedule-alert-box {
+  background: rgba(15, 23, 42, 0.8);
+  border-color: #0369a1;
+}
+
+.user-reschedule-alert-box .alert-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.user-reschedule-alert-box .alert-text strong {
+  display: block;
+  font-size: 0.86rem;
+  color: #0369a1;
+  margin-bottom: 2px;
+}
+
+.user-reschedule-alert-box .alert-text p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #334155;
+}
+
+.dark-mode .user-reschedule-alert-box .alert-text p {
+  color: #cbd5e1;
+}
+
+.user-reschedule-alert-box .alert-text small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #059669;
+}
+
+.cancel-notice-row {
+  margin-bottom: 4px;
+}
+
+.refund-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.dark-mode .refund-summary-chip {
+  background: rgba(30, 41, 59, 0.8);
+}
+
+.refund-label {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.refund-green {
+  color: #059669;
+}
+
+.refund-muted {
+  color: #64748b;
+}
+
+/* User buttons */
+.user-reschedule-btn {
+  background: linear-gradient(135deg, #0284c7, #0369a1) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  border: none !important;
+  padding: 8px 16px !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3) !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-reschedule-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.45) !important;
+}
+
+.cancel-booking-link-btn {
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #dc2626;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.cancel-booking-link-btn:hover {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #b91c1c;
+}
+
+.dark-mode .cancel-booking-link-btn {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.dark-mode .cancel-booking-link-btn:hover {
+  background: rgba(220, 38, 38, 0.2);
+}
+
+.admin-reschedule-row {
+  border-left: 4px solid #0284c7 !important;
+}
+
+.admin-reschedule-notice {
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.dark-mode .admin-reschedule-notice {
+  background: rgba(2, 132, 199, 0.15);
+  border-color: rgba(2, 132, 199, 0.3);
+  color: #7dd3fc;
+}
+
+.admin-ask-reschedule-btn {
+  border-color: #bae6fd !important;
+  color: #0284c7 !important;
+  background: #f0f9ff !important;
+  font-weight: 600;
+}
+
+.admin-ask-reschedule-btn:hover {
+  background: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+}
+
+.reschedule-waiting-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 6px;
+}
+
+/* Modals */
+.cancel-policy-modal,
+.reschedule-modal,
+.admin-reschedule-modal {
+  max-width: 580px;
+}
+
+.cancel-modal-body,
+.reschedule-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.booking-summary-pill {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  gap: 12px;
+}
+
+.dark-mode .booking-summary-pill {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.summary-left strong {
+  display: block;
+  font-size: 0.98rem;
+  color: #0f172a;
+}
+
+.dark-mode .summary-left strong {
+  color: #f8fafc;
+}
+
+.summary-left span {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.summary-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.summary-right .price-tag {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 0.92rem;
+}
+
+.dark-mode .summary-right .price-tag {
+  color: #f8fafc;
+}
+
+.summary-right .notice-pill {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  background: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.dark-mode .summary-right .notice-pill {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.policy-section-title {
+  margin: 0 0 8px 0;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.policy-tier-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.policy-tier-card {
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.dark-mode .policy-tier-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.policy-tier-card.tier-active {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+.tier-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tier-title {
+  font-weight: 800;
+  font-size: 0.84rem;
+}
+
+.tier-active-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: white;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.tier-window {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.tier-desc {
+  margin: 4px 0 0 0;
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.refund-calculation-box {
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.full-refund-theme {
+  background: #ecfdf5;
+  border: 1.5px solid #a7f3d0;
+}
+
+.partial-refund-theme {
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+}
+
+.no-refund-theme {
+  background: #fef2f2;
+  border: 1.5px solid #fecaca;
+}
+
+.dark-mode .full-refund-theme {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.dark-mode .partial-refund-theme {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.dark-mode .no-refund-theme {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.calc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.calc-divider {
+  height: 1px;
+  background: rgba(100, 116, 139, 0.2);
+}
+
+.calc-total-row {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.calculated-refund-amount {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #047857;
+}
+
+.no-refund-theme .calculated-refund-amount {
+  color: #b91c1c;
+}
+
+.partial-refund-theme .calculated-refund-amount {
+  color: #b45309;
+}
+
+.outdoor-rain-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.dark-mode .outdoor-rain-notice {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.outdoor-rain-notice .rain-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.outdoor-rain-notice strong {
+  display: block;
+  font-size: 0.85rem;
+  color: #1d4ed8;
+  margin-bottom: 2px;
+}
+
+.outdoor-rain-notice p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #3b82f6;
+  line-height: 1.4;
+}
+
+.reschedule-admin-reason-banner {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.dark-mode .reschedule-admin-reason-banner {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.reschedule-admin-reason-banner .banner-icon {
+  font-size: 1.5rem;
+}
+
+.reschedule-admin-reason-banner strong {
+  display: block;
+  color: #15803d;
+  font-size: 0.92rem;
+}
+
+.reschedule-admin-reason-banner p {
+  margin: 2px 0 4px 0;
+  font-size: 0.88rem;
+  color: #166534;
+}
+
+.reschedule-admin-reason-banner small {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.original-booking-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dark-mode .original-booking-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.original-booking-card span {
+  font-size: 0.78rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.original-booking-card strong {
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.dark-mode .original-booking-card strong {
+  color: #f8fafc;
+}
+
+.original-booking-card p {
+  margin: 2px 0 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.reschedule-summary-box {
+  background: #f8fafc;
+  border: 1.5px dashed #10b981;
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dark-mode .reschedule-summary-box {
+  background: #1e293b;
+  border-color: #059669;
+}
+
+.reschedule-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.price-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+}
+
+.total-free-row {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 6px;
+  margin-top: 2px;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .policy-tier-cards {
+    grid-template-columns: 1fr;
+  }
+  .booking-summary-pill {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .summary-right {
+    align-items: flex-start;
+  }
+}
+
+/* =========================================================
+   EXPIRED BOOKINGS & REFUND VERIFICATION STYLES
+   ========================================================= */
+
+.expired-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #f1f5f9;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+}
+
+.dark-mode .expired-badge {
+  background-color: #1e293b;
+  color: #94a3b8;
+  border-color: #334155;
+}
+
+.status.expired-chip {
+  background-color: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  font-weight: 600;
+}
+
+.dark-mode .status.expired-chip {
+  background-color: #1e293b;
+  color: #94a3b8;
+  border-color: #334155;
+}
+
+.booking-expired-item {
+  opacity: 0.82;
+  border-left: 3px solid #94a3b8 !important;
+}
+
+.admin-expired-row {
+  opacity: 0.85;
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.admin-to-refund-row {
+  border-left: 4px solid #f59e0b !important;
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.filter-chip {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.filter-chip:hover {
+  transform: translateY(-1px);
+  border-color: #10b981;
+}
+
+.filter-chip-active {
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+}
+
+.dark-mode .filter-chip {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark-mode .filter-chip.filter-chip-active {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+  border-color: #10b981 !important;
+  color: #34d399 !important;
+}
+
+.notification-dropdown-panel {
+  animation: notifSlideDown 0.2s ease-out;
+}
+
+@keyframes notifSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dark-mode .notification-dropdown-panel {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark-mode .notification-dropdown-panel > div:first-child {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+.dark-mode .notification-item-card {
+  border-color: #334155 !important;
+}
+
+.dark-mode .notification-item-card:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+
+

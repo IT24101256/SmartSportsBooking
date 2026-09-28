@@ -49,6 +49,28 @@ public class Booking
     // This stores the current booking status.
     public string Status { get; set; } = "Pending";
 
-    // This stores the management cancellation reason if the booking is cancelled.
+    // This stores the management or customer cancellation reason if the booking is cancelled.
     public string? CancellationReason { get; set; }
+
+    // Cancellation & Refund policy tracking
+    public decimal? RefundAmount { get; set; }
+
+    public int? RefundPercentage { get; set; }
+
+    public string? RefundStatus { get; set; }
+
+    public DateTime? CancelledAt { get; set; }
+
+    public DateTime? RefundConfirmedAt { get; set; }
+
+    public string? RefundConfirmedBy { get; set; }
+
+    public string? RefundNotes { get; set; }
+
+    // Admin reschedule request (e.g. adverse weather / heavy rain / maintenance)
+    public bool IsRescheduleRequested { get; set; } = false;
+
+    public string? RescheduleReason { get; set; }
+
+    public DateTime? RescheduleRequestedAt { get; set; }
 } 

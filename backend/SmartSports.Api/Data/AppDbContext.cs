@@ -50,6 +50,36 @@ public class AppDbContext : DbContext
             .HasIndex(u => u.Email)
             .IsUnique();
 
+        modelBuilder.Entity<Booking>(entity =>
+        {
+            entity.HasIndex(b => b.BookingDate)
+                .HasDatabaseName("IX_Bookings_BookingDate");
+
+            entity.HasIndex(b => b.Status)
+                .HasDatabaseName("IX_Bookings_Status");
+
+            entity.HasIndex(b => b.FacilityId)
+                .HasDatabaseName("IX_Bookings_FacilityId");
+
+            entity.HasIndex(b => b.IsRescheduleRequested)
+                .HasDatabaseName("IX_Bookings_IsRescheduleRequested");
+
+            entity.HasIndex(b => b.RefundStatus)
+                .HasDatabaseName("IX_Bookings_RefundStatus");
+
+            entity.HasIndex(b => new { b.Status, b.BookingDate })
+                .HasDatabaseName("IX_Bookings_Status_BookingDate");
+
+            entity.HasIndex(b => new { b.FacilityId, b.BookingDate })
+                .HasDatabaseName("IX_Bookings_FacilityId_BookingDate");
+
+            entity.HasIndex(b => new { b.RefundStatus, b.BookingDate })
+                .HasDatabaseName("IX_Bookings_RefundStatus_BookingDate");
+
+            entity.HasIndex(b => new { b.UserId, b.BookingDate })
+                .HasDatabaseName("IX_Bookings_UserId_BookingDate");
+        });
+
         modelBuilder.Entity<BookingWorkflow>()
             .HasIndex(w => w.WorkflowId)
             .IsUnique();

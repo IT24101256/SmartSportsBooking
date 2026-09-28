@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartSportsFacilityBooking.Data;
 using SmartSportsFacilityBooking.Dtos.Booking;
 using SmartSportsFacilityBooking.Models;
+using SmartSportsFacilityBooking.Services;
 
 namespace SmartSportsFacilityBooking.Controllers;
   
@@ -25,8 +26,14 @@ public class BookingsController : ControllerBase
         [FromQuery] string? search,
         [FromQuery] string? status,
         [FromQuery] string? sort = "date",
+        [FromQuery] DateTime? date = null,
+        [FromQuery] string? filter = null,
+        [FromQuery] string? refundStatus = null,
+        [FromQuery] string? turf = null,
+        [FromQuery] int? facilityId = null,
+        [FromQuery] bool? isRescheduleRequested = null,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 10)
+        [FromQuery] int pageSize = 100)
     {
         var userId = GetUserId();
         if (userId == null)
@@ -40,15 +47,104 @@ public class BookingsController : ControllerBase
             bookingsQuery = bookingsQuery.Where(booking => booking.UserId == userId.Value);
         }
 
+        // Date filter
+        if (date.HasValue)
+        {
+            var targetDate = DateTime.SpecifyKind(date.Value.Date, DateTimeKind.Utc);
+            bookingsQuery = bookingsQuery.Where(booking => booking.BookingDate == targetDate);
+        }
+
+        // Facility / Turf ID filter
+        if (facilityId.HasValue && facilityId.Value > 0)
+        {
+            bookingsQuery = bookingsQuery.Where(booking => booking.FacilityId == facilityId.Value);
+        }
+
+        // Turf keyword filter
+        if (!string.IsNullOrWhiteSpace(turf))
+        {
+            var turfTerm = turf.Trim().ToLower();
+            bookingsQuery = bookingsQuery.Where(booking => booking.Facility!.Name.ToLower().Contains(turfTerm));
+        }
+
+        // Search text
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLower();
-            bookingsQuery = bookingsQuery.Where(booking => booking.Facility!.Name.ToLower().Contains(term));
+            bookingsQuery = bookingsQuery.Where(booking =>
+                booking.Facility!.Name.ToLower().Contains(term) ||
+                booking.CustomerName.ToLower().Contains(term) ||
+                booking.Id.ToString().Contains(term));
         }
 
+        // Direct status filter
         if (!string.IsNullOrWhiteSpace(status))
         {
             bookingsQuery = bookingsQuery.Where(booking => booking.Status == status);
+        }
+
+        // Refund status filter (e.g. "To Refund", "Refunded", "Non-refundable")
+        if (!string.IsNullOrWhiteSpace(refundStatus))
+        {
+            bookingsQuery = bookingsQuery.Where(booking => booking.RefundStatus == refundStatus);
+        }
+
+        // Reschedule requested boolean filter
+        if (isRescheduleRequested.HasValue)
+        {
+            if (isRescheduleRequested.Value)
+            {
+                bookingsQuery = bookingsQuery.Where(booking => booking.IsRescheduleRequested || booking.Status == "RescheduleRequested");
+            }
+            else
+            {
+                bookingsQuery = bookingsQuery.Where(booking => !booking.IsRescheduleRequested && booking.Status != "RescheduleRequested");
+            }
+        }
+
+        // Preset filter tabs: cancelled, reschedule, pending, confirmed, turf, to-refund, full-refund, half-refund, refunded
+        if (!string.IsNullOrWhiteSpace(filter))
+        {
+            var normalizedFilter = filter.Trim().ToLowerInvariant();
+            switch (normalizedFilter)
+            {
+                case "cancelled":
+                    bookingsQuery = bookingsQuery.Where(booking => booking.Status == "Cancelled");
+                    break;
+                case "reschedule":
+                    bookingsQuery = bookingsQuery.Where(booking => booking.IsRescheduleRequested || booking.Status == "RescheduleRequested");
+                    break;
+                case "pending":
+                    bookingsQuery = bookingsQuery.Where(booking => booking.Status == "Pending");
+                    break;
+                case "confirmed":
+                case "confirm":
+                    bookingsQuery = bookingsQuery.Where(booking => booking.Status == "Confirmed");
+                    break;
+                case "turf":
+                    bookingsQuery = bookingsQuery.Where(booking =>
+                        booking.Facility!.Name.ToLower().Contains("turf") ||
+                        booking.Facility!.Name.ToLower().Contains("field") ||
+                        booking.Facility!.Name.ToLower().Contains("ground") ||
+                        booking.Facility!.Name.ToLower().Contains("court") ||
+                        booking.Facility!.Name.ToLower().Contains("netball"));
+                    break;
+                case "to-refund":
+                case "torefund":
+                    bookingsQuery = bookingsQuery.Where(booking => booking.Status == "Cancelled" && (booking.RefundStatus == "To Refund" || (booking.RefundAmount > 0 && booking.RefundStatus != "Refunded")));
+                    break;
+                case "full-refund":
+                case "fullrefund":
+                    bookingsQuery = bookingsQuery.Where(booking => booking.Status == "Cancelled" && (booking.RefundPercentage == 100 || (booking.RefundAmount > 0 && booking.RefundAmount >= booking.TotalAmount) || (booking.RefundStatus != null && (booking.RefundStatus.Contains("100") || booking.RefundStatus.ToLower().Contains("full")))) && booking.RefundStatus != "Refunded");
+                    break;
+                case "half-refund":
+                case "halfrefund":
+                    bookingsQuery = bookingsQuery.Where(booking => booking.Status == "Cancelled" && (booking.RefundPercentage == 50 || (booking.RefundAmount > 0 && booking.RefundAmount < booking.TotalAmount) || (booking.RefundStatus != null && (booking.RefundStatus.Contains("50") || booking.RefundStatus.ToLower().Contains("half") || booking.RefundStatus.ToLower().Contains("partial")))) && booking.RefundStatus != "Refunded");
+                    break;
+                case "refunded":
+                    bookingsQuery = bookingsQuery.Where(booking => booking.RefundStatus == "Refunded");
+                    break;
+            }
         }
 
         bookingsQuery = sort?.ToLowerInvariant() switch
@@ -59,7 +155,7 @@ public class BookingsController : ControllerBase
         };
 
         page = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        pageSize = Math.Clamp(pageSize, 1, 500);
         var totalCount = await bookingsQuery.CountAsync();
         var bookings = await bookingsQuery
             .Skip((page - 1) * pageSize)
@@ -67,7 +163,48 @@ public class BookingsController : ControllerBase
             .Include(booking => booking.Facility)
             .ToListAsync();
 
-        return Ok(new { items = bookings, totalCount, page, pageSize, totalPages = (int)Math.Ceiling(totalCount / (double)pageSize) });
+        var slNow = CancellationRefundService.GetCurrentLocalTime();
+        var items = bookings.Select(b => new
+        {
+            b.Id,
+            b.UserId,
+            b.FacilityId,
+            b.Facility,
+            b.BookingDate,
+            b.StartTime,
+            b.EndTime,
+            b.HoursNeeded,
+            b.TotalAmount,
+            b.CustomerName,
+            b.NicNumber,
+            b.ContactNumber,
+            b.PaymentMethod,
+            b.PaymentStatus,
+            b.BankSlipFileName,
+            b.CardLastFour,
+            b.Status,
+            b.CancellationReason,
+            b.RefundAmount,
+            b.RefundPercentage,
+            b.RefundStatus,
+            b.CancelledAt,
+            b.RefundConfirmedAt,
+            b.RefundConfirmedBy,
+            b.RefundNotes,
+            b.IsRescheduleRequested,
+            b.RescheduleReason,
+            b.RescheduleRequestedAt,
+            IsExpired = CancellationRefundService.IsBookingExpired(b.BookingDate, b.StartTime, slNow)
+        });
+
+        return Ok(new
+        {
+            items,
+            totalCount,
+            page,
+            pageSize,
+            totalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+        });
     }
 
     [HttpPost]
@@ -260,10 +397,12 @@ public class BookingsController : ControllerBase
     [Authorize(Roles = "Admin,Manager")]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateBookingStatusRequest request)
     {
-        var booking = await _context.Bookings.FindAsync(id);
+        var booking = await _context.Bookings
+            .Include(b => b.Facility)
+            .FirstOrDefaultAsync(b => b.Id == id);
         if (booking == null) return NotFound();
 
-        var validStatuses = new[] { "Pending", "Confirmed", "Cancelled" };
+        var validStatuses = new[] { "Pending", "Confirmed", "Cancelled", "RescheduleRequested" };
         if (!validStatuses.Contains(request.Status))
             return BadRequest("Invalid status value.");
 
@@ -274,8 +413,212 @@ public class BookingsController : ControllerBase
         }
         else if (request.Status == "Cancelled")
         {
-            booking.CancellationReason = !string.IsNullOrWhiteSpace(request.Reason) ? request.Reason.Trim() : null;
+            booking.CancellationReason = !string.IsNullOrWhiteSpace(request.Reason) ? request.Reason.Trim() : "Cancelled by management.";
+            var refund = CancellationRefundService.CalculateRefund(booking.BookingDate, booking.StartTime, booking.TotalAmount, booking.Facility?.Name);
+            booking.RefundPercentage = refund.RefundPercentage;
+            booking.RefundAmount = refund.RefundAmount;
+            booking.RefundStatus = refund.RefundPercentage > 0 ? "To Refund" : "Non-refundable";
+            booking.CancelledAt = DateTime.UtcNow;
         }
+
+        await _context.SaveChangesAsync();
+        return Ok(booking);
+    }
+
+    [HttpGet("{id:int}/cancellation-quote")]
+    public async Task<IActionResult> GetCancellationQuote(int id)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var booking = await _context.Bookings
+            .Include(b => b.Facility)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking == null) return NotFound();
+        if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && booking.UserId != userId.Value) return Forbid();
+
+        var quote = CancellationRefundService.CalculateRefund(
+            booking.BookingDate,
+            booking.StartTime,
+            booking.TotalAmount,
+            booking.Facility?.Name
+        );
+
+        return Ok(new
+        {
+            bookingId = booking.Id,
+            facilityName = booking.Facility?.Name ?? "Facility",
+            totalAmount = booking.TotalAmount,
+            bookingDate = booking.BookingDate,
+            startTime = booking.StartTime,
+            hoursPrior = quote.HoursPrior,
+            refundPercentage = quote.RefundPercentage,
+            refundAmount = quote.RefundAmount,
+            refundStatus = quote.RefundStatus,
+            policyTier = quote.PolicyTier,
+            policyExplanation = quote.PolicyExplanation,
+            isOutdoorEligibleForRainCheck = quote.IsOutdoorEligibleForRainCheck
+        });
+    }
+
+    [HttpPost("{id:int}/cancel")]
+    public async Task<IActionResult> CancelBookingWithRefund(int id, [FromBody] CancelBookingRequest? request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var booking = await _context.Bookings
+            .Include(b => b.Facility)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking == null) return NotFound();
+        if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && booking.UserId != userId.Value) return Forbid();
+        if (booking.Status == "Cancelled") return BadRequest("This booking is already cancelled.");
+
+        if (CancellationRefundService.IsBookingExpired(booking.BookingDate, booking.StartTime))
+        {
+            return BadRequest("Expired bookings cannot be cancelled.");
+        }
+
+        var quote = CancellationRefundService.CalculateRefund(
+            booking.BookingDate,
+            booking.StartTime,
+            booking.TotalAmount,
+            booking.Facility?.Name
+        );
+
+        booking.Status = "Cancelled";
+        booking.RefundPercentage = quote.RefundPercentage;
+        booking.RefundAmount = quote.RefundAmount;
+        booking.RefundStatus = quote.RefundPercentage > 0 ? "To Refund" : "Non-refundable";
+        booking.CancelledAt = DateTime.UtcNow;
+        booking.CancellationReason = !string.IsNullOrWhiteSpace(request?.Reason)
+            ? request.Reason.Trim()
+            : (User.IsInRole("Admin") || User.IsInRole("Manager") ? "Cancelled by management." : "Cancelled by member.");
+
+        await _context.SaveChangesAsync();
+        return Ok(booking);
+    }
+
+    [HttpPost("{id:int}/confirm-refund")]
+    [Authorize(Roles = "Admin,Manager")]
+    public async Task<IActionResult> ConfirmRefund(int id, [FromBody] ConfirmRefundRequest? request)
+    {
+        var booking = await _context.Bookings
+            .Include(b => b.Facility)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking == null) return NotFound();
+        if (booking.Status != "Cancelled") return BadRequest("Only cancelled bookings can be refunded.");
+        if (booking.RefundStatus == "Refunded") return BadRequest("This booking has already been refunded.");
+        if (booking.RefundAmount == null || booking.RefundAmount <= 0) return BadRequest("This booking is non-refundable.");
+
+        booking.RefundStatus = "Refunded";
+        booking.RefundConfirmedAt = DateTime.UtcNow;
+        booking.RefundConfirmedBy = User.FindFirstValue(ClaimTypes.Name) ?? User.FindFirstValue(ClaimTypes.Email) ?? "Admin";
+        booking.RefundNotes = request?.Notes;
+
+        await _context.SaveChangesAsync();
+        return Ok(booking);
+    }
+
+    [HttpPost("{id:int}/request-reschedule")]
+    [Authorize(Roles = "Admin,Manager")]
+    public async Task<IActionResult> RequestReschedule(int id, [FromBody] AdminRescheduleRequest? request)
+    {
+        var booking = await _context.Bookings
+            .Include(b => b.Facility)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking == null) return NotFound();
+        if (booking.Status == "Cancelled") return BadRequest("Cannot request rescheduling for a cancelled booking.");
+
+        if (CancellationRefundService.IsBookingExpired(booking.BookingDate, booking.StartTime))
+        {
+            return BadRequest("Expired bookings cannot be rescheduled.");
+        }
+
+        booking.IsRescheduleRequested = true;
+        booking.RescheduleReason = !string.IsNullOrWhiteSpace(request?.Reason)
+            ? request.Reason.Trim()
+            : "Heavy rain / Adverse weather impact - free rescheduling offered";
+        booking.RescheduleRequestedAt = DateTime.UtcNow;
+        booking.Status = "RescheduleRequested";
+
+        await _context.SaveChangesAsync();
+        return Ok(booking);
+    }
+
+    [HttpPost("{id:int}/reschedule")]
+    public async Task<IActionResult> RescheduleBooking(int id, [FromBody] RescheduleBookingRequest request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var booking = await _context.Bookings
+            .Include(b => b.Facility)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking == null) return NotFound();
+        if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && booking.UserId != userId.Value) return Forbid();
+        if (booking.Status == "Cancelled") return BadRequest("Cannot reschedule a cancelled booking.");
+
+        if (CancellationRefundService.IsBookingExpired(booking.BookingDate, booking.StartTime))
+        {
+            return BadRequest("Expired bookings cannot be rescheduled.");
+        }
+
+        var bookingDate = DateTime.SpecifyKind(request.BookingDate.Date, DateTimeKind.Utc);
+        var today = DateTime.UtcNow.Date;
+        var now = DateTime.UtcNow.TimeOfDay;
+
+        if (bookingDate.Date < today)
+        {
+            return BadRequest("Bookings cannot be rescheduled to a previous date.");
+        }
+
+        if (bookingDate.Date == today && request.StartTime < now)
+        {
+            return BadRequest("Rescheduled booking cannot start before the current time.");
+        }
+
+        if (request.StartTime.Minutes != 0 || request.StartTime.Seconds != 0 || request.StartTime < TimeSpan.FromHours(8) || request.StartTime >= TimeSpan.FromHours(24))
+        {
+            return BadRequest("Bookings must start on a whole hour between 08:00 and 23:00.");
+        }
+
+        var endTime = request.EndTime ?? request.StartTime.Add(TimeSpan.FromHours(booking.HoursNeeded));
+        if (endTime <= request.StartTime)
+        {
+            return BadRequest("The end time must be after the start time.");
+        }
+
+        if (endTime > TimeSpan.FromHours(24))
+        {
+            return BadRequest("Bookings must end by midnight.");
+        }
+
+        // Check conflicts (excluding this booking and cancelled bookings)
+        var overlap = await _context.Bookings.AnyAsync(other =>
+            other.Id != id &&
+            other.FacilityId == booking.FacilityId &&
+            other.BookingDate == bookingDate &&
+            other.StartTime < endTime &&
+            other.EndTime > request.StartTime &&
+            other.Status != "Cancelled");
+
+        if (overlap)
+        {
+            return Conflict("The facility is already booked for that new time slot. Please choose another available slot.");
+        }
+
+        booking.BookingDate = bookingDate;
+        booking.StartTime = request.StartTime;
+        booking.EndTime = endTime;
+        booking.IsRescheduleRequested = false;
+        booking.RescheduleReason = null;
+        booking.Status = "Confirmed";
 
         await _context.SaveChangesAsync();
         return Ok(booking);
@@ -330,14 +673,36 @@ public class BookingsController : ControllerBase
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
 
-        var booking = await _context.Bookings.FindAsync(id);
+        var booking = await _context.Bookings
+            .Include(b => b.Facility)
+            .FirstOrDefaultAsync(b => b.Id == id);
         if (booking == null) return NotFound();
         if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && booking.UserId != userId.Value) return Forbid();
         if (booking.Status == "Cancelled") return NoContent();
 
+        if (CancellationRefundService.IsBookingExpired(booking.BookingDate, booking.StartTime))
+        {
+            return BadRequest("Expired bookings cannot be cancelled.");
+        }
+
+        var quote = CancellationRefundService.CalculateRefund(
+            booking.BookingDate,
+            booking.StartTime,
+            booking.TotalAmount,
+            booking.Facility?.Name
+        );
+
         booking.Status = "Cancelled";
+        booking.RefundPercentage = quote.RefundPercentage;
+        booking.RefundAmount = quote.RefundAmount;
+        booking.RefundStatus = quote.RefundPercentage > 0 ? "To Refund" : "Non-refundable";
+        booking.CancelledAt = DateTime.UtcNow;
+        booking.CancellationReason = User.IsInRole("Admin") || User.IsInRole("Manager")
+            ? "Cancelled by management."
+            : "Cancelled by member.";
+
         await _context.SaveChangesAsync();
-        return NoContent();
+        return Ok(booking);
     }
 
     private int? GetUserId()
