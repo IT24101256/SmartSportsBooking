@@ -1,6 +1,6 @@
 # SmartSports Booking
 
-SmartSports Booking is a full-stack sports facility booking system with an ASP.NET Core API, PostgreSQL database, React web application, Flutter mobile application, and an Agentic AI booking workflow.
+SmartSports Booking is a full-stack sports facility booking system with an ASP.NET Core API, PostgreSQL database, React web application, and Flutter mobile application.
 
 ## 1. Prerequisites
 
@@ -174,7 +174,7 @@ Without SMTP configuration, the API logs the development OTP instead of sending 
 
 ## 8. Run all tests
 
-Backend and Agentic AI tests:
+Backend unit and integration tests:
 
 ```powershell
 dotnet test backend\SmartSports.Api.Tests\SmartSports.Api.Tests.csproj --configuration Release
@@ -200,12 +200,9 @@ flutter test
 
 1. Start PostgreSQL and the API.
 2. Open React or Flutter and register or log in.
-3. Browse facilities and create a normal booking.
-4. Submit an AI facility request.
-5. The workflow runs planning, facility analysis, deterministic validation, and action staging.
-6. Log in as Manager or Admin in the React application.
-7. Open **AI Workflows** and approve, reject, or request a revision with an audit comment.
-8. Confirm the resulting booking and workflow history in the API/database.
+3. Browse facilities, check availability, and create a booking.
+4. Manage booking reservations, rescheduling, and cancellations with refund calculation.
+5. Review member activity, facilities, revenue, and customer feedback.
 
 ## 10. GitHub Actions
 
@@ -219,8 +216,8 @@ The workflow in `.github/workflows/ci.yml` runs automatically for pushes and pul
 ## Project structure
 
 ```text
-backend/SmartSports.Api       ASP.NET Core API and Agentic AI subsystem
-backend/SmartSports.Api.Tests Backend and Agentic AI tests
+backend/SmartSports.Api       ASP.NET Core API
+backend/SmartSports.Api.Tests Backend unit and integration tests
 web/smart-sports-web           React web application
 mobile                         Flutter mobile application
 docs                           Architecture decision records

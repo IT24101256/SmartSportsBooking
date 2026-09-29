@@ -2,15 +2,12 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import BookingList from './components/BookingList'
 import SchedulePanel from './components/SchedulePanel'
-import AgenticRagModal from './components/AgenticRagModal'
 import OverviewPage from './pages/OverviewPage'
 import FacilitiesPage from './pages/FacilitiesPage'
 import BookingsPage from './pages/BookingsPage'
 import SupportPage from './pages/SupportPage'
 import SupportConversationPage from './pages/SupportConversationPage'
 import MembersPage from './pages/MembersPage'
-import AIWorkflowsPage from './pages/AIWorkflowsPage'
-import WorkflowHistoryPage from './pages/WorkflowHistoryPage'
 import BookingWizard from './components/BookingWizard'
 import FacilityDetailsPage from './pages/FacilityDetailsPage'
 import ReviewModal from './components/ReviewModal'
@@ -25,8 +22,8 @@ const localDateString = (date = new Date()) => {
   return `${year}-${month}-${day}`
 }
 
-const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support', 'My AI Requests']
-const adminNavItems = [...baseNavItems, 'Revenue', 'Members', 'AI Workflows']
+const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support']
+const adminNavItems = [...baseNavItems, 'Revenue', 'Members']
 
 const initialBookingForm = {
   facility: 'Badminton Court',
@@ -92,7 +89,6 @@ function App() {
   const [selectedSupportRequest, setSelectedSupportRequest] = useState(null)
   const [facilitiesList, setFacilitiesList] = useState([])
   const [isBookingOpen, setIsBookingOpen] = useState(false)
-  const [isAIBooking, setIsAIBooking] = useState(false)
   const [bookingForm, setBookingForm] = useState(initialBookingForm)
   const [bookingNotice, setBookingNotice] = useState('')
   const [showAuthPanel, setShowAuthPanel] = useState(false)
@@ -100,37 +96,7 @@ function App() {
   const [isTimetableOpen, setIsTimetableOpen] = useState(false)
   const [selectedScheduleItem, setSelectedScheduleItem] = useState(null)
   const [selectedFacility, setSelectedFacility] = useState(null)
-  const [isAIRequestOpen, setIsAIRequestOpen] = useState(false)
-  const [workflowForm, setWorkflowForm] = useState({
-    objective: '16-Team Inter-University Badminton Championship (4 Court Slots)',
-    facilityType: 'Badminton',
-    date: localDateString(new Date(Date.now() + 86400000)),
-    startTime: '09:00',
-    endTime: '12:00',
-    guests: '24',
-    budget: '35000'
-  })
-  const [workflowLoading, setWorkflowLoading] = useState(false)
   const [ticketForm, setTicketForm] = useState({ subject: '', detail: '', priority: 'Medium' })
-  const [workflowRequests, setWorkflowRequests] = useState([
-    {
-      id: 'WF-2026-014',
-      objective: 'Find a basketball court for a 10-person evening training session',
-      facility: 'Indoor Basketball Arena',
-      date: '12 Sep 2026, 7:00 PM',
-      quotation: 'LKR 3,000',
-      status: 'Pending manager approval',
-      validation: [
-        'Facility exists and is available',
-        'Requested time does not overlap another booking',
-        '10 guests are within the facility capacity',
-        'Quotation is within the customer budget',
-      ],
-      steps: ['Planning Agent', 'Facility Analysis Agent', 'Scheduling and Validation Agent', 'Inventory and Action Agent'],
-    },
-  ])
-  const [workflowDecision, setWorkflowDecision] = useState('')
-  const [workflowHistory, setWorkflowHistory] = useState([])
   const [notifications, setNotifications] = useState(() => {
     try {
       const stored = localStorage.getItem('smartsports_role_notifications')
@@ -319,59 +285,6 @@ function App() {
     loadSupportRequests()
     loadReviews()
   }, [])
-
-  const formatWorkflow = (workflow) => {
-    let proposal = {}
-    let validation = {}
-    let plan = {}
-    try { proposal = JSON.parse(workflow.proposalJson || '{}') } catch {}
-    try { validation = JSON.parse(workflow.validationJson || '{}') } catch {}
-    try { plan = JSON.parse(workflow.planJson || '{}') } catch {}
-
-    const detailedSteps = (workflow.steps || []).map((step) => {
-      let toolsCalled = []
-      try { toolsCalled = JSON.parse(step.toolsCalledJson || '[]') } catch {}
-      return {
-        ...step,
-        toolsCalled
-      }
-    })
-
-    return {
-      id: workflow.workflowId,
-      objective: workflow.objective,
-      facility: proposal.facilityName ?? workflow.facilityType,
-      facilityType: workflow.facilityType,
-      date: new Date(workflow.requestedStart).toLocaleString(),
-      requestedStart: workflow.requestedStart,
-      requestedEnd: workflow.requestedEnd,
-      guests: workflow.guests,
-      budget: workflow.budget,
-      quotation: proposal.estimatedCost ? `LKR ${proposal.estimatedCost.toLocaleString()}` : `LKR ${workflow.budget.toLocaleString()}`,
-      status: workflow.status === 'PendingManagerApproval' ? 'Pending manager approval' : workflow.status === 'RevisionRequested' ? 'Revision requested' : workflow.status,
-      rawValidation: validation,
-      validation: validation.passedRules || Object.entries(validation).map(([key, value]) => `${key}: ${value ? 'passed' : 'failed'}`),
-      steps: workflow.steps?.map((step) => step.agentName) ?? [],
-      detailedSteps,
-      plan,
-      proposal,
-      executionDurationMs: workflow.executionDurationMs || 0,
-      decisionBy: workflow.decisionBy,
-      approvalComment: workflow.approvalComment,
-      finalOutcome: workflow.finalOutcome,
-      auditEvents: workflow.auditEvents || [],
-    }
-  }
-
-  const loadWorkflows = async (token) => {
-    const response = await fetch(`${API_BASE_URL}/booking-workflows/admin-history`, { headers: { Authorization: `Bearer ${token}` } })
-    if (response.ok) setWorkflowRequests((await response.json()).map(formatWorkflow))
-  }
-
-  const loadWorkflowHistory = async (token) => {
-    const response = await fetch(`${API_BASE_URL}/booking-workflows/history`, { headers: { Authorization: `Bearer ${token}` } })
-    if (response.ok) setWorkflowHistory((await response.json()).map(formatWorkflow))
-  }
 
   const updateBookingStatus = async (booking, status, reason = null) => {
     const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/status`, {
@@ -635,24 +548,6 @@ function App() {
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
-  const decideWorkflow = async (workflowId, action) => {
-    const response = await fetch(`${API_BASE_URL}/booking-workflows/${workflowId}/${action}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify({ comment: workflowDecision.trim() }),
-    })
-    if (!response.ok) {
-      const err = await response.json().catch(() => null)
-      setBookingNotice(err?.error || 'Workflow decision could not be saved.')
-      return
-    }
-    const updatedWorkflow = formatWorkflow(await response.json())
-    setWorkflowRequests((current) => current.map((item) => item.id === workflowId ? { ...item, ...updatedWorkflow, decision: workflowDecision.trim() } : item))
-    setWorkflowDecision('')
-    await loadBookings(authToken)
-    setBookingNotice(action === 'approve' ? 'Workflow approved and booking created.' : action === 'revise' ? 'Revision requested and recorded.' : 'Workflow rejected safely.')
-  }
-
   const navItems = ['admin', 'manager'].includes(currentUser?.role) ? adminNavItems : baseNavItems
 
   const requireLogin = (message = 'Please log in to continue.') => {
@@ -666,7 +561,6 @@ function App() {
 
   const openBooking = () => {
     if (requireLogin('Please log in before creating a booking.')) {
-      setIsAIBooking(false)
       setIsBookingOpen(true)
     }
   }
@@ -701,58 +595,6 @@ function App() {
   const openTicket = () => {
     if (requireLogin('Please log in before creating a support ticket.')) {
       setIsTicketOpen(true)
-    }
-  }
-
-  const openAIRequest = () => {
-    setIsAIRequestOpen(true)
-  }
-
-  const handleWorkflowFormChange = (field, value) => {
-    setWorkflowForm((current) => ({ ...current, [field]: value }))
-  }
-
-  const handleLaunchWorkflow = async (event) => {
-    if (event) event.preventDefault()
-    if (!requireLogin('Please log in before launching an AI booking workflow.')) return
-
-    setWorkflowLoading(true)
-    try {
-      const requestedStart = `${workflowForm.date}T${workflowForm.startTime}:00Z`
-      const requestedEnd = `${workflowForm.date}T${workflowForm.endTime}:00Z`
-
-      const response = await fetch(`${API_BASE_URL}/booking-workflows`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          objective: workflowForm.objective,
-          facilityType: workflowForm.facilityType,
-          requestedStart,
-          requestedEnd,
-          guests: Number(workflowForm.guests),
-          budget: Number(workflowForm.budget),
-        }),
-      })
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => null)
-        setBookingNotice(err?.error || 'AI workflow request could not be started.')
-        return
-      }
-
-      const workflow = formatWorkflow(await response.json())
-      setWorkflowRequests((current) => [workflow, ...current])
-      setWorkflowHistory((current) => [workflow, ...current])
-      setIsAIRequestOpen(false)
-      setActiveTab('My AI Requests')
-      setBookingNotice('AI Workflow initiated! The proposal is pending manager approval.')
-    } catch {
-      setBookingNotice('Could not connect to API to start the workflow.')
-    } finally {
-      setWorkflowLoading(false)
     }
   }
 
@@ -822,15 +664,13 @@ function App() {
     ]
 
     if (activeTab === 'Members') return <MembersPage members={registeredMembers} />
-    if (activeTab === 'AI Workflows') return <AIWorkflowsPage workflows={workflowRequests} decision={workflowDecision} onDecisionChange={setWorkflowDecision} onRequestRevision={(id) => decideWorkflow(id, 'revise')} onReject={(id) => decideWorkflow(id, 'reject')} onApprove={(id) => decideWorkflow(id, 'approve')} />
     if (activeTab === 'Revenue') return <RevenuePage apiBaseUrl={API_BASE_URL} token={authToken} />
-    if (activeTab === 'My AI Requests') return <WorkflowHistoryPage workflows={workflowHistory} />
     if (activeTab === 'Facilities') return selectedFacility ? <FacilityDetailsPage facility={selectedFacility} onBack={() => setSelectedFacility(null)} onBook={openFacilityBooking} /> : <FacilitiesPage facilities={facilitiesList} isAdmin={currentUser?.role === 'admin'} onDetails={setSelectedFacility} onBook={openFacilityBooking} onSave={saveFacility} onDelete={deleteFacility} />
     if (activeTab === 'Bookings') return <BookingsPage bookings={bookingsList} facilities={facilitiesList} isAdmin={['admin', 'manager'].includes(currentUser?.role)} token={authToken} apiBaseUrl={API_BASE_URL} onNewBooking={openBooking} onStatusChange={updateBookingStatus} onCancelWithRefund={cancelBookingWithRefund} onConfirmRefund={confirmRefund} onRequestReschedule={requestReschedule} onRescheduleBooking={rescheduleBooking} onViewSlip={viewBankSlip} onReview={openReview} />
     if (activeTab === 'Support') return selectedSupportRequest ? <SupportConversationPage request={selectedSupportRequest} token={authToken} apiBaseUrl={API_BASE_URL} onBack={() => setSelectedSupportRequest(null)} /> : <SupportPage requests={supportList} onAddTicket={openTicket} isAdmin={['admin', 'manager', 'staff'].includes(currentUser?.role)} onStatusChange={updateSupportStatus} onOpenRequest={setSelectedSupportRequest} />
     const ratedFacilities = facilitiesList.filter((facility) => facility.rating != null)
     const averageRating = ratedFacilities.length ? (ratedFacilities.reduce((sum, facility) => sum + facility.rating, 0) / ratedFacilities.length).toFixed(1) : null
-    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList.slice(0, 4)} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} reviews={reviewsList} apiBaseUrl={API_BASE_URL} currentUser={currentUser} onBooking={openBooking} onAIRequest={openAIRequest} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setActiveTab('Bookings')} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onReview={openReview} onEditReview={openReview} onDeleteReview={deleteReview} onCancel={() => setActiveTab('Bookings')} onReschedule={() => setActiveTab('Bookings')} />
+    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList.slice(0, 4)} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} reviews={reviewsList} apiBaseUrl={API_BASE_URL} currentUser={currentUser} onBooking={openBooking} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setActiveTab('Bookings')} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onReview={openReview} onEditReview={openReview} onDeleteReview={deleteReview} onCancel={() => setActiveTab('Bookings')} onReschedule={() => setActiveTab('Bookings')} />
   }
 
   const heroMessage = (() => {
@@ -838,7 +678,6 @@ function App() {
     if (activeTab === 'Bookings') return 'Manage your upcoming games and reservation updates in one place.'
     if (activeTab === 'Support') return 'Track support requests and get help from the facilities team.'
     if (activeTab === 'Members') return 'Review member activity, access and facility usage in one place.'
-    if (activeTab === 'AI Workflows') return 'Review validated booking proposals before any high-impact action is executed.'
     return 'Play harder. Book smarter.'
   })()
 
@@ -867,10 +706,8 @@ function App() {
       await loadReviews()
       await loadSupportRequests(result.token)
       await loadFacilities()
-      await loadWorkflowHistory(result.token)
       if (['admin', 'manager'].includes(result.role?.toLowerCase())) {
         await loadMembers(result.token)
-        await loadWorkflows(result.token)
       }
     } catch {
       setAuthFeedback('The API is unavailable. Start the backend on port 5187 and try again.')
@@ -964,277 +801,6 @@ function App() {
       setAuthFeedback('The API is unavailable. Start the backend and try again.')
     }
   }
-
-  const renderTabContent = () => {
-    if (activeTab === 'Members') {
-      return (
-        <section className="panel full-width-panel">
-          <div className="panel-header">
-            <h3>Member directory</h3>
-            <span className="admin-badge">Admin access</span>
-          </div>
-
-          <div className="member-table-wrap">
-            <table className="member-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {registeredMembers.map((member) => (
-                  <tr key={`${member.email}-${member.name}`}>
-                    <td>{member.name}</td>
-                    <td>{member.email}</td>
-                    <td>{member.role === 'admin' ? 'Admin' : 'Member'}</td>
-                    <td><span className="member-status active">Active</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )
-    }
-
-    if (activeTab === 'AI Workflows') {
-      return (
-        <section className="panel full-width-panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow subtle">Agentic AI control room</p>
-              <h3>Booking proposals awaiting approval</h3>
-            </div>
-            <span className="admin-badge">Manager approval required</span>
-          </div>
-          <div className="workflow-explainer">
-            <strong>What does Agentic AI do here?</strong>
-            <p>It breaks one booking request into four specialist checks. The system validates their proposal, then pauses before creating a real booking. A manager makes the final decision.</p>
-          </div>
-          <div className="workflow-list">
-            {workflowRequests.map((workflow) => (
-              <article className="workflow-card" key={workflow.id}>
-                <div className="workflow-card-header">
-                  <div>
-                    <strong>{workflow.id}</strong>
-                    <h4>{workflow.objective}</h4>
-                  </div>
-                  <span className={`status ${workflow.status === 'Approved' ? 'confirmed' : workflow.status === 'Rejected' ? 'rejected' : 'pending'}`}>{workflow.status}</span>
-                </div>
-                <div className="workflow-meta">
-                  <span><b>Facility:</b> {workflow.facility}</span>
-                  <span><b>Requested:</b> {workflow.date}</span>
-                  <span><b>Quotation:</b> {workflow.quotation}</span>
-                </div>
-                <div className="agent-step-list">
-                  {workflow.steps.map((step, index) => (
-                    <span key={step} className="agent-step"><b>{index + 1}</b><span><strong>{step}</strong><small>{index === 0 ? 'Creates the plan' : index === 1 ? 'Finds the right facility' : index === 2 ? 'Checks time, capacity and budget' : 'Prepares action, but cannot book yet'}</small></span></span>
-                  ))}
-                </div>
-                <div className="workflow-validation">
-                  <strong>Deterministic validation passed</strong>
-                  {workflow.validation.map((rule) => <span key={rule}>✓ {rule}</span>)}
-                </div>
-                {workflow.status === 'Pending manager approval' || workflow.status === 'Revision requested' ? (
-                  <>
-                    <label className="workflow-comment">
-                      <span>Decision note <small>(required for audit history)</small></span>
-                      <textarea value={workflowDecision} onChange={(event) => setWorkflowDecision(event.target.value)} placeholder="Explain why you approved, rejected or requested changes." rows="2" />
-                    </label>
-                    <div className="modal-actions">
-                      <button className="secondary-btn" type="button" disabled={!workflowDecision.trim()} onClick={() => {
-                        setWorkflowRequests((current) => current.map((item) => item.id === workflow.id ? { ...item, status: 'Revision requested', decision: workflowDecision.trim() } : item))
-                        setWorkflowDecision('')
-                      }}>Request revision</button>
-                      <button className="secondary-btn" type="button" disabled={!workflowDecision.trim()} onClick={() => {
-                        setWorkflowRequests((current) => current.map((item) => item.id === workflow.id ? { ...item, status: 'Rejected', decision: workflowDecision.trim() } : item))
-                        setWorkflowDecision('')
-                      }}>Reject safely</button>
-                      <button className="primary-btn" type="button" disabled={!workflowDecision.trim()} onClick={() => {
-                        setWorkflowRequests((current) => current.map((item) => item.id === workflow.id ? { ...item, status: 'Approved', decision: workflowDecision.trim() } : item))
-                        setWorkflowDecision('')
-                      }}>Approve & create booking</button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="workflow-decision"><strong>Audit decision:</strong> {workflow.decision}</div>
-                )}
-              </article>
-            ))}
-            {!workflowRequests.length && <p className="empty-state">No proposals are waiting for manager approval.</p>}
-          </div>
-        </section>
-      )
-    }
-
-    if (activeTab === 'Facilities') {
-      return (
-        <section className="panel full-width-panel">
-          <div className="panel-header">
-            <h3>Available facilities</h3>
-          </div>
-          <div className="facility-list">
-            {facilities.map((facility) => (
-              <div key={facility.name} className={`facility-card ${facility.accent}`}>
-                <div className="facility-icon">{facility.icon}</div>
-                <div className="facility-body">
-                  <div className="facility-topline">
-                    <h4>{facility.name}</h4>
-                  </div>
-                  <div className="facility-meta">
-                    <strong>{facility.price}</strong>
-                    <small>{facility.status}</small>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )
-    }
-
-    if (activeTab === 'Bookings') {
-      return (
-        <section className="panel full-width-panel">
-          <div className="panel-header">
-            <h3>Upcoming bookings</h3>
-            <button className="text-action" type="button" onClick={openBooking}>New booking</button>
-          </div>
-          <BookingList bookings={bookingsList} />
-        </section>
-      )
-    }
-
-    if (activeTab === 'Support') {
-      return (
-        <section className="panel full-width-panel">
-          <div className="panel-header">
-            <h3>Support requests</h3>
-            <button className="text-action" type="button" onClick={openTicket}>Add ticket</button>
-          </div>
-          <div className="support-list">
-            {support.map((item) => (
-              <div key={item.title} className="support-item">
-                <div>
-                  <strong>{item.title}</strong>
-                  <p>{item.detail}</p>
-                </div>
-                <span className="priority-tag">{item.priority}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )
-    }
-
-    return (
-      <>
-        <section className="hero-panel">
-          <div className="hero-copy">
-            <span className="chip">Open all week</span>
-            <h2>{heroMessage}</h2>
-            <p>Reserve premium courts, track training time, and manage your active schedule in one place.</p>
-            <div className="hero-actions">
-              <button className="primary-btn" onClick={openBooking}>Book a facility</button>
-              <button className="secondary-btn light" onClick={openAIRequest}>Ask AI</button>
-            </div>
-          </div>
-
-          <div className="hero-summary">
-            <div className="summary-card">
-              <p>Next session</p>
-              <strong>Badminton Doubles</strong>
-              <span>Today • 6:30 PM</span>
-            </div>
-
-            <div className="mini-metrics">
-              <div>
-                <strong>12</strong>
-                <span>Open courts</span>
-              </div>
-              <div>
-                <strong>4.9</strong>
-                <span>Rating</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="stats-grid">
-          {stats.map((stat) => (
-            <article key={stat.label} className={`stat-card ${stat.tone}`}>
-              <span>{stat.label}</span>
-              <strong>{stat.value}</strong>
-            </article>
-          ))}
-        </section>
-
-        <section className="content-grid">
-          <div className="panel">
-            <div className="panel-header">
-              <h3>Popular facilities</h3>
-              <button className="text-action" type="button" onClick={() => setActiveTab('Facilities')}>See all</button>
-            </div>
-
-            <div className="facility-list">
-              {facilities.map((facility) => (
-                <div key={facility.name} className={`facility-card ${facility.accent}`}>
-                  <div className="facility-icon">{facility.icon}</div>
-                  <div className="facility-body">
-                    <div className="facility-topline">
-                      <h4>{facility.name}</h4>
-                    </div>
-                    <div className="facility-meta">
-                      <strong>{facility.price}</strong>
-                      <small>{facility.status}</small>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </section>
-
-        <section className="lower-grid">
-          <div className="panel">
-            <div className="panel-header">
-              <h3>Upcoming bookings</h3>
-              <button className="text-action" type="button" onClick={() => setActiveTab('Bookings')}>All bookings</button>
-            </div>
-
-            <BookingList bookings={bookingsList} />
-          </div>
-
-          <div className="panel">
-            <div className="panel-header">
-              <h3>Support requests</h3>
-              <button className="text-action" type="button" onClick={openTicket}>New request</button>
-            </div>
-
-            <div className="support-list">
-              {support.map((item) => (
-                <div key={item.title} className="support-item">
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p>{item.detail}</p>
-                  </div>
-                  <span className="priority-tag">{item.priority}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <SchedulePanel schedule={scheduleList} onDetails={setSelectedScheduleItem} />
-      </>
-    )
-  }
-
-  void renderTabContent
 
   const handleBookingChange = (field, value) => {
     setBookingForm((current) => ({ ...current, [field]: value }))
@@ -1482,9 +1048,6 @@ function App() {
             <button className="secondary-btn theme-toggle" type="button" onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}>
               {theme === 'light' ? '🌙 Dark mode' : '☀️ Light mode'}
             </button>
-            <button className="secondary-btn rag-btn" type="button" onClick={openAIRequest}>
-              🤖 Ask RAG AI
-            </button>
             <NotificationBell
               currentUser={currentUser}
               notifications={notifications}
@@ -1523,20 +1086,7 @@ function App() {
         {renderPage()}
       </main>
 
-      {isBookingOpen && <BookingWizard facilities={facilitiesList} initialFacilityName={bookingForm.facility} initialDate={bookingForm.date} initialStartTime={bookingForm.time} initialHoursNeeded={bookingForm.hoursNeeded} customer={currentUser} skipCustomerDetails={isAIBooking} token={authToken} apiBaseUrl={API_BASE_URL} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsBookingOpen(false)} onCreated={handleWizardCreated} />}
-
-      {isAIRequestOpen && (
-        <AgenticRagModal
-          apiBaseUrl={API_BASE_URL}
-          token={authToken}
-          currentUser={currentUser}
-          onClose={() => setIsAIRequestOpen(false)}
-          onLaunchWorkflow={handleLaunchWorkflow}
-          workflowForm={workflowForm}
-          onWorkflowFormChange={handleWorkflowFormChange}
-          isWorkflowLoading={workflowLoading}
-        />
-      )}
+      {isBookingOpen && <BookingWizard facilities={facilitiesList} initialFacilityName={bookingForm.facility} initialDate={bookingForm.date} initialStartTime={bookingForm.time} initialHoursNeeded={bookingForm.hoursNeeded} customer={currentUser} token={authToken} apiBaseUrl={API_BASE_URL} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsBookingOpen(false)} onCreated={handleWizardCreated} />}
 
       {reviewBooking && <ReviewModal booking={reviewBooking} existingReview={reviewBooking.review} onSubmit={saveReview} onClose={() => setReviewBooking(null)} />}
 
