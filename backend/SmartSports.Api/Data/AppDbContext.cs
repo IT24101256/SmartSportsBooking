@@ -209,6 +209,34 @@ public class AppDbContext : DbContext
         context.SaveChanges();
     }
 
+    public static void SeedDevelopmentManager(AppDbContext context)
+    {
+        if (context.Users.Any(user => user.Email == "manager@smartsports.com"))
+        {
+            return;
+        }
+
+        var managerRole = context.Roles.FirstOrDefault(role => role.Name == "Manager");
+        if (managerRole == null)
+        {
+            managerRole = new Role { Name = "Manager" };
+            context.Roles.Add(managerRole);
+            context.SaveChanges();
+        }
+
+        context.Users.Add(new User
+        {
+            FullName = "Arena Manager",
+            Email = "manager@smartsports.com",
+            ContactNumber = "0771234567",
+            NicNumber = "199012345678",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Manager@12345"),
+            RoleId = managerRole.Id
+        });
+        context.SaveChanges();
+    }
+
+
     public static void SeedFacilities(AppDbContext context)
     {
         var defaultFacilities = new[]

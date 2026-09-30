@@ -25,6 +25,8 @@ public class MembersController : ControllerBase
                 user.Id,
                 name = user.FullName,
                 user.Email,
+                contactNumber = user.ContactNumber,
+                nicNumber = user.NicNumber,
                 role = user.Role!.Name,
                 status = "Active"
             })

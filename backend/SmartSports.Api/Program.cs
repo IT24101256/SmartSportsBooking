@@ -132,6 +132,7 @@ using (var scope = app.Services.CreateScope())
         if (app.Environment.IsDevelopment())
         {
             AppDbContext.SeedDevelopmentAdmin(dbContext);
+            AppDbContext.SeedDevelopmentManager(dbContext);
         }
         AppDbContext.SeedFacilities(dbContext);
         AppDbContext.SeedDashboardData(dbContext);

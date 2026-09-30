@@ -4,6 +4,19 @@ import UserCancelModal from '../components/UserCancelModal'
 import UserRescheduleModal from '../components/UserRescheduleModal'
 import AdminRescheduleModal from '../components/AdminRescheduleModal'
 import AdminConfirmRefundModal from '../components/AdminConfirmRefundModal'
+import { getFacilityIcon } from '../utils/facilityImages'
+import TicketQRCode from '../components/TicketQRCode'
+
+function getGateForVenue(name = '') {
+  const lower = (name || '').toLowerCase()
+  if (lower.includes('badminton')) return 'GATE 1 (HALL B)'
+  if (lower.includes('cricket')) return 'EAST PAVILION'
+  if (lower.includes('turf') || lower.includes('foot')) return 'NORTH TURF'
+  if (lower.includes('swim') || lower.includes('aqua')) return 'AQUATICS LOBBY'
+  if (lower.includes('basket')) return 'COURT A (FIBA)'
+  if (lower.includes('tennis')) return 'CLUBHOUSE'
+  return 'MAIN GATE'
+}
 
 export default function BookingsPage({
   bookings = [],
@@ -39,11 +52,13 @@ export default function BookingsPage({
 
   // Helper to check if a booking has expired (session time passed)
   const isBookingExpired = (booking) => {
-    if (booking.isExpired !== undefined) return Boolean(booking.isExpired)
-    if (!booking.bookingDate) return false
+    if (booking?.isExpired !== undefined && typeof booking.isExpired === 'boolean') {
+      return booking.isExpired
+    }
+    if (!booking?.bookingDate) return false
     const sessionDate = new Date(booking.bookingDate)
     if (isNaN(sessionDate.getTime())) return false
-    const [hours, minutes] = (booking.startTime || '00:00').split(':').map(Number)
+    const [hours, minutes] = (booking.endTime || booking.startTime || '00:00').split(':').map(Number)
     const sessionTime = new Date(
       sessionDate.getFullYear(),
       sessionDate.getMonth(),
@@ -81,6 +96,17 @@ export default function BookingsPage({
   // Filter computation
   const filteredBookings = useMemo(() => {
     return bookings.filter((booking) => {
+      const expired = isBookingExpired(booking)
+
+      // Expired bookings rule:
+      // When 'expired' tab is chosen, ONLY show expired bookings.
+      // In all other tabs, expired bookings are excluded so they don't clutter the active list.
+      if (selectedFilter === 'expired') {
+        if (!expired) return false
+      } else {
+        if (expired) return false
+      }
+
       const isReschedule = Boolean(booking.isRescheduleRequested || booking.status === 'RescheduleRequested')
       const status = booking.status || 'Pending'
       const refundStatus = booking.refundStatus || ''
@@ -112,6 +138,8 @@ export default function BookingsPage({
 
       // 4. Quick Filter Tabs
       switch (selectedFilter) {
+        case 'expired':
+          return true
         case 'cancelled':
           return status === 'Cancelled'
         case 'reschedule':
@@ -166,163 +194,151 @@ export default function BookingsPage({
     setCancelReason('')
   }
 
-  const filterButtons = [
-    { id: 'all', label: 'All Bookings', icon: '📋' },
-    { id: 'cancelled', label: 'Cancelled', icon: '❌' },
-    { id: 'reschedule', label: 'Reschedule', icon: '🌧️' },
-    { id: 'pending', label: 'Pending', icon: '⏳' },
-    { id: 'confirmed', label: 'Confirmed', icon: '✅' },
-    { id: 'turf', label: 'Turf / Outdoor', icon: '🏟️' },
-    { id: 'to-refund', label: 'To Refund (All)', icon: '💰', badge: bookings.filter(isToRefundBooking).length },
-    { id: 'full-refund', label: 'Full Refund (100%)', icon: '🟢', badge: bookings.filter(isFullRefundBooking).length },
-    { id: 'half-refund', label: 'Half Refund (50%)', icon: '🟡', badge: bookings.filter(isHalfRefundBooking).length },
-    { id: 'refunded', label: 'Refunded', icon: '✨' },
-  ]
+  const expiredCount = useMemo(() => bookings.filter(isBookingExpired).length, [bookings])
+  const activeBookings = useMemo(() => bookings.filter((b) => !isBookingExpired(b)), [bookings])
+  const toRefundCount = useMemo(() => activeBookings.filter(isToRefundBooking).length, [activeBookings])
+  const rescheduleCount = useMemo(
+    () => activeBookings.filter((b) => b.isRescheduleRequested || b.status === 'RescheduleRequested').length,
+    [activeBookings]
+  )
+
+  const filterTabs = useMemo(() => {
+    const tabs = [
+      { id: 'all', label: 'All Bookings', count: activeBookings.length },
+      { id: 'confirmed', label: 'Confirmed', count: activeBookings.filter((b) => b.status === 'Confirmed').length },
+      {
+        id: 'pending',
+        label: 'Pending',
+        count: activeBookings.filter((b) => b.status === 'Pending' || !b.status).length,
+      },
+      {
+        id: 'reschedule',
+        label: 'Reschedule',
+        count: rescheduleCount,
+        badge: rescheduleCount > 0 ? rescheduleCount : null,
+      },
+      { id: 'cancelled', label: 'Cancelled', count: activeBookings.filter((b) => b.status === 'Cancelled').length },
+    ]
+
+    if (isAdmin && toRefundCount > 0) {
+      tabs.push({
+        id: 'to-refund',
+        label: 'Needs Refund',
+        icon: '💰',
+        badge: toRefundCount,
+        isAlert: true,
+      })
+    }
+
+    tabs.push({
+      id: 'expired',
+      label: 'Expired',
+      icon: '⏱️',
+      count: expiredCount,
+      badge: expiredCount > 0 ? expiredCount : null,
+      isExpired: true,
+    })
+
+    return tabs
+  }, [activeBookings, isAdmin, toRefundCount, rescheduleCount, expiredCount])
+
+  const getFacilityIcon = (facilityName) => {
+    const name = (facilityName || '').toLowerCase()
+    if (name.includes('badminton')) return '🏸'
+    if (name.includes('cricket')) return '🏏'
+    if (name.includes('table')) return '🏓'
+    if (name.includes('tennis')) return '🎾'
+    if (name.includes('basket')) return '🏀'
+    if (name.includes('swim') || name.includes('aqua')) return '🏊'
+    if (name.includes('football') || name.includes('turf') || name.includes('soccer')) return '⚽'
+    if (name.includes('gym') || name.includes('fitness')) return '🏋️'
+    return '🏟️'
+  }
 
   return (
-    <section className="panel full-width-panel" id="bookings-page-panel">
-      <div className="panel-header">
-        <div>
-          <h3>Upcoming bookings</h3>
-          <p className="panel-subtitle" style={{ margin: '3px 0 0', color: '#64748b', fontSize: '0.88rem' }}>
+    <section className="bookings-page-wrapper" id="bookings-page-panel">
+      {/* 1. TEXT-DRIVEN HERO SECTION */}
+      <section className="facilities-text-hero bookings-text-hero">
+        <div className="facilities-hero-inner">
+          <div className="bookings-hero-top-bar">
+            <div className="facilities-hero-badge-pill">
+              <span className="hub-pulse-dot" />
+              <span className="hub-badge-text">OFFICIAL ARENA PASSES</span>
+              <span className="hub-badge-sep">•</span>
+              <span className="hub-badge-status">
+                {activeBookings.length} {activeBookings.length === 1 ? 'Active Pass' : 'Active Passes'}
+              </span>
+            </div>
+
+            <button
+              className="primary-btn new-booking-cta-btn"
+              type="button"
+              id="new-booking-btn"
+              onClick={onNewBooking}
+            >
+              ＋ New booking
+            </button>
+          </div>
+
+          <h1 className="facilities-hero-main-title">
+            {isAdmin ? (
+              <>
+                Arena Pass Registry <span className="hub-title-highlight">& Turnstile Operations</span>
+              </>
+            ) : (
+              <>
+                Your Arena Passes <span className="hub-title-highlight">& Match Reservations</span>
+              </>
+            )}
+          </h1>
+
+          <p className="facilities-hero-narrative">
             {isAdmin
-              ? 'Manage facility reservations, verify and confirm refunds, weather adjustments, and transfers.'
-              : 'Review your games, free reschedule rain-checks, or request policy cancellations.'}
+              ? 'Manage championship facility reservations, audit turnstile digital passes, confirm payment slips, and verify member cancellation refunds in real-time.'
+              : 'Access your verified tournament passes, turnstile entry QR codes, court schedules, and weather rain-check rebooking credentials in one unified passbook.'}
           </p>
         </div>
-        <button className="text-action" type="button" id="new-booking-btn" onClick={onNewBooking}>
-          + New booking
-        </button>
-      </div>
+      </section>
 
-      {/* COMPREHENSIVE FILTER TOOLBAR */}
-      <div className="bookings-filter-bar" id="bookings-filter-bar" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.2rem', padding: '16px', background: 'var(--card-bg, #f8fafc)', borderRadius: '12px', border: '1px solid var(--border-color, #e2e8f0)' }}>
-        {/* Quick Filter Chips */}
-        <div className="filter-chips-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          {filterButtons.map((btn) => {
-            const isActive = selectedFilter === btn.id
-            return (
-              <button
-                key={btn.id}
-                type="button"
-                id={`filter-btn-${btn.id}`}
-                className={`filter-chip ${isActive ? 'filter-chip-active' : ''}`}
-                onClick={() => handleFilterChange(btn.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '7px 14px',
-                  borderRadius: '999px',
-                  border: isActive ? '1px solid #10b981' : '1px solid var(--border-color, #cbd5e1)',
-                  backgroundColor: isActive ? 'var(--chip-active-bg, #10b98115)' : 'var(--panel-bg, #ffffff)',
-                  color: isActive ? '#059669' : 'inherit',
-                  fontWeight: isActive ? 700 : 500,
-                  fontSize: '0.86rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>{btn.icon}</span>
-                <span>{btn.label}</span>
-                {Boolean(btn.badge) && (
-                  <span
-                    style={{
-                      backgroundColor: '#ef4444',
-                      color: '#ffffff',
-                      borderRadius: '999px',
-                      padding: '1px 6px',
-                      fontSize: '0.72rem',
-                      fontWeight: 800,
-                    }}
-                  >
-                    {btn.badge}
-                  </span>
-                )}
-              </button>
-            )
-          })}
+      {/* 2. STREAMLINED & EFFECTIVE FILTER TOOLBAR */}
+      <div className="bookings-filter-bar" id="bookings-filter-bar">
+        {/* Top: Clean Segmented Status Tabs + Active Pass Counter */}
+        <div className="filter-top-row">
+          <div className="filter-chips-row" role="tablist" aria-label="Filter bookings by status">
+            {filterTabs.map((tab) => {
+              const isActive = selectedFilter === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  id={`filter-btn-${tab.id}`}
+                  className={`filter-chip ${isActive ? 'filter-chip-active' : ''} ${
+                    tab.isAlert ? 'filter-chip-alert' : ''
+                  } ${tab.isExpired ? 'filter-chip-expired' : ''}`}
+                  onClick={() => handleFilterChange(tab.id)}
+                >
+                  {tab.icon && <span className="chip-icon">{tab.icon}</span>}
+                  <span className="chip-label">{tab.label}</span>
+                  {tab.badge !== undefined && tab.badge !== null ? (
+                    <span className="chip-badge">{tab.badge}</span>
+                  ) : tab.count !== undefined ? (
+                    <span className="chip-count">({tab.count})</span>
+                  ) : null}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="filter-summary-text">
+            Showing <strong>{filteredBookings.length}</strong> {selectedFilter === 'expired' ? 'expired' : 'active'} {filteredBookings.length === 1 ? 'pass' : 'passes'}
+          </div>
         </div>
 
-        {/* Input filters: Date, Turf dropdown, Search */}
-        <div
-          className="filter-inputs-row"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: '12px',
-          }}
-        >
-          {/* Date Picker */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748b' }}>📅 Date:</span>
-            <input
-              type="date"
-              id="booking-date-filter"
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value)
-                setPage(1)
-              }}
-              style={{
-                padding: '6px 10px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-color, #cbd5e1)',
-                fontSize: '0.85rem',
-                fontFamily: 'inherit',
-              }}
-            />
-            {selectedDate && (
-              <button
-                type="button"
-                onClick={() => setSelectedDate('')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#64748b',
-                  cursor: 'pointer',
-                  fontSize: '0.8rem',
-                  padding: '4px',
-                }}
-                title="Clear date"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Turf / Facility selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748b' }}>🏟️ Turf:</span>
-            <select
-              id="booking-turf-filter"
-              value={selectedTurf}
-              onChange={(e) => {
-                setSelectedTurf(e.target.value)
-                setPage(1)
-              }}
-              style={{
-                padding: '7px 10px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-color, #cbd5e1)',
-                fontSize: '0.85rem',
-                fontFamily: 'inherit',
-                backgroundColor: 'var(--panel-bg, #ffffff)',
-              }}
-            >
-              <option value="">All Facilities & Turfs</option>
-              <option value="__outdoor__">All Outdoor Turfs (Rain-Check Eligible)</option>
-              {facilities.map((fac) => (
-                <option key={fac.id || fac.name} value={fac.name}>
-                  {fac.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Search box */}
-          <div style={{ flex: 1, minWidth: '180px' }}>
+        {/* Bottom: Fast Search, Venue Dropdown, Date Selector, & Clear */}
+        <div className="filter-inputs-row">
+          {/* Prominent Search box */}
+          <div className="filter-input-group search-group">
+            <span className="input-group-label" aria-hidden="true">🔍</span>
             <input
               type="text"
               id="booking-search-input"
@@ -331,22 +347,73 @@ export default function BookingsPage({
                 setSearchQuery(e.target.value)
                 setPage(1)
               }}
-              placeholder="Search by facility, member, or ID..."
-              style={{
-                width: '100%',
-                padding: '7px 12px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-color, #cbd5e1)',
-                fontSize: '0.85rem',
-                fontFamily: 'inherit',
-              }}
+              placeholder="Search by facility, member, or pass ID..."
+              className="filter-search-input"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="filter-clear-btn"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </div>
 
+          {/* Turf / Facility selector */}
+          <div className="filter-input-group turf-select-group">
+            <span className="input-group-label" aria-hidden="true">🏟️ Venue</span>
+            <select
+              id="booking-turf-filter"
+              value={selectedTurf}
+              onChange={(e) => {
+                setSelectedTurf(e.target.value)
+                setPage(1)
+              }}
+              className="filter-select-input"
+            >
+              <option value="">All Venues</option>
+              <option value="__outdoor__">Outdoor Turfs (Rain-Check Eligible)</option>
+              {facilities.map((fac) => (
+                <option key={fac.id || fac.name} value={fac.name}>
+                  {fac.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Picker */}
+          <div className="filter-input-group date-picker-group">
+            <span className="input-group-label" aria-hidden="true">📅 Date</span>
+            <input
+              type="date"
+              id="booking-date-filter"
+              value={selectedDate}
+              onChange={(e) => {
+                setSelectedDate(e.target.value)
+                setPage(1)
+              }}
+              className="filter-date-input"
+            />
+            {selectedDate && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate('')}
+                className="filter-clear-btn"
+                title="Clear date"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Reset Filters CTA if any filter is active */}
           {(selectedDate || selectedTurf || searchQuery || selectedFilter !== 'all') && (
             <button
               type="button"
-              className="secondary-btn"
+              className="filter-reset-btn"
               onClick={() => {
                 setSelectedFilter('all')
                 setSelectedDate('')
@@ -354,9 +421,9 @@ export default function BookingsPage({
                 setSearchQuery('')
                 setPage(1)
               }}
-              style={{ fontSize: '0.82rem', padding: '6px 12px' }}
+              title="Reset all filters"
             >
-              Reset filters
+              ✕ Reset
             </button>
           )}
         </div>
@@ -367,7 +434,9 @@ export default function BookingsPage({
         <div className="admin-booking-list" id="admin-booking-list">
           {visibleBookings.length === 0 && (
             <p className="empty-state" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
-              No bookings match the selected criteria.
+              {selectedFilter === 'expired'
+                ? 'No expired passes found.'
+                : 'No bookings match the selected criteria.'}
             </p>
           )}
 
@@ -385,97 +454,164 @@ export default function BookingsPage({
 
             return (
               <article
-                className={`admin-booking-row ${isRescheduleRequested && !isExpired ? 'admin-reschedule-row' : ''} ${
-                  isExpired ? 'admin-expired-row' : ''
-                } ${isToRefund ? 'admin-to-refund-row' : ''}`}
+                className={`admin-booking-row sports-arena-ticket ${
+                  isRescheduleRequested && !isExpired ? 'ticket-reschedule' : ''
+                } ${isExpired ? 'ticket-expired' : ''} ${isCancelled ? 'ticket-cancelled' : ''} ${
+                  isConfirmed ? 'ticket-confirmed' : 'ticket-pending'
+                }`}
                 key={booking.id}
                 id={`admin-booking-row-${booking.id}`}
               >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <strong>{booking.name}</strong>
-                    {isExpired && (
-                      <span className="expired-badge" id={`admin-expired-badge-${booking.id}`}>
-                        🕒 Expired
-                      </span>
-                    )}
-                    {!isExpired && isRescheduleRequested && (
-                      <span className="reschedule-flag-badge">
-                        🌧️ Reschedule Requested
-                      </span>
-                    )}
-                    {isToRefund && isFullRefund && (
-                      <span
-                        className="to-refund-badge full-refund-badge"
-                        style={{
-                          backgroundColor: '#ecfdf5',
-                          color: '#065f46',
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                          padding: '3px 9px',
-                          borderRadius: '6px',
-                          border: '1px solid #10b981',
-                        }}
-                      >
-                        🟢 Full 100% Refund: LKR {Number(booking.refundAmount || 0).toLocaleString()} (Verification Required)
-                      </span>
-                    )}
-                    {isToRefund && isHalfRefund && (
-                      <span
-                        className="to-refund-badge half-refund-badge"
-                        style={{
-                          backgroundColor: '#fffbeb',
-                          color: '#92400e',
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                          padding: '3px 9px',
-                          borderRadius: '6px',
-                          border: '1px solid #f59e0b',
-                        }}
-                      >
-                        🟡 50% Half Refund: LKR {Number(booking.refundAmount || 0).toLocaleString()} (Verification Required)
-                      </span>
-                    )}
-                    {isRefunded && (
-                      <span
-                        className="refunded-badge"
-                        style={{
-                          backgroundColor: '#d1fae5',
-                          color: '#065f46',
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                        }}
-                      >
-                        ✅ Refunded (LKR {Number(booking.refundAmount || 0).toLocaleString()})
-                      </span>
-                    )}
+                {/* ================= LEFT: MAIN TICKET PASS ================= */}
+                <div className="ticket-main-body">
+                  {/* Holographic Security Strip */}
+                  <div className="ticket-hologram-strip" aria-hidden="true">
+                    <span className="hologram-shimmer" />
+                    <span className="hologram-text">★ SMART SPORTS PASS • OFFICIAL ARENA ACCESS • ADMIN CONSOLE ★</span>
                   </div>
-                  <span>📅 {booking.date} · Customer: <b>{booking.customerName}</b></span>
-                  <small>
-                    Payment: <b>{booking.paymentMethod || 'Legacy'}</b> / {booking.paymentStatus || booking.status}
-                    {booking.totalAmount ? ` · LKR ${Number(booking.totalAmount).toLocaleString()}` : ''}
-                  </small>
 
-                  {/* Reschedule alert for admin (only active) */}
+                  {/* Top Security & Serial Ribbon */}
+                  <div className="ticket-top-ribbon">
+                    <div className="ticket-brand-badge">
+                      <span className="ticket-brand-icon">🎟️</span>
+                      <span className="ticket-brand-text">OFFICIAL ARENA PASS</span>
+                      <span className="ticket-brand-sep">•</span>
+                      <span className="ticket-brand-sub">ADMIN CONSOLE</span>
+                    </div>
+                    <div className="ticket-serial-badge">
+                      <span className="serial-label">PASS REF:</span>
+                      <span className="serial-num">#BK-{String(booking.id).padStart(5, '0')}</span>
+                    </div>
+                  </div>
+
+                  {/* Venue Title & Inked Status Stamp Row */}
+                  <div className="ticket-venue-row">
+                    <div className="ticket-venue-left">
+                      <div className="ticket-sport-icon" aria-hidden="true">
+                        {getFacilityIcon(booking.name)}
+                      </div>
+                      <div className="ticket-venue-texts">
+                        <span className="ticket-court-category">CHAMPIONSHIP SPORTING COMPLEX</span>
+                        <h3 className="ticket-venue-title">{booking.name}</h3>
+                      </div>
+                    </div>
+
+                    <div className="ticket-stamp-col">
+                      {/* Authentic Inked Rubber Stamp */}
+                      <div
+                        className={`ticket-ink-stamp ${
+                          isExpired
+                            ? 'stamp-expired'
+                            : isRescheduleRequested
+                            ? 'stamp-reschedule'
+                            : isConfirmed
+                            ? 'stamp-confirmed'
+                            : isCancelled
+                            ? 'stamp-cancelled'
+                            : 'stamp-pending'
+                        }`}
+                        id={`admin-stamp-status-${booking.id}`}
+                      >
+                        <span className="stamp-inner-text">
+                          {isExpired
+                            ? 'EXPIRED'
+                            : isRescheduleRequested
+                            ? 'RESCHEDULE'
+                            : isConfirmed
+                            ? 'CONFIRMED PASS'
+                            : isCancelled
+                            ? 'CANCELLED'
+                            : 'PENDING'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stadium Turnstile & Access Matrix */}
+                  <div className="ticket-access-matrix">
+                    <div className="matrix-pill">
+                      <span className="m-label">GATE</span>
+                      <span className="m-val">{getGateForVenue(booking.name)}</span>
+                    </div>
+                    <div className="matrix-pill">
+                      <span className="m-label">ZONE</span>
+                      <span className="m-val">{booking.name?.split(' ')[0] || 'COURT'} #01</span>
+                    </div>
+                    <div className="matrix-pill">
+                      <span className="m-label">ACCESS</span>
+                      <span className="m-val">PRIORITY PASS</span>
+                    </div>
+                    <div className="matrix-pill">
+                      <span className="m-label">TURNSTILE</span>
+                      <span className="m-val">AUTOMATED</span>
+                    </div>
+                  </div>
+
+                  {/* Ticket 4-Column Meta Grid */}
+                  <div className="ticket-meta-grid">
+                    <div className="ticket-meta-cell">
+                      <span className="cell-label">SESSION DATE & TIME</span>
+                      <div className="cell-value date-value">
+                        <span className="cell-icon">📅</span>
+                        <strong>{booking.date}</strong>
+                      </div>
+                    </div>
+
+                    <div className="ticket-meta-cell">
+                      <span className="cell-label">RESERVED MEMBER</span>
+                      <div className="cell-value">
+                        <span className="cell-icon">👤</span>
+                        <strong>{booking.customerName || 'Club Member'}</strong>
+                      </div>
+                    </div>
+
+                    <div className="ticket-meta-cell">
+                      <span className="cell-label">PAYMENT METHOD</span>
+                      <div className="cell-value">
+                        <span className="cell-icon">💳</span>
+                        <span>
+                          <strong>{booking.paymentMethod || 'Legacy'}</strong>
+                          <span className={`ticket-pay-pill ${(booking.paymentStatus || booking.status || '').toLowerCase()}`}>
+                            {booking.paymentStatus || (isConfirmed ? 'Approved' : 'Pending')}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="ticket-meta-cell fare-cell">
+                      <span className="cell-label">TOTAL FARE</span>
+                      <div className="cell-value fare-value">
+                        <strong>
+                          {booking.totalAmount ? `LKR ${Number(booking.totalAmount).toLocaleString()}` : '—'}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Special Notices & Admin Riders */}
                   {!isExpired && isRescheduleRequested && (
-                    <div className="admin-reschedule-notice">
-                      <strong>Reschedule request sent to member:</strong> {booking.rescheduleReason || 'Heavy rain / weather impact.'}
+                    <div className="ticket-rider alert-rider">
+                      <span className="rider-icon">🌧️</span>
+                      <div className="rider-text">
+                        <strong>Reschedule Request Sent to Member:</strong>
+                        <p>{booking.rescheduleReason || 'Heavy rain / weather impact.'}</p>
+                      </div>
                     </div>
                   )}
 
-                  {/* Cancellation reason & refund info */}
                   {isCancelled && (
-                    <div className="admin-cancel-reason">
-                      <div><strong>Cancellation reason:</strong> {booking.cancellationReason || 'No reason provided.'}</div>
+                    <div className="ticket-rider cancel-rider">
+                      <div className="rider-line">
+                        <span className="rider-label">Cancellation Reason:</span>
+                        <span>{booking.cancellationReason || 'No reason provided.'}</span>
+                      </div>
                       {booking.refundStatus && (
-                        <div style={{ marginTop: '4px' }}>
-                          <span className="refund-label">Refund policy: </span>
+                        <div className="rider-line refund-line">
+                          <span className="rider-label">Refund Policy:</span>
                           <strong
-                            style={{
-                              color: isRefunded ? '#10b981' : isFullRefund ? '#059669' : isHalfRefund ? '#d97706' : '#64748b',
-                            }}
+                            className={`refund-status-highlight ${
+                              isRefunded ? 'refund-green' : isFullRefund ? 'refund-emerald' : isHalfRefund ? 'refund-amber' : ''
+                            }`}
                           >
                             {isRefunded
                               ? `Refunded (${booking.refundPercentage || 100}%) · LKR ${Number(booking.refundAmount || 0).toLocaleString()}`
@@ -486,9 +622,10 @@ export default function BookingsPage({
                               : `${booking.refundStatus} (${booking.refundPercentage || 0}%) · LKR ${Number(booking.refundAmount || 0).toLocaleString()}`}
                           </strong>
                           {booking.refundConfirmedBy && (
-                            <small style={{ display: 'block', color: '#64748b', marginTop: '2px' }}>
-                              Verified by: {booking.refundConfirmedBy} {booking.refundNotes ? `· Note: "${booking.refundNotes}"` : ''}
-                            </small>
+                            <div className="refund-audit-text">
+                              Verified by: <strong>{booking.refundConfirmedBy}</strong>{' '}
+                              {booking.refundNotes ? `· Note: "${booking.refundNotes}"` : ''}
+                            </div>
                           )}
                         </div>
                       )}
@@ -496,131 +633,141 @@ export default function BookingsPage({
                   )}
                 </div>
 
-                <div className="admin-booking-actions">
-                  <span
-                    className={
-                      isExpired
-                        ? 'status expired-chip'
-                        : isRescheduleRequested
-                        ? 'status reschedule-requested'
-                        : isConfirmed
-                        ? 'status confirmed'
-                        : isCancelled
-                        ? 'status cancelled'
-                        : 'status pending'
-                    }
-                  >
-                    {isExpired ? 'Expired' : isRescheduleRequested ? 'Reschedule Requested' : booking.status}
-                  </span>
+                {/* ================= VERTICAL PERFORATION LINE WITH ANCHORED NOTCHES ================= */}
+                <div className="ticket-perforation" aria-hidden="true">
+                  <div className="ticket-notch notch-top" />
+                  <div className="perforation-dashed-line" />
+                  <span className="perforation-cut-text">TEAR LINE</span>
+                  <div className="ticket-notch notch-bottom" />
+                </div>
 
-                  {/* ADMIN REFUND VERIFICATION BUTTON: Only when cancelled with pending refund */}
-                  {isToRefund && (
-                    <button
-                      className="primary-btn admin-confirm-refund-action-btn"
-                      type="button"
-                      id={`admin-confirm-refund-btn-${booking.id}`}
-                      onClick={() => setConfirmingRefundBooking(booking)}
-                      style={{
-                        backgroundColor: isFullRefund ? '#10b981' : '#f59e0b',
-                        borderColor: isFullRefund ? '#10b981' : '#f59e0b',
-                        color: '#ffffff',
-                        fontWeight: 700,
-                      }}
-                      title="Verify and release refund to member"
-                    >
-                      {isFullRefund ? '💰 Confirm Full Refund (100%)' : '💰 Confirm Half Refund (50%)'}
-                    </button>
-                  )}
+                {/* ================= RIGHT: TEAR-OFF ENTRY STUB ================= */}
+                <div className="ticket-entry-stub">
+                  <div className="stub-header">
+                    <span className="stub-title">GATE STUB</span>
+                    <span className="stub-badge">ADMIT 1</span>
+                  </div>
 
-                  {booking.review && (
-                    <button className="secondary-btn" type="button" onClick={() => onReview(booking)}>
-                      View review
-                    </button>
-                  )}
+                  {/* Turnstile Scannable QR Code */}
+                  <div className="stub-qr-box">
+                    <div className="qr-frame">
+                      <TicketQRCode
+                        value={`SMARTSPORTS-PASS:#BK-${booking.id}|${booking.name}|${booking.date}`}
+                        size={110}
+                      />
+                      <div className="qr-corner qr-corner-tl" />
+                      <div className="qr-corner qr-corner-tr" />
+                      <div className="qr-corner qr-corner-bl" />
+                      <div className="qr-corner qr-corner-br" />
+                    </div>
+                    <div className="qr-pass-id-chip">
+                      PASS ID: <strong>#BK-{String(booking.id).padStart(5, '0')}</strong>
+                    </div>
+                    <div className="qr-scan-label">
+                      <span className="scan-icon">📲</span>
+                      <span>SCAN FOR ENTRY</span>
+                    </div>
+                  </div>
 
-                  {booking.bankSlipFileName && (
-                    <button className="secondary-btn" type="button" onClick={() => onViewSlip(booking)}>
-                      View slip
-                    </button>
-                  )}
+                  {/* Admin Action Buttons */}
+                  <div className="stub-actions">
+                    {/* ADMIN REFUND VERIFICATION BUTTON: Only when cancelled with pending refund */}
+                    {isToRefund && (
+                      <button
+                        className="primary-btn admin-confirm-refund-action-btn stub-btn"
+                        type="button"
+                        id={`admin-confirm-refund-btn-${booking.id}`}
+                        onClick={() => setConfirmingRefundBooking(booking)}
+                        title="Verify and release refund to member"
+                      >
+                        {isFullRefund ? '💰 Confirm Full (100%)' : '💰 Confirm Half (50%)'}
+                      </button>
+                    )}
 
-                  {booking.paymentMethod === 'BankTransfer' && !isConfirmed && !isCancelled && (
-                    <button
-                      className="primary-btn"
-                      type="button"
-                      onClick={() => onStatusChange(booking, 'Confirmed')}
-                    >
-                      Verify transfer
-                    </button>
-                  )}
+                    {booking.review && (
+                      <button className="secondary-btn stub-btn" type="button" onClick={() => onReview(booking)}>
+                        ⭐ View review
+                      </button>
+                    )}
 
-                  {/* Admin "Ask to Reschedule": Only if NOT cancelled and NOT expired */}
-                  {!isCancelled && !isExpired && !isRescheduleRequested && (
-                    <button
-                      className="secondary-btn admin-ask-reschedule-btn"
-                      type="button"
-                      id={`ask-reschedule-btn-${booking.id}`}
-                      onClick={() => setAdminReschedulingBooking(booking)}
-                      title="Ask user to reschedule for free (e.g. heavy rain / weather impact)"
-                    >
-                      🌧️ Ask to reschedule
-                    </button>
-                  )}
+                    {booking.bankSlipFileName && (
+                      <button className="secondary-btn stub-btn" type="button" onClick={() => onViewSlip(booking)}>
+                        📄 View slip
+                      </button>
+                    )}
 
-                  {/* Reschedule waiting indicator */}
-                  {!isCancelled && !isExpired && isRescheduleRequested && (
-                    <span className="reschedule-waiting-chip">
-                      ⏳ Waiting for user
-                    </span>
-                  )}
+                    {booking.paymentMethod === 'BankTransfer' && !isConfirmed && !isCancelled && (
+                      <button
+                        className="primary-btn stub-btn"
+                        type="button"
+                        onClick={() => onStatusChange(booking, 'Confirmed')}
+                      >
+                        ✓ Verify transfer
+                      </button>
+                    )}
 
-                  {/* Cancel button: Only if NOT cancelled and NOT expired */}
-                  {!isCancelled && !isExpired && (
-                    <button
-                      className="secondary-btn danger-hover-btn"
-                      type="button"
-                      id={`admin-cancel-btn-${booking.id}`}
-                      onClick={() => handleOpenAdminCancelModal(booking)}
-                    >
-                      Cancel
-                    </button>
-                  )}
+                    {/* Admin "Ask to Reschedule": Only if NOT cancelled and NOT expired */}
+                    {!isCancelled && !isExpired && !isRescheduleRequested && (
+                      <button
+                        className="secondary-btn admin-ask-reschedule-btn stub-btn"
+                        type="button"
+                        id={`ask-reschedule-btn-${booking.id}`}
+                        onClick={() => setAdminReschedulingBooking(booking)}
+                        title="Ask user to reschedule for free (e.g. heavy rain / weather impact)"
+                      >
+                        🌧️ Ask reschedule
+                      </button>
+                    )}
+
+                    {/* Reschedule waiting indicator */}
+                    {!isCancelled && !isExpired && isRescheduleRequested && (
+                      <span className="reschedule-waiting-chip">
+                        ⏳ Waiting member
+                      </span>
+                    )}
+
+                    {/* Cancel button: Only if NOT cancelled and NOT expired */}
+                    {!isCancelled && !isExpired && (
+                      <button
+                        className="secondary-btn danger-hover-btn stub-btn"
+                        type="button"
+                        id={`admin-cancel-btn-${booking.id}`}
+                        onClick={() => handleOpenAdminCancelModal(booking)}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </div>
               </article>
             )
           })}
         </div>
+
       ) : (
         <BookingList
           bookings={visibleBookings}
           onReview={onReview}
           onCancel={(booking) => setUserCancellingBooking(booking)}
           onReschedule={(booking) => setUserReschedulingBooking(booking)}
+          emptyMessage={
+            selectedFilter === 'expired'
+              ? 'No expired passes found.'
+              : 'No active bookings match the selected criteria.'
+          }
         />
       )}
 
       {/* PAGINATION CONTROLS */}
       {totalCount > 0 && (
-        <div
-          className="bookings-pagination-bar"
-          id="bookings-pagination-bar"
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginTop: '1.2rem',
-            paddingTop: '1rem',
-            borderTop: '1px solid var(--border-color, #e2e8f0)',
-            flexWrap: 'wrap',
-            gap: '12px',
-          }}
-        >
-          <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Showing <strong>{startIndex + 1}</strong> – <strong>{Math.min(startIndex + pageSize, totalCount)}</strong> of <strong>{totalCount}</strong> bookings
+        <div className="bookings-pagination-bar" id="bookings-pagination-bar">
+          <div className="pagination-summary">
+            Showing <strong>{startIndex + 1}</strong> – <strong>{Math.min(startIndex + pageSize, totalCount)}</strong> of{' '}
+            <strong>{totalCount}</strong> bookings
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '0.82rem', color: '#64748b' }}>Rows per page:</span>
+          <div className="pagination-nav-group">
+            <span className="pagination-page-size-label">Rows per page:</span>
             <select
               id="pagination-pagesize-select"
               value={pageSize}
@@ -628,13 +775,7 @@ export default function BookingsPage({
                 setPageSize(Number(e.target.value))
                 setPage(1)
               }}
-              style={{
-                padding: '4px 8px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-color, #cbd5e1)',
-                fontSize: '0.82rem',
-                backgroundColor: 'var(--panel-bg, #ffffff)',
-              }}
+              className="pagination-pagesize-select"
             >
               <option value={5}>5</option>
               <option value={10}>10</option>
@@ -644,32 +785,27 @@ export default function BookingsPage({
 
             <button
               type="button"
-              className="secondary-btn"
+              className="secondary-btn pagination-btn"
               id="pagination-prev-btn"
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              style={{ padding: '5px 12px', fontSize: '0.82rem' }}
             >
               ← Prev
             </button>
 
-            <div style={{ display: 'flex', gap: '4px' }}>
+            <div className="pagination-numbers">
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
                 .map((p, idx, arr) => {
                   const showEllipsisBefore = idx > 0 && p - arr[idx - 1] > 1
                   return (
-                    <span key={p} style={{ display: 'flex', alignItems: 'center' }}>
-                      {showEllipsisBefore && <span style={{ padding: '0 4px', color: '#94a3b8' }}>…</span>}
+                    <span key={p} className="pagination-page-span">
+                      {showEllipsisBefore && <span className="pagination-ellipsis">…</span>}
                       <button
                         type="button"
-                        className={p === safePage ? 'primary-btn' : 'secondary-btn'}
+                        id={`pagination-page-${p}`}
+                        className={`pagination-num-btn ${p === safePage ? 'active' : ''}`}
                         onClick={() => setPage(p)}
-                        style={{
-                          padding: '5px 10px',
-                          fontSize: '0.82rem',
-                          minWidth: '32px',
-                        }}
                       >
                         {p}
                       </button>
@@ -680,29 +816,15 @@ export default function BookingsPage({
 
             <button
               type="button"
-              className="secondary-btn"
+              className="secondary-btn pagination-btn"
               id="pagination-next-btn"
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              style={{ padding: '5px 12px', fontSize: '0.82rem' }}
             >
               Next →
             </button>
           </div>
         </div>
-      )}
-
-      {/* Admin Confirm Refund Modal */}
-      {confirmingRefundBooking && (
-        <AdminConfirmRefundModal
-          booking={confirmingRefundBooking}
-          onClose={() => setConfirmingRefundBooking(null)}
-          onConfirm={async (booking, notes) => {
-            if (onConfirmRefund) {
-              await onConfirmRefund(booking, notes)
-            }
-          }}
-        />
       )}
 
       {/* User Cancellation Modal with Policy Calculation */}

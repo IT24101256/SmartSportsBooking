@@ -1,19 +1,104 @@
-import BookingList from '../components/BookingList'
-import SchedulePanel from '../components/SchedulePanel'
-import ReviewsPanel from '../components/ReviewsPanel'
+import HeroSection from '../components/HeroSection'
+import QuickBookingBar from '../components/QuickBookingBar'
+import FacilityMarketplace from '../components/FacilityMarketplace'
+import NextGameSection from '../components/NextGameSection'
+import ActivityStats from '../components/ActivityStats'
+import BookingActivityRanking from '../components/BookingActivityRanking'
+import MemberReviewsSection from '../components/MemberReviewsSection'
+import ScheduleTimeline from '../components/ScheduleTimeline'
+import SupportTeaser from '../components/SupportTeaser'
 
-export default function OverviewPage({ heroMessage, stats, facilities, bookings, support, schedule, analytics = [], averageRating, reviews = [], apiBaseUrl, currentUser, onBooking, onTicket, onFacilities, onSchedule, onBookings, onDetails, onReview, onEditReview, onDeleteReview, onCancel, onReschedule }) {
-  const reviewAverage = reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : null
-
+export default function OverviewPage({
+  heroMessage,
+  stats = [],
+  facilities = [],
+  bookings = [],
+  support = [],
+  schedule = [],
+  analytics = [],
+  averageRating,
+  reviews = [],
+  apiBaseUrl,
+  currentUser,
+  onBooking,
+  onTicket,
+  onSupport,
+  onFacilities,
+  onSchedule,
+  onBookings,
+  onDetails,
+  onReview,
+  onEditReview,
+  onDeleteReview,
+  onCancel,
+  onReschedule,
+}) {
   return (
-    <>
-      <section className="hero-panel"><div className="hero-copy"><span className="chip">Open all week</span><h2>{heroMessage}</h2><p>Reserve premium courts, track training time, and manage your active schedule in one place.</p><div className="hero-actions"><button className="primary-btn" onClick={onBooking}>Book a facility</button></div></div><div className="hero-summary"><div className="summary-card"><p>Live club snapshot</p><strong>{facilities.length} featured facilities</strong><span>{bookings.length} bookings in your account</span></div><div className="mini-metrics"><div><strong>{facilities.length}</strong><span>Featured courts</span></div><div><strong>{reviewAverage ?? 'N/A'}</strong><span>{reviews.length ? `${reviews.length} rating${reviews.length === 1 ? '' : 's'}` : 'No ratings yet'}</span></div></div></div></section>
-      <section className="stats-grid">{stats.map((stat) => <article key={stat.label} className={`stat-card ${stat.tone}`}><span>{stat.label}</span><strong>{stat.value}</strong></article>)}</section>
-      <section className="panel analytics-panel"><div className="panel-header"><h3>Facility booking activity</h3><span className="subtle">Top five by confirmed and pending reservations</span></div><div className="analytics-list">{analytics.length ? analytics.map((item) => <div className="analytics-row" key={item.facility}><span>{item.facility}</span><strong>{item.bookings}</strong></div>) : <p className="empty-state">No booking activity recorded yet.</p>}</div></section>
-      <section className="content-grid"><div className="panel"><div className="panel-header"><h3>Popular facilities</h3><button className="text-action" type="button" onClick={onFacilities}>See all</button></div><div className="facility-list">{facilities.map((facility) => <div key={facility.name} className={`facility-card ${facility.accent}`}><div className="facility-icon">{facility.icon}</div><div className="facility-body"><div className="facility-topline"><h4>{facility.name}</h4></div><div className="facility-meta"><strong>{facility.price}</strong><small>{facility.status}</small></div></div></div>)}</div></div></section>
-      <section className="lower-grid"><div className="panel"><div className="panel-header"><h3>Upcoming bookings</h3><button className="text-action" type="button" onClick={onBookings}>All bookings</button></div><BookingList bookings={bookings} onReview={onReview} onCancel={onCancel} onReschedule={onReschedule} /></div><div className="panel"><div className="panel-header"><h3>Support requests</h3><button className="text-action" type="button" onClick={onTicket}>New request</button></div><div className="support-list">{support.map((item) => <div key={item.title} className="support-item"><div><strong>{item.title}</strong><p>{item.detail}</p></div><span className="priority-tag">{item.priority}</span></div>)}</div></div></section>
-      <ReviewsPanel reviews={reviews} apiBaseUrl={apiBaseUrl} currentUser={currentUser} onEdit={onEditReview} onDelete={onDeleteReview} />
-      <SchedulePanel schedule={schedule} onDetails={onDetails} />
-    </>
+    <div className="overview-page-wrapper">
+      {/* 1. Hero Section */}
+      <HeroSection
+        heroMessage={heroMessage}
+        facilities={facilities}
+        bookings={bookings}
+        reviews={reviews}
+        averageRating={averageRating}
+        onBooking={onBooking}
+        onExploreFacilities={onFacilities}
+      />
+
+      {/* 2. Quick Booking Bar */}
+      <QuickBookingBar
+        facilities={facilities}
+        onBooking={onBooking}
+      />
+
+      {/* 3. Popular & Featured Facilities Marketplace */}
+      <FacilityMarketplace
+        facilities={facilities}
+        onBook={onBooking}
+        onDetails={(facility) => {
+          if (onFacilities) onFacilities()
+        }}
+        onSeeAll={onFacilities}
+      />
+
+      {/* 4. Upcoming Game Section */}
+      <NextGameSection
+        bookings={bookings}
+        onBookings={onBookings}
+        onBooking={onBooking}
+        onReview={onReview}
+        onCancel={onCancel}
+        onReschedule={onReschedule}
+      />
+
+      {/* 5. Member Activity Stats */}
+      <ActivityStats stats={stats} />
+
+      {/* 6. Booking Activity / Leaderboard */}
+      <BookingActivityRanking analytics={analytics} />
+
+      {/* 7. Member Reviews */}
+      <MemberReviewsSection
+        reviews={reviews}
+        apiBaseUrl={apiBaseUrl}
+        currentUser={currentUser}
+        onEdit={onEditReview}
+        onDelete={onDeleteReview}
+      />
+
+      {/* 8. Today's Schedule */}
+      <ScheduleTimeline
+        schedule={schedule}
+        onDetails={onDetails}
+        onBookSlot={onBooking}
+      />
+
+      {/* 9. Support Teaser */}
+      <SupportTeaser
+        onContactSupport={onTicket}
+        onOpenSupportPage={onSupport || onTicket}
+      />
+    </div>
   )
 }

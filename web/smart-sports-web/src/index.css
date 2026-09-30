@@ -1,9 +1,41 @@
 :root {
-  font-family: 'Barlow', 'Trebuchet MS', sans-serif;
-  line-height: 1.5;
+  --primary: #2878FF;
+  --primary-hover: #1a65e5;
+  --primary-glow: rgba(40, 120, 255, 0.25);
+  --primary-soft: rgba(40, 120, 255, 0.1);
+  --navy-deep: #071A2B;
+  --navy-surface: #0B2740;
+  --navy-card: #0D2639;
+  --accent: #20D6C7;
+  --accent-hover: #19bea8;
+  --accent-soft: rgba(32, 214, 199, 0.12);
+  --bg-light: #F5F9FD;
+  --bg-dark: #06131F;
+  --section-dark: #081D2E;
+  --surface-light: #ffffff;
+  --surface-dark: #0D2639;
+  --border-light: rgba(10, 30, 50, 0.08);
+  --border-dark: rgba(255, 255, 255, 0.08);
+  --text-light: #0A1B2A;
+  --text-dark: #F8FAFC;
+  --text-muted-light: #64748B;
+  --text-muted-dark: #94A3B8;
+  --font-heading: 'Space Grotesk', 'Barlow Condensed', sans-serif;
+  --font-body: 'Manrope', 'Barlow', -apple-system, BlinkMacSystemFont, sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --shadow-sm: 0 2px 8px rgba(10, 30, 50, 0.04);
+  --shadow-md: 0 8px 24px rgba(10, 30, 50, 0.08);
+  --shadow-lg: 0 16px 40px rgba(10, 30, 50, 0.12);
+  --shadow-primary: 0 8px 25px rgba(40, 120, 255, 0.3);
+
+  font-family: var(--font-body);
+  line-height: 1.55;
   font-weight: 400;
-  color: #17243a;
-  background: #f4f7fb;
+  color: var(--text-light);
+  background: var(--bg-light);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -14,31 +46,39 @@
   box-sizing: border-box;
 }
 
+img, video, iframe, canvas, svg {
+  max-width: 100%;
+}
+
 html {
-  scroll-behavior: smooth;
+  overflow-anchor: none;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #f3f7ff;
+  background-color: var(--bg-light);
+  color: var(--text-light);
 }
 
-button,
-a {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+  margin-top: 0;
 }
 
-button:hover,
-a:hover {
-  transform: translateY(-1px);
+p {
+  margin-top: 0;
+}
+
+button, a {
+  font-family: inherit;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #root {
   min-height: 100vh;
-}
-
-h1, h2, h3, h4, p {
-  margin-top: 0;
+  display: flex;
+  flex-direction: column;
 }

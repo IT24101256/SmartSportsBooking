@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-import BookingList from './components/BookingList'
-import SchedulePanel from './components/SchedulePanel'
+import './admin.css'
 import OverviewPage from './pages/OverviewPage'
 import FacilitiesPage from './pages/FacilitiesPage'
 import BookingsPage from './pages/BookingsPage'
@@ -11,8 +10,12 @@ import MembersPage from './pages/MembersPage'
 import BookingWizard from './components/BookingWizard'
 import FacilityDetailsPage from './pages/FacilityDetailsPage'
 import ReviewModal from './components/ReviewModal'
+import CreateTicketModal from './components/CreateTicketModal'
 import RevenuePage from './pages/RevenuePage'
-import NotificationBell from './components/NotificationBell'
+import Navbar from './components/Navbar'
+import Footer from './components/Footer'
+import AdminSidebar from './components/AdminSidebar'
+import AdminTopBar from './components/AdminTopBar'
 
 const API_BASE_URL = 'http://localhost:5187/api'
 const localDateString = (date = new Date()) => {
@@ -24,6 +27,7 @@ const localDateString = (date = new Date()) => {
 
 const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support']
 const adminNavItems = [...baseNavItems, 'Revenue', 'Members']
+const managerNavItems = ['Bookings', 'Support']
 
 const initialBookingForm = {
   facility: 'Badminton Court',
@@ -63,10 +67,35 @@ const schedule = [
 function App() {
   const [activeTab, setCurrentTab] = useState('Overview')
   const [tabHistory, setTabHistory] = useState([])
-  const [theme, setTheme] = useState('light')
-  const [loggedIn, setLoggedIn] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
-  const [authToken, setAuthToken] = useState('')
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('smartsports_theme') || 'light'
+    } catch {
+      return 'light'
+    }
+  })
+  const [authToken, setAuthToken] = useState(() => {
+    try {
+      return localStorage.getItem('smartsports_auth_token') || ''
+    } catch {
+      return ''
+    }
+  })
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('smartsports_current_user')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
+  const [loggedIn, setLoggedIn] = useState(() => {
+    try {
+      return Boolean(localStorage.getItem('smartsports_auth_token') && localStorage.getItem('smartsports_current_user'))
+    } catch {
+      return false
+    }
+  })
   const [authMode, setAuthMode] = useState('login')
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [email, setEmail] = useState('member@smartsports.com')
@@ -90,8 +119,11 @@ function App() {
   const [facilitiesList, setFacilitiesList] = useState([])
   const [isBookingOpen, setIsBookingOpen] = useState(false)
   const [bookingForm, setBookingForm] = useState(initialBookingForm)
-  const [bookingNotice, setBookingNotice] = useState('')
+  const setBookingNotice = (msg) => {
+    if (msg) alert(msg)
+  }
   const [showAuthPanel, setShowAuthPanel] = useState(false)
+  const [adminMobileOpen, setAdminMobileOpen] = useState(false)
   const [isTicketOpen, setIsTicketOpen] = useState(false)
   const [isTimetableOpen, setIsTimetableOpen] = useState(false)
   const [selectedScheduleItem, setSelectedScheduleItem] = useState(null)
@@ -133,6 +165,12 @@ function App() {
     } catch {}
   }, [notifications])
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('smartsports_theme', theme)
+    } catch {}
+  }, [theme])
+
   const addNotification = (notif) => {
     setNotifications((prev) => [
       {
@@ -145,11 +183,28 @@ function App() {
     ])
   }
 
+  const scrollToTop = () => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    } catch {
+      window.scrollTo(0, 0)
+    }
+    if (document.documentElement) document.documentElement.scrollTop = 0
+    if (document.body) document.body.scrollTop = 0
+    const mainViewport = document.querySelector('.admin-main-viewport')
+    if (mainViewport) mainViewport.scrollTop = 0
+    const workspace = document.querySelector('.workspace')
+    if (workspace) workspace.scrollTop = 0
+    const adminContent = document.querySelector('.admin-content-area')
+    if (adminContent) adminContent.scrollTop = 0
+  }
+
   const setActiveTab = (tab) => {
     if (tab !== activeTab) {
       setTabHistory((current) => [...current, activeTab])
       setCurrentTab(tab)
     }
+    scrollToTop()
   }
 
   const goBack = () => {
@@ -157,8 +212,45 @@ function App() {
       if (!current.length) return current
       const previousTab = current[current.length - 1]
       setCurrentTab(previousTab)
+      scrollToTop()
       return current.slice(0, -1)
     })
+  }
+
+  // Automatically reset scroll to top on tab switch or sub-page navigation
+  useEffect(() => {
+    scrollToTop()
+    const rafId = requestAnimationFrame(scrollToTop)
+    const timer = setTimeout(scrollToTop, 40)
+    return () => {
+      cancelAnimationFrame(rafId)
+      clearTimeout(timer)
+    }
+  }, [activeTab, selectedFacility, selectedSupportRequest])
+
+  const getLocalDateString = (d = new Date()) => {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const isBookingExpired = (booking) => {
+    if (booking?.isExpired !== undefined && typeof booking.isExpired === 'boolean') {
+      return booking.isExpired
+    }
+    if (!booking?.bookingDate) return false
+    const sessionDate = new Date(booking.bookingDate)
+    if (isNaN(sessionDate.getTime())) return false
+    const [hours, minutes] = (booking.endTime || booking.startTime || '00:00').split(':').map(Number)
+    const sessionTime = new Date(
+      sessionDate.getFullYear(),
+      sessionDate.getMonth(),
+      sessionDate.getDate(),
+      hours || 0,
+      minutes || 0
+    )
+    return sessionTime.getTime() <= Date.now()
   }
 
   const formatBooking = (booking, review = null) => ({
@@ -189,7 +281,7 @@ function App() {
     refundConfirmedAt: booking.refundConfirmedAt,
     refundConfirmedBy: booking.refundConfirmedBy,
     refundNotes: booking.refundNotes,
-    isExpired: booking.isExpired,
+    isExpired: isBookingExpired(booking),
     isRescheduleRequested: Boolean(booking.isRescheduleRequested || booking.status === 'RescheduleRequested'),
     rescheduleReason: booking.rescheduleReason,
     rescheduleRequestedAt: booking.rescheduleRequestedAt,
@@ -215,9 +307,12 @@ function App() {
   const formatScheduleBooking = (booking) => ({
     id: `booking-${booking.id}`,
     time: booking.startTime.slice(0, 5),
+    startTime: booking.startTime,
+    endTime: booking.endTime,
     title: `Booking at ${booking.facility?.name ?? 'facility'}`,
-    coach: currentUser?.name ?? 'Member booking',
+    coach: booking.customerName || currentUser?.name || 'Member booking',
     eventDate: booking.bookingDate.slice(0, 10),
+    status: booking.status,
   })
 
   const loadBookings = async (token) => {
@@ -225,14 +320,35 @@ function App() {
       headers: { Authorization: `Bearer ${token}` },
     })
 
+    if (response.status === 401) {
+      setLoggedIn(false)
+      setCurrentUser(null)
+      setAuthToken('')
+      try {
+        localStorage.removeItem('smartsports_auth_token')
+        localStorage.removeItem('smartsports_current_user')
+      } catch {}
+      return
+    }
+
     if (!response.ok) return
     const payload = await response.json()
     const savedBookings = payload.items ?? payload
     const reviewByBooking = Object.fromEntries(reviewsList.map((review) => [review.bookingId, review]))
     setBookingsList(savedBookings.map((booking) => formatBooking(booking, reviewByBooking[booking.id])))
+
+    const todayStr = getLocalDateString()
     setScheduleList((current) => [
       ...current.filter((item) => !String(item.id).startsWith('booking-')),
-      ...savedBookings.filter((item) => item.bookingDate.slice(0, 10) === new Date().toISOString().slice(0, 10)).map(formatScheduleBooking),
+      ...savedBookings
+        .filter((item) => {
+          if (item.status === 'Cancelled') return false
+          const bDate = (item.bookingDate || '').slice(0, 10)
+          if (bDate !== todayStr) return false
+          if (isBookingExpired(item)) return false
+          return true
+        })
+        .map(formatScheduleBooking),
     ])
   }
 
@@ -282,9 +398,17 @@ function App() {
 
   useEffect(() => {
     loadFacilities()
-    loadSupportRequests()
     loadReviews()
-  }, [])
+    if (authToken) {
+      loadBookings(authToken)
+      loadSupportRequests(authToken)
+      if (currentUser?.role?.toLowerCase() === 'admin') {
+        loadMembers(authToken)
+      }
+    } else {
+      loadSupportRequests()
+    }
+  }, [authToken])
 
   const updateBookingStatus = async (booking, status, reason = null) => {
     const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/status`, {
@@ -548,7 +672,19 @@ function App() {
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
-  const navItems = ['admin', 'manager'].includes(currentUser?.role) ? adminNavItems : baseNavItems
+  const userRole = (currentUser?.role || '').toLowerCase()
+  const isManager = userRole === 'manager'
+  const isAdmin = userRole === 'admin'
+  const isStaffOrAdmin = ['admin', 'manager', 'staff'].includes(userRole)
+  const isAdminOrManager = ['admin', 'manager'].includes(userRole)
+  const navItems = isManager ? managerNavItems : isAdmin ? adminNavItems : baseNavItems
+
+  // Manager access restriction: only Bookings and Support tabs are permitted
+  useEffect(() => {
+    if (isManager && !managerNavItems.includes(activeTab)) {
+      setActiveTab('Bookings')
+    }
+  }, [isManager, activeTab])
 
   const requireLogin = (message = 'Please log in to continue.') => {
     if (!loggedIn) {
@@ -559,15 +695,27 @@ function App() {
     return true
   }
 
-  const openBooking = () => {
+  const openBooking = (params) => {
     if (requireLogin('Please log in before creating a booking.')) {
+      if (params && typeof params === 'object') {
+        if (params.name) {
+          setBookingForm((current) => ({ ...current, facility: params.name }))
+        } else {
+          setBookingForm((current) => ({
+            ...current,
+            facility: params.facility || current.facility,
+            date: params.date || current.date,
+            time: params.time || current.time,
+            hoursNeeded: params.hoursNeeded || current.hoursNeeded || 1,
+          }))
+        }
+      }
       setIsBookingOpen(true)
     }
   }
 
   const openFacilityBooking = (facility) => {
-    setBookingForm((current) => ({ ...current, facility: facility.name }))
-    openBooking()
+    openBooking(facility)
   }
 
   const saveFacility = async (facility, id) => {
@@ -598,28 +746,29 @@ function App() {
     }
   }
 
-  const handleTicketSubmit = async (event) => {
-    event.preventDefault()
-    if (!ticketForm.subject.trim() || !ticketForm.detail.trim()) return
+  const handleTicketSubmit = async (ticketData) => {
     try {
       const response = await fetch(`${API_BASE_URL}/dashboard/support-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-        body: JSON.stringify({ title: ticketForm.subject, detail: ticketForm.detail, priority: ticketForm.priority }),
+        body: JSON.stringify({
+          title: ticketData.subject,
+          detail: ticketData.detail,
+          priority: ticketData.priority,
+        }),
       })
       if (!response.ok) {
-        setBookingNotice(await response.text() || 'Support ticket could not be saved.')
-        return
+        const err = await response.text() || 'Support ticket could not be saved.'
+        alert(err)
+        throw new Error(err)
       }
       const savedRequest = await response.json()
       setSupportList((current) => [savedRequest, ...current])
-      setBookingNotice(`Support ticket submitted: ${ticketForm.subject.trim()}. Saved to the database.`)
-    } catch {
-      setBookingNotice('The API is unavailable. Start the backend on port 5187 and try again.')
-      return
+      alert(`Support ticket submitted: ${ticketData.subject.trim()}. Saved to the database.`)
+    } catch (err) {
+      if (!err?.message) alert('The API is unavailable. Start the backend on port 5187 and try again.')
+      throw err
     }
-    setTicketForm({ subject: '', detail: '', priority: 'Medium' })
-    setIsTicketOpen(false)
   }
 
   const updateSupportStatus = async (request, status) => {
@@ -629,12 +778,15 @@ function App() {
       body: JSON.stringify({ status }),
     })
     if (!response.ok) {
-      setBookingNotice(await response.text() || 'Support status could not be updated.')
-      return
+      const err = await response.text() || 'Support status could not be updated.'
+      setBookingNotice(err)
+      return null
     }
     const updated = await response.json()
     setSupportList((current) => current.map((item) => item.id === updated.id ? updated : item))
+    setSelectedSupportRequest((current) => current && current.id === updated.id ? updated : current)
     setBookingNotice(`Support request marked ${status.toLowerCase()}.`)
+    return updated
   }
 
   const [dashStats, setDashStats] = useState({ bookingsToday: '--', memberSatisfaction: '--', facilitiesCount: 0, totalBookings: 0, confirmedBookings: 0, bookingsByFacility: [] })
@@ -656,6 +808,49 @@ function App() {
   }, [])
 
   const renderPage = () => {
+    if (isManager) {
+      if (activeTab === 'Support') {
+        return selectedSupportRequest ? (
+          <SupportConversationPage
+            request={selectedSupportRequest}
+            token={authToken}
+            currentUser={currentUser}
+            isAdmin={true}
+            apiBaseUrl={API_BASE_URL}
+            onBack={() => setSelectedSupportRequest(null)}
+            onStatusChange={updateSupportStatus}
+          />
+        ) : (
+          <SupportPage
+            requests={supportList}
+            currentUser={currentUser}
+            onAddTicket={openTicket}
+            isAdmin={true}
+            onStatusChange={updateSupportStatus}
+            onOpenRequest={setSelectedSupportRequest}
+          />
+        )
+      }
+
+      return (
+        <BookingsPage
+          bookings={bookingsList}
+          facilities={facilitiesList}
+          isAdmin={true}
+          token={authToken}
+          apiBaseUrl={API_BASE_URL}
+          onNewBooking={openBooking}
+          onStatusChange={updateBookingStatus}
+          onCancelWithRefund={cancelBookingWithRefund}
+          onConfirmRefund={confirmRefund}
+          onRequestReschedule={requestReschedule}
+          onRescheduleBooking={rescheduleBooking}
+          onViewSlip={viewBankSlip}
+          onReview={openReview}
+        />
+      )
+    }
+
     const dynamicStats = [
       { label: 'Facilities', value: String(dashStats.facilitiesCount || facilitiesList.length), tone: 'green' },
       { label: 'Bookings today', value: String(dashStats.bookingsToday), tone: 'blue' },
@@ -665,12 +860,70 @@ function App() {
 
     if (activeTab === 'Members') return <MembersPage members={registeredMembers} />
     if (activeTab === 'Revenue') return <RevenuePage apiBaseUrl={API_BASE_URL} token={authToken} />
-    if (activeTab === 'Facilities') return selectedFacility ? <FacilityDetailsPage facility={selectedFacility} onBack={() => setSelectedFacility(null)} onBook={openFacilityBooking} /> : <FacilitiesPage facilities={facilitiesList} isAdmin={currentUser?.role === 'admin'} onDetails={setSelectedFacility} onBook={openFacilityBooking} onSave={saveFacility} onDelete={deleteFacility} />
-    if (activeTab === 'Bookings') return <BookingsPage bookings={bookingsList} facilities={facilitiesList} isAdmin={['admin', 'manager'].includes(currentUser?.role)} token={authToken} apiBaseUrl={API_BASE_URL} onNewBooking={openBooking} onStatusChange={updateBookingStatus} onCancelWithRefund={cancelBookingWithRefund} onConfirmRefund={confirmRefund} onRequestReschedule={requestReschedule} onRescheduleBooking={rescheduleBooking} onViewSlip={viewBankSlip} onReview={openReview} />
-    if (activeTab === 'Support') return selectedSupportRequest ? <SupportConversationPage request={selectedSupportRequest} token={authToken} apiBaseUrl={API_BASE_URL} onBack={() => setSelectedSupportRequest(null)} /> : <SupportPage requests={supportList} onAddTicket={openTicket} isAdmin={['admin', 'manager', 'staff'].includes(currentUser?.role)} onStatusChange={updateSupportStatus} onOpenRequest={setSelectedSupportRequest} />
+    if (activeTab === 'Facilities') return selectedFacility ? (
+      <FacilityDetailsPage
+        facility={selectedFacility}
+        currentUser={currentUser}
+        isAdmin={userRole === 'admin'}
+        onBack={() => setSelectedFacility(null)}
+        onBook={openFacilityBooking}
+        onSave={saveFacility}
+        onDelete={deleteFacility}
+        reviews={reviewsList}
+        apiBaseUrl={API_BASE_URL}
+        onEditReview={openReview}
+        onDeleteReview={deleteReview}
+      />
+    ) : (
+      <FacilitiesPage
+        facilities={facilitiesList}
+        isAdmin={userRole === 'admin'}
+        onDetails={setSelectedFacility}
+        onBook={openFacilityBooking}
+        onSave={saveFacility}
+        onDelete={deleteFacility}
+      />
+    )
+    if (activeTab === 'Bookings') return (
+      <BookingsPage
+        bookings={bookingsList}
+        facilities={facilitiesList}
+        isAdmin={isAdminOrManager}
+        token={authToken}
+        apiBaseUrl={API_BASE_URL}
+        onNewBooking={openBooking}
+        onStatusChange={updateBookingStatus}
+        onCancelWithRefund={cancelBookingWithRefund}
+        onConfirmRefund={confirmRefund}
+        onRequestReschedule={requestReschedule}
+        onRescheduleBooking={rescheduleBooking}
+        onViewSlip={viewBankSlip}
+        onReview={openReview}
+      />
+    )
+    if (activeTab === 'Support') return selectedSupportRequest ? (
+      <SupportConversationPage
+        request={selectedSupportRequest}
+        token={authToken}
+        currentUser={currentUser}
+        isAdmin={isStaffOrAdmin}
+        apiBaseUrl={API_BASE_URL}
+        onBack={() => setSelectedSupportRequest(null)}
+        onStatusChange={updateSupportStatus}
+      />
+    ) : (
+      <SupportPage
+        requests={supportList}
+        currentUser={currentUser}
+        onAddTicket={openTicket}
+        isAdmin={isStaffOrAdmin}
+        onStatusChange={updateSupportStatus}
+        onOpenRequest={setSelectedSupportRequest}
+      />
+    )
     const ratedFacilities = facilitiesList.filter((facility) => facility.rating != null)
     const averageRating = ratedFacilities.length ? (ratedFacilities.reduce((sum, facility) => sum + facility.rating, 0) / ratedFacilities.length).toFixed(1) : null
-    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList.slice(0, 4)} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} reviews={reviewsList} apiBaseUrl={API_BASE_URL} currentUser={currentUser} onBooking={openBooking} onTicket={openTicket} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setActiveTab('Bookings')} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onReview={openReview} onEditReview={openReview} onDeleteReview={deleteReview} onCancel={() => setActiveTab('Bookings')} onReschedule={() => setActiveTab('Bookings')} />
+    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} reviews={reviewsList} apiBaseUrl={API_BASE_URL} currentUser={currentUser} onBooking={openBooking} onTicket={openTicket} onSupport={() => setActiveTab('Support')} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setActiveTab('Bookings')} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onReview={openReview} onEditReview={openReview} onDeleteReview={deleteReview} onCancel={() => setActiveTab('Bookings')} onReschedule={() => setActiveTab('Bookings')} />
   }
 
   const heroMessage = (() => {
@@ -695,18 +948,27 @@ function App() {
       }
 
       const result = await response.json()
+      const user = { id: result.userId, name: result.fullName, email: result.email, contactNumber: result.contactNumber, nicNumber: result.nicNumber, role: result.role?.toLowerCase() }
       setAuthToken(result.token)
-      setCurrentUser({ id: result.userId, name: result.fullName, email: result.email, contactNumber: result.contactNumber, nicNumber: result.nicNumber, role: result.role?.toLowerCase() })
+      setCurrentUser(user)
       setLoggedIn(true)
+      try {
+        localStorage.setItem('smartsports_auth_token', result.token)
+        localStorage.setItem('smartsports_current_user', JSON.stringify(user))
+      } catch {}
       setShowAuthPanel(false)
-      setActiveTab('Overview')
+      if (user.role === 'manager') {
+        setActiveTab('Bookings')
+      } else {
+        setActiveTab('Overview')
+      }
       setAuthFeedback('')
       setPassword('')
       await loadBookings(result.token)
       await loadReviews()
       await loadSupportRequests(result.token)
       await loadFacilities()
-      if (['admin', 'manager'].includes(result.role?.toLowerCase())) {
+      if (user.role === 'admin') {
         await loadMembers(result.token)
       }
     } catch {
@@ -854,7 +1116,7 @@ function App() {
 
       const savedBooking = await response.json()
       setBookingsList((current) => [formatBooking(savedBooking), ...current])
-      if (date === new Date().toISOString().slice(0, 10)) {
+      if (date === getLocalDateString() && !isBookingExpired(savedBooking)) {
         setScheduleList((current) => [...current, formatScheduleBooking(savedBooking)])
       }
       setBookingNotice(`Booking confirmed for ${facility} on ${date} at ${time}. Saved to the database.`)
@@ -870,7 +1132,7 @@ function App() {
 
   const handleWizardCreated = (savedBooking) => {
     setBookingsList((current) => [formatBooking(savedBooking), ...current])
-    if (savedBooking.bookingDate?.slice(0, 10) === new Date().toISOString().slice(0, 10)) {
+    if (savedBooking.bookingDate?.slice(0, 10) === getLocalDateString() && !isBookingExpired(savedBooking)) {
       setScheduleList((current) => [...current, formatScheduleBooking(savedBooking)])
     }
     setBookingNotice(`Booking submitted for ${savedBooking.facility?.name ?? 'the selected facility'}.`)
@@ -881,8 +1143,11 @@ function App() {
       return (
         <div className="auth-shell">
           <div className="auth-card">
-            <div className="brand-mark-large">S</div>
-            <p className="eyebrow">SmartSports</p>
+            <img
+              src={theme === 'dark' ? '/logo-dark.png' : '/logo.png'}
+              alt="MySpot"
+              className="auth-brand-logo"
+            />
             <h1>Reset password</h1>
             <p className="auth-subtitle">Enter your email and we will send reset instructions.</p>
 
@@ -905,8 +1170,11 @@ function App() {
     return (
       <div className="auth-shell">
         <div className="auth-card">
-          <div className="brand-mark-large">S</div>
-          <p className="eyebrow">SmartSports</p>
+          <img
+            src={theme === 'dark' ? '/logo-dark.png' : '/logo.png'}
+            alt="MySpot"
+            className="auth-brand-logo"
+          />
           <h1>
             {authMode === 'login' ? 'Welcome back' : authMode === 'verify-otp' ? 'Verify your email' : 'Create account'}
           </h1>
@@ -988,6 +1256,40 @@ function App() {
                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} placeholder="••••••••" />
               </label>
 
+              <div className="auth-demo-credentials-box">
+                <span className="auth-demo-creds-title">⚡ Quick Sign-In Presets</span>
+                <div className="auth-demo-creds-grid">
+                  <button
+                    type="button"
+                    className="auth-preset-btn manager"
+                    onClick={() => {
+                      setEmail('manager@smartsports.com')
+                      setPassword('Manager@12345')
+                      setAuthFeedback('')
+                    }}
+                  >
+                    <span className="preset-role-badge">🛡️ Manager</span>
+                    <span className="preset-email">manager@smartsports.com</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="auth-preset-btn admin"
+                    onClick={() => {
+                      setEmail('admin@smartsports.com')
+                      setPassword('admin123')
+                      setAuthFeedback('')
+                    }}
+                  >
+                    <span className="preset-role-badge">👑 Admin</span>
+                    <span className="preset-email">admin@smartsports.com</span>
+                  </button>
+                </div>
+                <div className="auth-demo-creds-hint">
+                  <strong>Manager:</strong> manager@smartsports.com / Manager@12345<br/>
+                  <small style={{ color: '#059669', fontWeight: 600 }}>Access restricted to Support and Bookings only</small>
+                </div>
+              </div>
+
               <button className="primary-btn full" onClick={handleLogin}>Sign in</button>
               <button className="secondary-btn full" type="button" onClick={() => setAuthMode('register')}>Register as member</button>
               <button className="text-link-btn" type="button" onClick={() => setShowForgotPassword(true)}>
@@ -1003,128 +1305,98 @@ function App() {
     )
   }
 
+  const isAdminUser = loggedIn && ['admin', 'manager', 'staff'].includes(currentUser?.role?.toLowerCase())
+
+  const handleSignOut = () => {
+    setLoggedIn(false)
+    setCurrentUser(null)
+    setAuthToken('')
+    try {
+      localStorage.removeItem('smartsports_auth_token')
+      localStorage.removeItem('smartsports_current_user')
+    } catch {}
+    setAuthMode('login')
+    setShowForgotPassword(false)
+    setPassword('')
+    setAuthFeedback('')
+    setShowAuthPanel(false)
+  }
+
   return (
-    <div className={`app-shell ${theme === 'dark' ? 'dark-mode' : ''}`}>
-      <aside className="sidebar">
-        <div className="brand-row">
-          <div className="brand-mark">S</div>
-          <div>
-            <p className="eyebrow">SmartSports</p>
-            <h2>Member portal</h2>
-          </div>
-        </div>
-
-        <nav className="sidebar-nav">
-          {navItems.map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={item === activeTab ? 'nav-item active' : 'nav-item'}
-              onClick={() => setActiveTab(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </nav>
-
-        <div className="profile-card">
-          <div className="avatar">{currentUser?.name ? currentUser.name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase() : 'AJ'}</div>
-          <div>
-            <strong>{currentUser?.name || 'Guest visitor'}</strong>
-            <span>{currentUser?.role === 'admin' ? 'Admin access' : 'Member account'}</span>
-          </div>
-        </div>
-      </aside>
-
-      <main className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow subtle">Dashboard</p>
-            <h1>{activeTab}</h1>
-          </div>
-
-          <div className="topbar-actions">
-            <button className="secondary-btn" type="button" onClick={goBack} disabled={!tabHistory.length}>← Back</button>
-            <button className="secondary-btn theme-toggle" type="button" onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}>
-              {theme === 'light' ? '🌙 Dark mode' : '☀️ Light mode'}
-            </button>
-            <NotificationBell
+    <div className={`app-shell ${theme === 'dark' ? 'dark-mode' : ''} ${isAdminUser ? 'admin-mode-active' : ''}`}>
+      {isAdminUser ? (
+        <div className="admin-app-layout">
+          <AdminSidebar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            currentUser={currentUser}
+            notifications={notifications}
+            setNotifications={setNotifications}
+            theme={theme}
+            setTheme={setTheme}
+            onOpenBooking={() => openBooking()}
+            onSignOutClick={handleSignOut}
+            mobileOpen={adminMobileOpen}
+            setMobileOpen={setAdminMobileOpen}
+          />
+          <div className="admin-main-viewport">
+            <AdminTopBar
+              activeTab={activeTab}
+              onMenuToggle={() => setAdminMobileOpen(!adminMobileOpen)}
+              onOpenBooking={() => openBooking()}
+              theme={theme}
+              setTheme={setTheme}
               currentUser={currentUser}
-              notifications={notifications}
-              onClearAll={() => {
-                const isAdmin = ['admin', 'manager'].includes(currentUser?.role?.toLowerCase())
-                setNotifications((prev) => prev.filter((n) => isAdmin ? n.role !== 'admin' : n.role === 'admin'))
-              }}
-              onDismiss={(id) => {
-                setNotifications((prev) => prev.filter((n) => n.id !== id))
-              }}
-              onNotificationClick={(item) => {
-                setNotifications((prev) => prev.map((n) => n.id === item.id ? { ...n, read: true } : n))
-                setActiveTab('Bookings')
-              }}
             />
-            {!loggedIn && <button className="primary-btn" type="button" onClick={() => {
+            <div className="admin-content-area">
+              {renderPage()}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <Navbar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            navItems={navItems}
+            currentUser={currentUser}
+            loggedIn={loggedIn}
+            onOpenBooking={() => openBooking()}
+            onLoginClick={() => {
               setAuthMode('login')
               setShowAuthPanel(true)
               setAuthFeedback('')
-            }}>Log in</button>}
-            <button className="primary-btn" onClick={openBooking}>Book now</button>
-            {loggedIn && <button className="secondary-btn" type="button" onClick={() => {
-              setLoggedIn(false)
-              setCurrentUser(null)
-              setAuthMode('login')
-              setShowForgotPassword(false)
-              setPassword('')
-              setAuthFeedback('')
-              setShowAuthPanel(false)
-            }}>Sign out</button>}
-          </div>
-        </header>
+            }}
+            onSignOutClick={handleSignOut}
+            theme={theme}
+            setTheme={setTheme}
+            notifications={notifications}
+            setNotifications={setNotifications}
+            goBack={goBack}
+            hasHistory={tabHistory.length > 0}
+          />
 
-        {bookingNotice && <div className="booking-notice">{bookingNotice}</div>}
+          <main className="workspace full-width-workspace">
+            {renderPage()}
+          </main>
 
-        {renderPage()}
-      </main>
+          <Footer
+            onNavSelect={setActiveTab}
+            navItems={navItems}
+            currentUser={currentUser}
+          />
+        </>
+      )}
 
       {isBookingOpen && <BookingWizard facilities={facilitiesList} initialFacilityName={bookingForm.facility} initialDate={bookingForm.date} initialStartTime={bookingForm.time} initialHoursNeeded={bookingForm.hoursNeeded} customer={currentUser} token={authToken} apiBaseUrl={API_BASE_URL} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsBookingOpen(false)} onCreated={handleWizardCreated} />}
 
       {reviewBooking && <ReviewModal booking={reviewBooking} existingReview={reviewBooking.review} onSubmit={saveReview} onClose={() => setReviewBooking(null)} />}
 
-      {isTicketOpen && (
-        <div className="booking-modal-backdrop" onClick={() => setIsTicketOpen(false)}>
-          <div className="booking-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="booking-modal-header">
-              <div>
-                <p className="eyebrow subtle">Support centre</p>
-                <h3>Create support ticket</h3>
-              </div>
-              <button type="button" className="close-btn" onClick={() => setIsTicketOpen(false)}>×</button>
-            </div>
-            <form className="booking-form" onSubmit={handleTicketSubmit}>
-              <label>
-                <span>Subject</span>
-                <input value={ticketForm.subject} onChange={(event) => setTicketForm((current) => ({ ...current, subject: event.target.value }))} placeholder="Describe your request" required />
-              </label>
-              <label>
-                <span>Priority</span>
-                <select value={ticketForm.priority} onChange={(event) => setTicketForm((current) => ({ ...current, priority: event.target.value }))}>
-                  <option>Low</option>
-                  <option>Medium</option>
-                  <option>High</option>
-                </select>
-              </label>
-              <label>
-                <span>Details</span>
-                <textarea value={ticketForm.detail} onChange={(event) => setTicketForm((current) => ({ ...current, detail: event.target.value }))} placeholder="Tell the facilities team how they can help" rows="5" required />
-              </label>
-              <div className="modal-actions">
-                <button type="button" className="secondary-btn" onClick={() => setIsTicketOpen(false)}>Cancel</button>
-                <button type="submit" className="primary-btn">Submit ticket</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CreateTicketModal
+        isOpen={isTicketOpen}
+        onClose={() => setIsTicketOpen(false)}
+        onSubmit={handleTicketSubmit}
+      />
 
       {isTimetableOpen && (
         <div className="booking-modal-backdrop" onClick={() => setIsTimetableOpen(false)}>

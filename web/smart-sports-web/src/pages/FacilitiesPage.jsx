@@ -1,16 +1,30 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { getFacilityImage } from '../utils/facilityImages'
+import EditFacilityModal from '../components/EditFacilityModal'
 
 const emptyFacility = { name: '', hourlyRate: '', description: '', faq: [], images: [], isAvailable: true }
 
-export default function FacilitiesPage({ facilities, isAdmin, onDetails, onBook, onSave, onDelete }) {
+export default function FacilitiesPage({ facilities = [], isAdmin, onDetails, onBook, onSave, onDelete }) {
   const [search, setSearch] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('All')
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyFacility)
   const [feedback, setFeedback] = useState('')
 
-  const visibleFacilities = facilities
-    .filter((facility) => `${facility.name} ${facility.description}`.toLowerCase().includes(search.toLowerCase()))
-    .sort((left, right) => left.name.localeCompare(right.name))
+  // Derive categories from facilities
+  const categories = useMemo(() => {
+    const set = new Set()
+    facilities.forEach((f) => {
+      if (f.type) set.add(f.type)
+      else if (f.name?.includes('Badminton')) set.add('Badminton')
+      else if (f.name?.includes('Football') || f.name?.includes('Turf')) set.add('Football')
+      else if (f.name?.includes('Cricket')) set.add('Cricket')
+      else if (f.name?.includes('Swim') || f.name?.includes('Aqua')) set.add('Swimming')
+      else if (f.name?.includes('Tennis')) set.add('Tennis')
+      else if (f.name?.includes('Basket')) set.add('Basketball')
+    })
+    return ['All', ...Array.from(set)]
+  }, [facilities])
 
   const openEditor = (facility = emptyFacility, id = 'new') => {
     setEditing(id)
@@ -31,45 +45,317 @@ export default function FacilitiesPage({ facilities, isAdmin, onDetails, onBook,
     event.target.value = ''
   }
 
+  const [onlyAvailable, setOnlyAvailable] = useState(false)
+  const [sortBy, setSortBy] = useState('default')
+
+  const visibleFacilities = useMemo(() => {
+    let list = facilities.filter((facility) => {
+      const matchesSearch = `${facility.name} ${facility.description || ''} ${facility.type || ''}`
+        .toLowerCase()
+        .includes(search.toLowerCase())
+      if (!matchesSearch) return false
+
+      if (selectedCategory !== 'All') {
+        const matchesCategory =
+          facility.type?.toLowerCase() === selectedCategory.toLowerCase() ||
+          facility.name?.toLowerCase().includes(selectedCategory.toLowerCase())
+        if (!matchesCategory) return false
+      }
+
+      if (onlyAvailable && !facility.isAvailable) {
+        return false
+      }
+
+      return true
+    })
+
+    if (sortBy === 'price-low') {
+      list = [...list].sort((a, b) => (Number(a.hourlyRate) || 0) - (Number(b.hourlyRate) || 0))
+    } else if (sortBy === 'price-high') {
+      list = [...list].sort((a, b) => (Number(b.hourlyRate) || 0) - (Number(a.hourlyRate) || 0))
+    } else if (sortBy === 'rating') {
+      list = [...list].sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
+    } else {
+      list = [...list].sort((left, right) => left.name.localeCompare(right.name))
+    }
+
+    return list
+  }, [facilities, search, selectedCategory, onlyAvailable, sortBy])
+
   return (
-    <section className="panel full-width-panel">
-      <div className="panel-header">
-        <div><h3>{isAdmin ? 'Manage facilities' : 'Available facilities'}</h3>{isAdmin && <span className="admin-badge">Admin access</span>}</div>
-        <div className="modal-actions">{isAdmin && <button className="primary-btn" type="button" onClick={() => openEditor()}>Add facility</button>}</div>
-      </div>
-      <div className="filter-row">
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search facilities" aria-label="Search facilities" />
-      </div>
-      <div className="facility-list">
-        {visibleFacilities.map((facility) => (
-          <article key={facility.id || facility.name} className={`facility-card ${facility.accent}`}>
-            {facility.images?.[0]
-              ? <img className="facility-image" src={facility.images[0]} alt="" />
-              : <div className="facility-icon">{facility.icon}</div>}
-            <div className="facility-body">
-              <div className="facility-topline"><h4>{facility.name}</h4></div>
-              <p>{facility.description || 'A quality SmartSports facility ready for your next session.'}</p>
-              <div className="facility-meta"><strong>{facility.price}</strong><small>{facility.status}</small></div>
-              <div className="modal-actions"><button className="secondary-btn" type="button" onClick={() => onDetails(facility)}>View details</button><button className="primary-btn" type="button" disabled={!facility.isAvailable} onClick={() => onBook(facility)}>Book now</button>{isAdmin && <><button className="secondary-btn" type="button" onClick={() => openEditor(facility, facility.id)}>Edit</button><button className="secondary-btn" type="button" onClick={async () => { if (!window.confirm(`Delete ${facility.name}?`)) return; try { await onDelete(facility.id) } catch (error) { setFeedback(error.message) } }}>Delete</button></>}</div>
-            </div>
-          </article>
-        ))}
-      </div>
-      {editing && <div className="booking-modal-backdrop" onClick={() => setEditing(null)}>
-        <div className="booking-modal facility-editor-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="booking-modal-header"><div><p className="eyebrow subtle">Facility administration</p><h3>{editing === 'new' ? 'Add facility' : 'Edit facility'}</h3></div><button type="button" className="close-btn" onClick={() => setEditing(null)}>×</button></div>
-        {feedback && <p className="auth-feedback">{feedback}</p>}
-        <form className="booking-form" onSubmit={async (event) => { event.preventDefault(); try { await onSave(form, editing === 'new' ? null : editing); setEditing(null) } catch (error) { setFeedback(error.message) } }}>
-          <label><span>Name</span><input required value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></label>
-          <label><span>Hourly rate</span><input required type="number" min="0" step="0.01" value={form.hourlyRate} onChange={(event) => setForm((current) => ({ ...current, hourlyRate: event.target.value }))} /></label>
-          <label><span>Description</span><textarea rows="3" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></label>
-          <fieldset className="repeatable-fieldset"><legend>FAQs</legend>{form.faq.map((item, index) => <div className="repeatable-row" key={`faq-${index}`}><input placeholder="Question" value={item.question} onChange={(event) => updateFaq(index, 'question', event.target.value)} /><input placeholder="Answer" value={item.answer} onChange={(event) => updateFaq(index, 'answer', event.target.value)} /><button className="secondary-btn" type="button" onClick={() => removeFaq(index)}>Remove</button></div>)}<button className="secondary-btn" type="button" onClick={addFaq}>+ Add FAQ</button></fieldset>
-          <fieldset className="repeatable-fieldset"><legend>Images</legend><input type="file" accept="image/*" multiple onChange={addImages} />{form.images.length > 0 && <div className="image-preview-list">{form.images.map((image, index) => <div className="image-preview" key={`${image.slice(0, 20)}-${index}`}><img src={image} alt="" /><button className="secondary-btn" type="button" onClick={() => setForm((current) => ({ ...current, images: current.images.filter((_, imageIndex) => imageIndex !== index) }))}>Remove</button></div>)}</div>}<button className="secondary-btn" type="button" onClick={() => document.querySelector('.facility-image-input')?.click()}>+ Add image</button><input className="facility-image-input" type="file" accept="image/*" multiple onChange={addImages} hidden /></fieldset>
-          <label><span><input type="checkbox" checked={form.isAvailable} onChange={(event) => setForm((current) => ({ ...current, isAvailable: event.target.checked }))} /> Available for booking</span></label>
-          <div className="modal-actions"><button className="secondary-btn" type="button" onClick={() => setEditing(null)}>Cancel</button><button className="primary-btn" type="submit">Save facility</button></div>
-        </form>
+    <div className="facilities-page-wrapper">
+      {/* 1. TEXT-DRIVEN HERO SECTION WITH PROMINENT CTA */}
+      <section className="facilities-text-hero">
+        <div className="facilities-hero-inner">
+          <div className="facilities-hero-badge-pill">
+            <span className="hub-pulse-dot" />
+            <span className="hub-badge-text">CHAMPIONSHIP SPORTING ARENAS</span>
+            <span className="hub-badge-sep">•</span>
+            <span className="hub-badge-status">{facilities.length} Active Venues</span>
+          </div>
+
+          <h1 className="facilities-hero-main-title">
+            {isAdmin ? (
+              <>
+                Facility Portfolio <span className="hub-title-highlight">& Court Operations</span>
+              </>
+            ) : (
+              <>
+                Reserve World-Class Arenas <span className="hub-title-highlight">& Premier Courts</span>
+              </>
+            )}
+          </h1>
+
+          <p className="facilities-hero-narrative">
+            Discover tournament-grade sports infrastructure engineered for athletes, competitive leagues, and community champions. From BWF-standard indoor hardwood badminton courts and FIFA-grade astroturf to Olympic-size 50m heated pools and floodlit cricket grounds—each facility features automated scheduling, live slot verification, and 100% free rain-check protection.
+          </p>
         </div>
-      </div>}
-    </section>
+      </section>
+
+      {/* 2. CATEGORY PILLS & COMMAND FILTER BAR */}
+      <div className="facilities-discovery-container" id="facility-showcase-section">
+        {/* Category Filter Pills (Clean clickable sport tabs) */}
+        <div className="facilities-category-tabs" role="tablist" aria-label="Filter by sport category">
+          {categories.map((cat) => {
+            const isSelected = selectedCategory === cat
+            const iconMap = {
+              All: '🏟️',
+              Badminton: '🏸',
+              Cricket: '🏏',
+              Football: '⚽',
+              Basketball: '🏀',
+              Swimming: '🏊',
+              Tennis: '🎾',
+            }
+            const icon = iconMap[cat] || '🎯'
+            const count =
+              cat === 'All'
+                ? facilities.length
+                : facilities.filter(
+                    (f) =>
+                      f.type?.toLowerCase() === cat.toLowerCase() ||
+                      f.name?.toLowerCase().includes(cat.toLowerCase())
+                  ).length
+
+            return (
+              <button
+                key={cat}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                className={`category-tab-pill ${isSelected ? 'active' : ''}`}
+                onClick={() => setSelectedCategory(cat)}
+              >
+                <span className="tab-icon">{icon}</span>
+                <span className="tab-name">{cat === 'All' ? 'All Venues' : cat}</span>
+                <span className="tab-count">{count}</span>
+              </button>
+            )
+          })}
+        </div>
+
+      {/* 3. SMART FILTER & SEARCH TOOLBAR */}
+      <div className="venue-hub-filter-bar">
+        {/* Search input with icon and clear */}
+        <div className="hub-search-box">
+          <svg className="hub-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search venue name, surface, or sport..."
+            className="hub-search-input"
+            aria-label="Search venues"
+          />
+          {search && (
+            <button
+              type="button"
+              className="hub-search-clear"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
+
+        {/* Filter controls row */}
+        <div className="hub-controls-group">
+          {/* Quick Available Now Toggle */}
+          <button
+            type="button"
+            className={`hub-toggle-btn ${onlyAvailable ? 'active' : ''}`}
+            onClick={() => setOnlyAvailable(!onlyAvailable)}
+          >
+            <span className="toggle-dot" />
+            <span>Available Now Only</span>
+          </button>
+
+          {/* Sort Dropdown */}
+          <div className="hub-sort-wrapper">
+            <span className="sort-label">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="hub-sort-select"
+            >
+              <option value="default">Featured / Name</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+              <option value="rating">Highest Rated ★</option>
+            </select>
+          </div>
+
+          {/* Results count & reset */}
+          <span className="hub-results-count">
+            {visibleFacilities.length} {visibleFacilities.length === 1 ? 'venue' : 'venues'}
+          </span>
+
+          {(selectedCategory !== 'All' || search || onlyAvailable || sortBy !== 'default') && (
+            <button
+              type="button"
+              className="hub-reset-btn"
+              onClick={() => {
+                setSelectedCategory('All')
+                setSearch('')
+                setOnlyAvailable(false)
+                setSortBy('default')
+              }}
+            >
+              Reset
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              type="button"
+              className="primary-btn hub-add-btn"
+              onClick={() => openEditor()}
+            >
+              ＋ Add Facility
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+
+      {/* Facilities Grid */}
+      {visibleFacilities.length === 0 ? (
+        <div className="empty-facilities-notice">
+          <p>No facilities match your search criteria "{search}".</p>
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={() => {
+              setSearch('')
+              setSelectedCategory('All')
+            }}
+          >
+            Reset Filters
+          </button>
+        </div>
+      ) : (
+        <div className="facilities-showcase-grid">
+          {visibleFacilities.map((facility) => {
+            const imgUrl = getFacilityImage(facility)
+            const ratingDisplay = facility.rating ? Number(facility.rating).toFixed(1) : '4.8'
+
+            return (
+              <article key={facility.id || facility.name} className="venue-card-premium">
+                <div className="venue-card-media-box">
+                  <img src={imgUrl} alt={facility.name} className="venue-card-img" />
+                  <div className="venue-card-gradient" />
+                  <div className="venue-top-chips">
+                    <span className="venue-sport-badge">{facility.type || 'Court'}</span>
+                    <span className={`venue-avail-badge ${facility.isAvailable ? 'status-open' : 'status-busy'}`}>
+                      <span className="dot" />
+                      {facility.status || (facility.isAvailable ? 'Available now' : 'Booked')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="venue-card-info-box">
+                  <div className="venue-headline-row">
+                    <h3 className="venue-name">{facility.name}</h3>
+                    <div className="venue-rating-badge">★ {ratingDisplay}</div>
+                  </div>
+
+                  <p className="venue-summary">
+                    {facility.description || 'Championship standard venue ready for private and group bookings.'}
+                  </p>
+
+                  <div className="venue-pricing-row">
+                    <div>
+                      <span className="venue-price-label">Price per hour</span>
+                      <strong className="venue-price-number">{facility.price}</strong>
+                    </div>
+                  </div>
+
+                  <div className="venue-action-buttons">
+                    <button
+                      className="secondary-btn venue-details-btn"
+                      type="button"
+                      onClick={() => onDetails(facility)}
+                    >
+                      View details
+                    </button>
+                    <button
+                      className="primary-btn venue-book-btn"
+                      type="button"
+                      disabled={!facility.isAvailable}
+                      onClick={() => onBook(facility)}
+                    >
+                      {facility.isAvailable ? 'Book now →' : 'Unavailable'}
+                    </button>
+                  </div>
+
+                  {isAdmin && (
+                    <div className="venue-admin-controls">
+                      <button
+                        className="ghost-card-btn admin-edit-btn"
+                        type="button"
+                        onClick={() => openEditor(facility, facility.id)}
+                      >
+                        Edit Facility
+                      </button>
+                      <button
+                        className="ghost-card-btn admin-delete-btn danger-text"
+                        type="button"
+                        onClick={async () => {
+                          if (!window.confirm(`Delete ${facility.name}?`)) return
+                          try {
+                            await onDelete(facility.id)
+                          } catch (error) {
+                            setFeedback(error.message)
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Admin Facility Editor Modal */}
+      {editing && (
+        <EditFacilityModal
+          isOpen={Boolean(editing)}
+          isNew={editing === 'new'}
+          facility={form}
+          onSave={async (updatedForm) => {
+            await onSave(updatedForm, editing === 'new' ? null : editing)
+            setEditing(null)
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </div>
   )
 }

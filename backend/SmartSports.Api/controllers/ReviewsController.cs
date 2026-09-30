@@ -121,7 +121,7 @@ public class ReviewsController : ControllerBase
     private async Task<string> SavePhotos(IFormFileCollection? photos)
     {
         if (photos == null || photos.Count == 0) return "[]";
-        if (photos.Count > 3) throw new InvalidOperationException("A maximum of 3 photos is allowed.");
+        if (photos.Count > 4) throw new InvalidOperationException("A maximum of 4 photos is allowed.");
         var paths = new List<string>();
         var directory = Path.Combine(AppContext.BaseDirectory, "uploads", "reviews");
         Directory.CreateDirectory(directory);
@@ -140,7 +140,7 @@ public class ReviewsController : ControllerBase
     private static string? ValidatePhotos(IFormFileCollection? photos)
     {
         if (photos == null || photos.Count == 0) return null;
-        if (photos.Count > 3) return "A maximum of 3 photos is allowed.";
+        if (photos.Count > 4) return "A maximum of 4 photos is allowed.";
         return photos.Any(photo => photo.Length == 0 || !photo.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
             ? "Only image photos are allowed."
             : null;

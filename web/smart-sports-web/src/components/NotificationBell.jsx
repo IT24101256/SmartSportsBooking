@@ -69,42 +69,51 @@ export default function NotificationBell({
     <div className="notification-bell-wrapper" ref={dropdownRef} style={{ position: 'relative' }}>
       <button
         type="button"
-        className="notification-bell-btn"
+        className="notification-bell-btn navbar-icon-btn"
         id="notification-bell-btn"
         aria-label={`${isAdmin ? 'Admin' : 'User'} Notifications`}
         onClick={() => setIsOpen((prev) => !prev)}
         style={{
           position: 'relative',
-          background: isOpen ? 'var(--btn-active-bg, rgba(255,255,255,0.2))' : 'transparent',
-          border: '1px solid var(--border-color, #cbd5e1)',
-          borderRadius: '10px',
-          padding: '8px 12px',
+          width: '36px',
+          height: '36px',
+          borderRadius: '50%',
+          border: '1px solid rgba(10, 30, 50, 0.1)',
+          background: isOpen ? 'rgba(40, 120, 255, 0.12)' : 'rgba(10, 30, 50, 0.03)',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
-          gap: '6px',
-          fontSize: '1rem',
+          justifyContent: 'center',
+          fontSize: '1.05rem',
           color: 'inherit',
           transition: 'all 0.2s ease',
+          padding: 0,
+          flexShrink: 0,
         }}
       >
-        <span style={{ fontSize: '1.15rem' }}>🔔</span>
-        <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>
-          {isAdmin ? 'Admin Alerts' : 'Alerts'}
-        </span>
+        <span>🔔</span>
         {unreadCount > 0 && (
           <span
             className="notification-count-badge"
             id="notification-badge-count"
             style={{
+              position: 'absolute',
+              top: '-3px',
+              right: '-3px',
               backgroundColor: isAdmin ? '#ef4444' : '#10b981',
               color: '#ffffff',
-              fontSize: '0.72rem',
+              fontSize: '0.65rem',
               fontWeight: 800,
-              padding: '2px 7px',
+              minWidth: '17px',
+              height: '17px',
               borderRadius: '999px',
-              marginLeft: '2px',
-              lineHeight: 1.2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '2px solid #ffffff',
+              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+              lineHeight: 1,
+              padding: '0 2px',
             }}
           >
             {unreadCount}
