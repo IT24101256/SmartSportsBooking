@@ -94,8 +94,15 @@ public class DashboardDataController : ControllerBase
             .OrderByDescending(ep => ep.CreatedAtUtc)
             .ToListAsync();
 
-        var totalEquipmentRevenue = bookings.Sum(b => b.EquipmentPayments?.Sum(ep => ep.TotalAmount) ?? 0);
+        var equipmentPaymentsSum = equipmentPaymentsQuery.Sum(ep => ep.TotalAmount);
+        var bookingEquipmentsSum = bookings.Sum(b => b.EquipmentPayments?.Sum(ep => ep.TotalAmount) ?? 0);
+        var totalEquipmentRevenue = Math.Max(equipmentPaymentsSum, bookingEquipmentsSum);
         var totalGrossRevenue = bookings.Sum(booking => booking.TotalAmount);
+        if (equipmentPaymentsSum > 0 && bookingEquipmentsSum == 0)
+        {
+            totalGrossRevenue += equipmentPaymentsSum;
+        }
+        var courtRevenue = Math.Max(0, totalGrossRevenue - totalEquipmentRevenue);
 
         return Ok(new
         {
@@ -104,7 +111,7 @@ public class DashboardDataController : ControllerBase
             startDate = start,
             endDate = end.AddDays(-1),
             totalRevenue = totalGrossRevenue,
-            courtRevenue = totalGrossRevenue - totalEquipmentRevenue,
+            courtRevenue = courtRevenue,
             equipmentRevenue = totalEquipmentRevenue,
             bookingCount = bookings.Count,
             equipmentTransactionsCount = equipmentPaymentsQuery.Count,

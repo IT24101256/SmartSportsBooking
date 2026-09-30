@@ -231,7 +231,7 @@ public class FacilitiesController : ControllerBase
     }
 
     // Handle POST requests to /api/Facilities.
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPost]
     public async Task<ActionResult<Facility>> CreateFacility(Facility facility)
     {
@@ -265,7 +265,7 @@ public class FacilitiesController : ControllerBase
     }
 
     // Handle PUT requests to /api/Facilities/{id}.
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateFacility(int id, Facility facility)
     {
@@ -322,7 +322,7 @@ public class FacilitiesController : ControllerBase
     }
   
     // Handle DELETE requests to /api/Facilities/{id}.
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteFacility(int id)
     {
