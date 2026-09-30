@@ -128,18 +128,27 @@ export default function Navbar({
 
           {/* Profile / Auth Status */}
           {loggedIn ? (
-            <div className="navbar-profile-pill" title={`${currentUser?.name || 'Member'} (${currentUser?.role || 'member'})`}>
+            <div
+              className="navbar-profile-pill interactive-profile"
+              onClick={() => setActiveTab && setActiveTab('Profile')}
+              role="button"
+              tabIndex={0}
+              title={`Click to open account profile for ${currentUser?.name || 'Member'}`}
+            >
               <div className="navbar-avatar">{userInitials}</div>
               <div className="navbar-user-info">
                 <span className="user-name">{currentUser?.name || 'Member'}</span>
                 <span className="user-role-badge">
-                  {currentUser?.role === 'admin' ? 'Admin' : 'Member'}
+                  {currentUser?.role === 'admin' ? 'Admin' : currentUser?.role === 'manager' ? 'Manager' : 'Member'}
                 </span>
               </div>
               <button
                 className="navbar-signout-btn"
                 type="button"
-                onClick={onSignOutClick}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSignOutClick()
+                }}
                 title="Sign out"
                 aria-label="Sign out"
               >
@@ -239,11 +248,20 @@ export default function Navbar({
 
               {loggedIn ? (
                 <div className="mobile-profile-section">
-                  <div className="profile-identity">
+                  <div
+                    className="profile-identity interactive-profile"
+                    onClick={() => {
+                      if (setActiveTab) setActiveTab('Profile')
+                      setMobileMenuOpen(false)
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
                     <div className="navbar-avatar">{userInitials}</div>
                     <div>
                       <strong>{currentUser?.name || 'Member'}</strong>
                       <span>{currentUser?.email}</span>
+                      <small style={{ color: '#0284c7', display: 'block', marginTop: '2px', fontWeight: 600 }}>⚙️ Account Settings →</small>
                     </div>
                   </div>
                   <button

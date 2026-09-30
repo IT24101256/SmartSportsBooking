@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
 import { getFacilityImage } from '../utils/facilityImages'
 import EditFacilityModal from '../components/EditFacilityModal'
+import { isFacilityOccupiedNow, getFacilityRatingStats } from '../utils/facilityStatus'
 
-const emptyFacility = { name: '', hourlyRate: '', description: '', faq: [], images: [], isAvailable: true }
+const emptyFacility = { name: '', hourlyRate: '', description: '', faq: [], images: [], isAvailable: true, courtType: 'Indoor' }
 
-export default function FacilitiesPage({ facilities = [], isAdmin, onDetails, onBook, onSave, onDelete }) {
+export default function FacilitiesPage({ facilities = [], bookings = [], reviews = [], isAdmin, onDetails, onBook, onSave, onDelete }) {
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [editing, setEditing] = useState(null)
@@ -62,8 +63,11 @@ export default function FacilitiesPage({ facilities = [], isAdmin, onDetails, on
         if (!matchesCategory) return false
       }
 
-      if (onlyAvailable && !facility.isAvailable) {
-        return false
+      if (onlyAvailable) {
+        const isOccupied = isFacilityOccupiedNow(facility, bookings)
+        if (!facility.isAvailable || isOccupied) {
+          return false
+        }
       }
 
       return true
@@ -74,13 +78,17 @@ export default function FacilitiesPage({ facilities = [], isAdmin, onDetails, on
     } else if (sortBy === 'price-high') {
       list = [...list].sort((a, b) => (Number(b.hourlyRate) || 0) - (Number(a.hourlyRate) || 0))
     } else if (sortBy === 'rating') {
-      list = [...list].sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
+      list = [...list].sort((a, b) => {
+        const rA = getFacilityRatingStats(a, reviews).rating || 0
+        const rB = getFacilityRatingStats(b, reviews).rating || 0
+        return rB - rA
+      })
     } else {
       list = [...list].sort((left, right) => left.name.localeCompare(right.name))
     }
 
     return list
-  }, [facilities, search, selectedCategory, onlyAvailable, sortBy])
+  }, [facilities, bookings, reviews, search, selectedCategory, onlyAvailable, sortBy])
 
   return (
     <div className="facilities-page-wrapper">
@@ -260,7 +268,9 @@ export default function FacilitiesPage({ facilities = [], isAdmin, onDetails, on
         <div className="facilities-showcase-grid">
           {visibleFacilities.map((facility) => {
             const imgUrl = getFacilityImage(facility)
-            const ratingDisplay = facility.rating ? Number(facility.rating).toFixed(1) : '4.8'
+            const { rating, count } = getFacilityRatingStats(facility, reviews)
+            const isOccupied = isFacilityOccupiedNow(facility, bookings)
+            const courtTypeTag = facility.courtType || facility.courtTag || 'Indoor'
 
             return (
               <article key={facility.id || facility.name} className="venue-card-premium">
@@ -268,10 +278,12 @@ export default function FacilitiesPage({ facilities = [], isAdmin, onDetails, on
                   <img src={imgUrl} alt={facility.name} className="venue-card-img" />
                   <div className="venue-card-gradient" />
                   <div className="venue-top-chips">
-                    <span className="venue-sport-badge">{facility.type || 'Court'}</span>
-                    <span className={`venue-avail-badge ${facility.isAvailable ? 'status-open' : 'status-busy'}`}>
-                      <span className="dot" />
-                      {facility.status || (facility.isAvailable ? 'Available now' : 'Booked')}
+                    <span className={`venue-court-badge ${courtTypeTag.toLowerCase()}`}>
+                      {courtTypeTag === 'Outdoor' ? '🌳 Outdoor' : '🏢 Indoor'}
+                    </span>
+                    <span className={`venue-avail-badge ${!facility.isAvailable ? 'status-busy' : isOccupied ? 'status-in-play' : 'status-open'}`}>
+                      <span className={`dot ${isOccupied ? 'dot-in-play' : ''}`} />
+                      {!facility.isAvailable ? 'Maintenance' : isOccupied ? '🔴 In Play' : 'Available now'}
                     </span>
                   </div>
                 </div>
@@ -279,7 +291,11 @@ export default function FacilitiesPage({ facilities = [], isAdmin, onDetails, on
                 <div className="venue-card-info-box">
                   <div className="venue-headline-row">
                     <h3 className="venue-name">{facility.name}</h3>
-                    <div className="venue-rating-badge">★ {ratingDisplay}</div>
+                    {rating != null && count > 0 && (
+                      <div className="venue-rating-badge" title={`${rating} star rating from ${count} ${count === 1 ? 'review' : 'reviews'}`}>
+                        ★ {rating.toFixed(1)} {count > 1 ? `(${count})` : ''}
+                      </div>
+                    )}
                   </div>
 
                   <p className="venue-summary">

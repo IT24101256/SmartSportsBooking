@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartSportsFacilityBooking.Data;
@@ -11,9 +12,11 @@ using SmartSportsFacilityBooking.Data;
 namespace SmartSports.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260930131807_AddBookingEquipmentPayments")]
+    partial class AddBookingEquipmentPayments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -411,47 +414,6 @@ namespace SmartSports.Api.Migrations
                     b.ToTable("BookingWorkflowSteps");
                 });
 
-            modelBuilder.Entity("SmartSportsFacilityBooking.Models.Equipment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("FacilityId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("HourlyRate")
-                        .HasColumnType("numeric");
-
-                    b.Property<bool>("IsAvailable")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SportCategory")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("TotalStock")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FacilityId");
-
-                    b.ToTable("Equipments");
-                });
-
             modelBuilder.Entity("SmartSportsFacilityBooking.Models.Facility", b =>
                 {
                     b.Property<int>("Id")
@@ -829,16 +791,6 @@ namespace SmartSports.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("BookingWorkflow");
-                });
-
-            modelBuilder.Entity("SmartSportsFacilityBooking.Models.Equipment", b =>
-                {
-                    b.HasOne("SmartSportsFacilityBooking.Models.Facility", "Facility")
-                        .WithMany()
-                        .HasForeignKey("FacilityId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Facility");
                 });
 
             modelBuilder.Entity("SmartSportsFacilityBooking.Models.FacilityRating", b =>

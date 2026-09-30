@@ -135,6 +135,7 @@ using (var scope = app.Services.CreateScope())
             AppDbContext.SeedDevelopmentManager(dbContext);
         }
         AppDbContext.SeedFacilities(dbContext);
+        AppDbContext.SeedEquipments(dbContext);
         AppDbContext.SeedDashboardData(dbContext);
     }
     catch (Exception ex)

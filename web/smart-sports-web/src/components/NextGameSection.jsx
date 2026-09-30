@@ -28,7 +28,9 @@ export default function NextGameSection({
     if (!booking.bookingDate) return false
     const sessionDate = new Date(booking.bookingDate)
     if (isNaN(sessionDate.getTime())) return false
-    const [hours, minutes] = (booking.endTime || booking.startTime || '00:00').split(':').map(Number)
+    const isMidnight = (booking.endTime || '').startsWith('24') || (booking.endTime || '').startsWith('1.')
+    const hours = isMidnight ? 24 : Number((booking.endTime || booking.startTime || '00:00').slice(0, 2)) || 0
+    const minutes = isMidnight ? 0 : Number((booking.endTime || booking.startTime || '00:00').slice(3, 5)) || 0
     const sessionTime = new Date(
       sessionDate.getFullYear(),
       sessionDate.getMonth(),

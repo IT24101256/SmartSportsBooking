@@ -162,6 +162,7 @@ public class ReviewsController : ControllerBase
         rating = review.Rating,
         review = review.Review,
         photos = (JsonSerializer.Deserialize<List<string>>(review.PhotoPathsJson) ?? []).Select((_, index) => $"/api/reviews/{review.Id}/photos/{index}"),
+        facilityId = review.Booking?.FacilityId,
         facilityName = review.Booking?.Facility?.Name,
         bookingDate = review.Booking?.BookingDate,
         createdAtUtc = review.CreatedAtUtc,

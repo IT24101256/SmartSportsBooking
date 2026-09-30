@@ -73,4 +73,7 @@ public class Booking
     public string? RescheduleReason { get; set; }
 
     public DateTime? RescheduleRequestedAt { get; set; }
+
+    // Additional equipment payments collected by admin or manager
+    public ICollection<BookingEquipmentPayment> EquipmentPayments { get; set; } = new List<BookingEquipmentPayment>();
 } 

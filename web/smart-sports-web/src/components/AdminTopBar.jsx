@@ -13,6 +13,7 @@ export default function AdminTopBar({
     Support: 'Customer Support & Concierge Chat',
     Revenue: 'Financial Operations & Revenue Intelligence',
     Members: 'Member Directory & Access Management',
+    Profile: 'User Profile & Account Security',
   }
 
   return (

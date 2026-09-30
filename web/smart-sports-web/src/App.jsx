@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import './admin.css'
 import OverviewPage from './pages/OverviewPage'
+import AdminOverviewPage from './pages/AdminOverviewPage'
 import FacilitiesPage from './pages/FacilitiesPage'
 import BookingsPage from './pages/BookingsPage'
 import SupportPage from './pages/SupportPage'
@@ -16,6 +17,9 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import AdminSidebar from './components/AdminSidebar'
 import AdminTopBar from './components/AdminTopBar'
+import ProfilePage from './pages/ProfilePage'
+import AuthModal from './components/AuthModal'
+import EquipmentsPage from './pages/EquipmentsPage'
 
 const API_BASE_URL = 'http://localhost:5187/api'
 const localDateString = (date = new Date()) => {
@@ -26,7 +30,7 @@ const localDateString = (date = new Date()) => {
 }
 
 const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support']
-const adminNavItems = [...baseNavItems, 'Revenue', 'Members']
+const adminNavItems = [...baseNavItems, 'Equipments', 'Revenue', 'Members']
 const managerNavItems = ['Bookings', 'Support']
 
 const initialBookingForm = {
@@ -242,7 +246,9 @@ function App() {
     if (!booking?.bookingDate) return false
     const sessionDate = new Date(booking.bookingDate)
     if (isNaN(sessionDate.getTime())) return false
-    const [hours, minutes] = (booking.endTime || booking.startTime || '00:00').split(':').map(Number)
+    const isMidnight = (booking.endTime || '').startsWith('24') || (booking.endTime || '').startsWith('1.')
+    const hours = isMidnight ? 24 : Number((booking.endTime || booking.startTime || '00:00').slice(0, 2)) || 0
+    const minutes = isMidnight ? 0 : Number((booking.endTime || booking.startTime || '00:00').slice(3, 5)) || 0
     const sessionTime = new Date(
       sessionDate.getFullYear(),
       sessionDate.getMonth(),
@@ -285,6 +291,7 @@ function App() {
     isRescheduleRequested: Boolean(booking.isRescheduleRequested || booking.status === 'RescheduleRequested'),
     rescheduleReason: booking.rescheduleReason,
     rescheduleRequestedAt: booking.rescheduleRequestedAt,
+    equipmentPayments: booking.equipmentPayments || booking.EquipmentPayments || [],
     review,
   })
 
@@ -294,7 +301,12 @@ function App() {
     images: parseJsonArray(facility.images),
     hourlyRate: Number(facility.hourlyRate ?? 0),
     price: `LKR ${Number(facility.hourlyRate ?? 0).toLocaleString()} / hour`,
-    status: facility.isAvailable ? 'Available now' : 'Unavailable',
+    courtType: facility.courtType || facility.courtTag || 'Indoor',
+    equipmentsProvided: facility.equipmentsProvided || '',
+    isOccupiedNow: Boolean(facility.isOccupiedNow),
+    status: facility.status || (facility.isOccupiedNow ? 'In Play' : (facility.isAvailable ? 'Available now' : 'Unavailable')),
+    rating: facility.rating !== null && facility.rating !== undefined ? Number(facility.rating) : null,
+    ratingCount: Number(facility.ratingCount ?? 0),
     accent: ['green', 'blue', 'purple'][facility.id % 3] || 'green',
     icon: '🏟️',
   })
@@ -672,6 +684,50 @@ function App() {
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
+  const addAdditionalEquipment = async (bookingId, paymentData) => {
+    if (!authToken) {
+      requireLogin('Please log in before recording equipment payments.')
+      return
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/additional-equipment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(paymentData),
+      })
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Failed to record equipment payment.')
+      }
+      const data = await response.json()
+      setBookingNotice(`Additional equipment payment recorded! (LKR ${Number(data.payment.totalAmount).toLocaleString()})`)
+
+      addNotification({
+        role: 'admin',
+        type: 'equipment_payment',
+        title: 'Equipment Payment Recorded',
+        message: `Collected LKR ${Number(data.payment.totalAmount).toLocaleString()} via ${data.payment.paymentMethod} for Booking #${bookingId} (${data.payment.equipmentName} ×${data.payment.quantity}).`,
+        bookingId,
+      })
+      addNotification({
+        role: 'user',
+        type: 'equipment_payment',
+        title: 'Equipment Added',
+        message: `Additional equipment (${data.payment.equipmentName} ×${data.payment.quantity}) added to your session. Total: LKR ${Number(data.payment.totalAmount).toLocaleString()} (${data.payment.paymentMethod}).`,
+        bookingId,
+      })
+
+      await loadBookings(authToken)
+      return data
+    } catch (err) {
+      setBookingNotice(err.message || 'Error saving additional equipment payment.')
+      throw err
+    }
+  }
+
   const userRole = (currentUser?.role || '').toLowerCase()
   const isManager = userRole === 'manager'
   const isAdmin = userRole === 'admin'
@@ -679,9 +735,9 @@ function App() {
   const isAdminOrManager = ['admin', 'manager'].includes(userRole)
   const navItems = isManager ? managerNavItems : isAdmin ? adminNavItems : baseNavItems
 
-  // Manager access restriction: only Bookings and Support tabs are permitted
+  // Manager access restriction: only Bookings, Support, and Profile tabs are permitted
   useEffect(() => {
-    if (isManager && !managerNavItems.includes(activeTab)) {
+    if (isManager && !['Bookings', 'Support', 'Profile'].includes(activeTab)) {
       setActiveTab('Bookings')
     }
   }, [isManager, activeTab])
@@ -719,10 +775,22 @@ function App() {
   }
 
   const saveFacility = async (facility, id) => {
+    let equipmentsJson = facility.equipmentsProvided
+    if (typeof equipmentsJson === 'object' && Array.isArray(equipmentsJson)) {
+      equipmentsJson = JSON.stringify(equipmentsJson)
+    }
     const response = await fetch(`${API_BASE_URL}/Facilities${id ? `/${id}` : ''}`, {
       method: id ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify({ ...facility, id: id || 0, hourlyRate: Number(facility.hourlyRate), faq: JSON.stringify(facility.faq ?? []), images: JSON.stringify(facility.images ?? []) }),
+      body: JSON.stringify({
+        ...facility,
+        id: id || 0,
+        hourlyRate: Number(facility.hourlyRate),
+        courtType: facility.courtType || 'Indoor',
+        equipmentsProvided: equipmentsJson || '',
+        faq: JSON.stringify(facility.faq ?? []),
+        images: JSON.stringify(facility.images ?? []),
+      }),
     })
     if (!response.ok) throw new Error(await response.text() || 'Facility could not be saved.')
     const saved = id ? { ...facility, id } : await response.json()
@@ -808,6 +876,19 @@ function App() {
   }, [])
 
   const renderPage = () => {
+    if (activeTab === 'Profile') {
+      return (
+        <ProfilePage
+          currentUser={currentUser}
+          authToken={authToken}
+          apiBaseUrl={API_BASE_URL}
+          onSignOut={handleSignOut}
+          onBack={goBack}
+          theme={theme}
+        />
+      )
+    }
+
     if (isManager) {
       if (activeTab === 'Support') {
         return selectedSupportRequest ? (
@@ -847,6 +928,7 @@ function App() {
           onRescheduleBooking={rescheduleBooking}
           onViewSlip={viewBankSlip}
           onReview={openReview}
+          onAddAdditionalEquipment={addAdditionalEquipment}
         />
       )
     }
@@ -860,6 +942,14 @@ function App() {
 
     if (activeTab === 'Members') return <MembersPage members={registeredMembers} />
     if (activeTab === 'Revenue') return <RevenuePage apiBaseUrl={API_BASE_URL} token={authToken} />
+    if (activeTab === 'Equipments') return (
+      <EquipmentsPage
+        apiBaseUrl={API_BASE_URL}
+        token={authToken}
+        facilities={facilitiesList}
+        currentUser={currentUser}
+      />
+    )
     if (activeTab === 'Facilities') return selectedFacility ? (
       <FacilityDetailsPage
         facility={selectedFacility}
@@ -877,6 +967,8 @@ function App() {
     ) : (
       <FacilitiesPage
         facilities={facilitiesList}
+        bookings={bookingsList}
+        reviews={reviewsList}
         isAdmin={userRole === 'admin'}
         onDetails={setSelectedFacility}
         onBook={openFacilityBooking}
@@ -899,6 +991,7 @@ function App() {
         onRescheduleBooking={rescheduleBooking}
         onViewSlip={viewBankSlip}
         onReview={openReview}
+        onAddAdditionalEquipment={addAdditionalEquipment}
       />
     )
     if (activeTab === 'Support') return selectedSupportRequest ? (
@@ -921,9 +1014,67 @@ function App() {
         onOpenRequest={setSelectedSupportRequest}
       />
     )
+    if (userRole === 'admin') {
+      return (
+        <AdminOverviewPage
+          facilities={facilitiesList}
+          bookings={bookingsList}
+          members={registeredMembers}
+          support={supportList}
+          reviews={reviewsList}
+          dashStats={dashStats}
+          currentUser={currentUser}
+          authToken={authToken}
+          apiBaseUrl={API_BASE_URL}
+          setActiveTab={setActiveTab}
+          onOpenBooking={() => openBooking()}
+          onFacilityDetails={(fac) => {
+            setSelectedFacility(fac)
+            setActiveTab('Facilities')
+          }}
+          onSelectSupport={(req) => {
+            setSelectedSupportRequest(req)
+            setActiveTab('Support')
+          }}
+          onConfirmRefund={confirmRefund}
+        />
+      )
+    }
+
     const ratedFacilities = facilitiesList.filter((facility) => facility.rating != null)
     const averageRating = ratedFacilities.length ? (ratedFacilities.reduce((sum, facility) => sum + facility.rating, 0) / ratedFacilities.length).toFixed(1) : null
-    return <OverviewPage heroMessage={heroMessage} stats={dynamicStats} facilities={facilitiesList} bookings={bookingsList} support={supportList} schedule={scheduleList} analytics={dashStats.bookingsByFacility} averageRating={averageRating} reviews={reviewsList} apiBaseUrl={API_BASE_URL} currentUser={currentUser} onBooking={openBooking} onTicket={openTicket} onSupport={() => setActiveTab('Support')} onFacilities={() => setActiveTab('Facilities')} onSchedule={() => setActiveTab('Bookings')} onBookings={() => setActiveTab('Bookings')} onDetails={setSelectedScheduleItem} onReview={openReview} onEditReview={openReview} onDeleteReview={deleteReview} onCancel={() => setActiveTab('Bookings')} onReschedule={() => setActiveTab('Bookings')} />
+    return (
+      <OverviewPage
+        heroMessage={heroMessage}
+        stats={dynamicStats}
+        facilities={facilitiesList}
+        bookings={bookingsList}
+        support={supportList}
+        schedule={scheduleList}
+        analytics={dashStats.bookingsByFacility}
+        averageRating={averageRating}
+        reviews={reviewsList}
+        apiBaseUrl={API_BASE_URL}
+        currentUser={currentUser}
+        onBooking={openBooking}
+        onTicket={openTicket}
+        onSupport={() => setActiveTab('Support')}
+        onFacilities={() => setActiveTab('Facilities')}
+        onSchedule={() => setActiveTab('Bookings')}
+        onBookings={() => setActiveTab('Bookings')}
+        onFacilityDetails={(fac) => {
+          setSelectedFacility(fac)
+          setActiveTab('Facilities')
+        }}
+        onScheduleDetails={setSelectedScheduleItem}
+        onDetails={setSelectedScheduleItem}
+        onReview={openReview}
+        onEditReview={openReview}
+        onDeleteReview={deleteReview}
+        onCancel={() => setActiveTab('Bookings')}
+        onReschedule={() => setActiveTab('Bookings')}
+      />
+    )
   }
 
   const heroMessage = (() => {
@@ -934,133 +1085,36 @@ function App() {
     return 'Play harder. Book smarter.'
   })()
 
-  const handleLogin = async () => {
+  const handleLoginSuccess = async (result) => {
+    const user = {
+      id: result.userId,
+      name: result.fullName,
+      email: result.email,
+      contactNumber: result.contactNumber,
+      nicNumber: result.nicNumber,
+      role: result.role?.toLowerCase(),
+    }
+    setAuthToken(result.token)
+    setCurrentUser(user)
+    setLoggedIn(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/Auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
-      })
-
-      if (!response.ok) {
-        setAuthFeedback('No account matches that email and password. Register first.')
-        return
-      }
-
-      const result = await response.json()
-      const user = { id: result.userId, name: result.fullName, email: result.email, contactNumber: result.contactNumber, nicNumber: result.nicNumber, role: result.role?.toLowerCase() }
-      setAuthToken(result.token)
-      setCurrentUser(user)
-      setLoggedIn(true)
-      try {
-        localStorage.setItem('smartsports_auth_token', result.token)
-        localStorage.setItem('smartsports_current_user', JSON.stringify(user))
-      } catch {}
-      setShowAuthPanel(false)
-      if (user.role === 'manager') {
-        setActiveTab('Bookings')
-      } else {
-        setActiveTab('Overview')
-      }
-      setAuthFeedback('')
-      setPassword('')
-      await loadBookings(result.token)
-      await loadReviews()
-      await loadSupportRequests(result.token)
-      await loadFacilities()
-      if (user.role === 'admin') {
-        await loadMembers(result.token)
-      }
-    } catch {
-      setAuthFeedback('The API is unavailable. Start the backend on port 5187 and try again.')
-      return
+      localStorage.setItem('smartsports_auth_token', result.token)
+      localStorage.setItem('smartsports_current_user', JSON.stringify(user))
+    } catch {}
+    setShowAuthPanel(false)
+    if (user.role === 'manager') {
+      setActiveTab('Bookings')
+    } else {
+      setActiveTab('Overview')
     }
-  }
-
-  const handleRegister = async () => {
-    if (!registerName.trim() || !registerEmail.trim() || !registerContactNumber.trim() || !registerNicNumber.trim() || !registerPassword || !registerConfirmPassword) {
-      setAuthFeedback('Please complete all registration fields.')
-      return
-    }
-
-    if (!/^\d{10}$/.test(registerContactNumber)) {
-      setAuthFeedback('Contact number must contain exactly 10 digits.')
-      return
-    }
-
-    if (!/^(\d{9}[VvXx]|\d{12})$/.test(registerNicNumber)) {
-      setAuthFeedback('NIC must be 12 digits or 9 digits followed by V or X.')
-      return
-    }
-
-    if (registerPassword.length < 8 || !/[A-Z]/.test(registerPassword) || !/[a-z]/.test(registerPassword) || !/\d/.test(registerPassword) || !/[^A-Za-z0-9]/.test(registerPassword)) {
-      setAuthFeedback('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.')
-      return
-    }
-
-    if (registerPassword !== registerConfirmPassword) {
-      setAuthFeedback('Passwords do not match. Please try again.')
-      return
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/Auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName: registerName.trim(), email: registerEmail.trim(), contactNumber: registerContactNumber.trim(), nicNumber: registerNicNumber.trim(), password: registerPassword }),
-      })
-
-      if (!response.ok) {
-        const err = await response.text()
-        setAuthFeedback(err || 'Registration failed.')
-        return
-      }
-
-      const data = await response.json().catch(() => ({}))
-
-      // Move to OTP verification step
-      setOtpPendingEmail(registerEmail.trim().toLowerCase())
-      if (data.devOtp) {
-        setOtpValue(data.devOtp)
-        setAuthFeedback(`SMTP is not configured. For development testing, your verification code is ${data.devOtp} (auto-filled below).`)
-      } else {
-        setOtpValue('')
-        setAuthFeedback(data.message || 'A 6-digit verification code has been sent to your email.')
-      }
-      setAuthMode('verify-otp')
-    } catch {
-      setAuthFeedback('The API is unavailable. Start the backend and try again.')
-    }
-  }
-
-  const handleVerifyOtp = async () => {
-    if (!otpValue.trim() || otpValue.trim().length !== 6) {
-      setAuthFeedback('Please enter the 6-digit OTP sent to your email.')
-      return
-    }
-    try {
-      const response = await fetch(`${API_BASE_URL}/Auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: otpPendingEmail, otp: otpValue.trim() }),
-      })
-      if (!response.ok) {
-        const err = await response.text()
-        setAuthFeedback(err || 'OTP verification failed.')
-        return
-      }
-      setEmail(otpPendingEmail)
-      setPassword('')
-      setRegisterName('')
-      setRegisterEmail('')
-      setRegisterPassword('')
-      setRegisterConfirmPassword('')
-      setOtpPendingEmail('')
-      setOtpValue('')
-      setAuthFeedback('Account verified! You can now sign in.')
-      setAuthMode('login')
-    } catch {
-      setAuthFeedback('The API is unavailable. Start the backend and try again.')
+    setAuthFeedback('')
+    setPassword('')
+    await loadBookings(result.token)
+    await loadReviews()
+    await loadSupportRequests(result.token)
+    await loadFacilities()
+    if (user.role === 'admin') {
+      await loadMembers(result.token)
     }
   }
 
@@ -1138,172 +1192,7 @@ function App() {
     setBookingNotice(`Booking submitted for ${savedBooking.facility?.name ?? 'the selected facility'}.`)
   }
 
-  if (!loggedIn && showAuthPanel) {
-    if (showForgotPassword) {
-      return (
-        <div className="auth-shell">
-          <div className="auth-card">
-            <img
-              src={theme === 'dark' ? '/logo-dark.png' : '/logo.png'}
-              alt="MySpot"
-              className="auth-brand-logo"
-            />
-            <h1>Reset password</h1>
-            <p className="auth-subtitle">Enter your email and we will send reset instructions.</p>
 
-            <label className="field">
-              <span>Email</span>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
-            </label>
-
-            <button className="primary-btn full" onClick={() => {
-              setShowForgotPassword(false)
-              setAuthFeedback('Password reset request sent. Please sign in with your updated password.')
-            }}>Send reset link</button>
-
-            <button className="secondary-btn full" onClick={() => setShowForgotPassword(false)}>Back to login</button>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="auth-shell">
-        <div className="auth-card">
-          <img
-            src={theme === 'dark' ? '/logo-dark.png' : '/logo.png'}
-            alt="MySpot"
-            className="auth-brand-logo"
-          />
-          <h1>
-            {authMode === 'login' ? 'Welcome back' : authMode === 'verify-otp' ? 'Verify your email' : 'Create account'}
-          </h1>
-          <p className="auth-subtitle">
-            {authMode === 'login'
-              ? 'Register first, then sign in to manage bookings and facilities.'
-              : authMode === 'verify-otp'
-              ? `Enter the 6-digit code sent to ${otpPendingEmail}.`
-              : 'Create a member account to access the SmartSports dashboard.'}
-          </p>
-
-          {authFeedback && <div className="auth-feedback">{authFeedback}</div>}
-
-          {authMode === 'verify-otp' ? (
-            <>
-              <label className="field">
-                <span>Verification Code (OTP)</span>
-                <input
-                  value={otpValue}
-                  onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="e.g. 482910"
-                  maxLength={6}
-                  inputMode="numeric"
-                  onKeyDown={(e) => e.key === 'Enter' && handleVerifyOtp()}
-                  style={{ textAlign: 'center', letterSpacing: '0.3em', fontSize: '1.6rem', fontWeight: '800' }}
-                />
-              </label>
-
-              <button className="primary-btn full" onClick={handleVerifyOtp}>Verify & Create Account</button>
-              <button className="secondary-btn full" onClick={() => { setAuthMode('register'); setAuthFeedback('') }}>Back</button>
-            </>
-          ) : authMode === 'register' ? (
-            <>
-              <label className="field">
-                <span>Full name</span>
-                <input value={registerName} onChange={(e) => setRegisterName(e.target.value)} placeholder="Aisha Jordan" />
-              </label>
-
-              <label className="field">
-                <span>Email</span>
-                <input value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} placeholder="name@example.com" />
-              </label>
-
-              <label className="field">
-                <span>Contact number</span>
-                <input type="tel" inputMode="numeric" maxLength={10} value={registerContactNumber} onChange={(e) => setRegisterContactNumber(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="0771234567" />
-              </label>
-
-              <label className="field">
-                <span>NIC number</span>
-                <input maxLength={12} value={registerNicNumber} onChange={(e) => setRegisterNicNumber(e.target.value.replace(/[^0-9vVxX]/g, '').slice(0, 12))} placeholder="123456789V or 200012345678" />
-              </label>
-
-              <label className="field">
-                <span>Password</span>
-                <input type="password" minLength="8" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} placeholder="8+ chars, upper/lower/number/symbol" />
-              </label>
-
-              <label className="field">
-                <span>Confirm password</span>
-                <input type="password" value={registerConfirmPassword} onChange={(e) => setRegisterConfirmPassword(e.target.value)} placeholder="••••••••" />
-              </label>
-
-              <button className="primary-btn full" onClick={handleRegister}>Send verification code</button>
-              <button className="secondary-btn full" onClick={() => {
-                setAuthMode('login')
-                setAuthFeedback('')
-              }}>Back to login</button>
-            </>
-          ) : (
-            <>
-              <label className="field">
-                <span>Email</span>
-                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
-              </label>
-
-              <label className="field">
-                <span>Password</span>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} placeholder="••••••••" />
-              </label>
-
-              <div className="auth-demo-credentials-box">
-                <span className="auth-demo-creds-title">⚡ Quick Sign-In Presets</span>
-                <div className="auth-demo-creds-grid">
-                  <button
-                    type="button"
-                    className="auth-preset-btn manager"
-                    onClick={() => {
-                      setEmail('manager@smartsports.com')
-                      setPassword('Manager@12345')
-                      setAuthFeedback('')
-                    }}
-                  >
-                    <span className="preset-role-badge">🛡️ Manager</span>
-                    <span className="preset-email">manager@smartsports.com</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="auth-preset-btn admin"
-                    onClick={() => {
-                      setEmail('admin@smartsports.com')
-                      setPassword('admin123')
-                      setAuthFeedback('')
-                    }}
-                  >
-                    <span className="preset-role-badge">👑 Admin</span>
-                    <span className="preset-email">admin@smartsports.com</span>
-                  </button>
-                </div>
-                <div className="auth-demo-creds-hint">
-                  <strong>Manager:</strong> manager@smartsports.com / Manager@12345<br/>
-                  <small style={{ color: '#059669', fontWeight: 600 }}>Access restricted to Support and Bookings only</small>
-                </div>
-              </div>
-
-              <button className="primary-btn full" onClick={handleLogin}>Sign in</button>
-              <button className="secondary-btn full" type="button" onClick={() => setAuthMode('register')}>Register as member</button>
-              <button className="text-link-btn" type="button" onClick={() => setShowForgotPassword(true)}>
-                Forgot password?
-              </button>
-              <button className="text-link-btn" type="button" onClick={() => setShowAuthPanel(false)}>
-                Continue browsing
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    )
-  }
 
   const isAdminUser = loggedIn && ['admin', 'manager', 'staff'].includes(currentUser?.role?.toLowerCase())
 
@@ -1338,6 +1227,8 @@ function App() {
             onSignOutClick={handleSignOut}
             mobileOpen={adminMobileOpen}
             setMobileOpen={setAdminMobileOpen}
+            bookings={bookingsList}
+            supportRequests={supportList}
           />
           <div className="admin-main-viewport">
             <AdminTopBar
@@ -1473,6 +1364,14 @@ function App() {
           </div>
         </div>
       )}
+
+      <AuthModal
+        isOpen={!loggedIn && showAuthPanel}
+        onClose={() => setShowAuthPanel(false)}
+        theme={theme}
+        apiBaseUrl={API_BASE_URL}
+        onLoginSuccess={handleLoginSuccess}
+      />
     </div>
   )
 }

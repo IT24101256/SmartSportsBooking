@@ -66,38 +66,138 @@ public class FacilitiesController : ControllerBase
             .ToListAsync();
 
         var facilityIds = facilities.Select(facility => facility.Id).ToArray();
-        var ratings = await _context.FacilityRatings
+
+        // Check real-time if someone or group is currently playing right now on each facility
+        var slTimeZone = TimeZoneInfo.CreateCustomTimeZone("SLST", TimeSpan.FromMinutes(330), "Sri Lanka", "Sri Lanka");
+        var slNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, slTimeZone);
+        var todayUtcDate = DateTime.SpecifyKind(slNow.Date, DateTimeKind.Utc);
+        var currentTime = slNow.TimeOfDay;
+
+        var activeBookings = await _context.Bookings
+            .Where(b => b.BookingDate == todayUtcDate &&
+                        b.Status != "Cancelled" &&
+                        b.StartTime <= currentTime &&
+                        b.EndTime > currentTime)
+            .Select(b => new { b.FacilityId, b.CustomerName, b.EndTime })
+            .ToListAsync();
+
+        var activeBookingMap = activeBookings
+            .GroupBy(b => b.FacilityId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Calculate real ratings from BookingReviews
+        var bookingReviews = await _context.BookingReviews
+            .Where(r => r.Booking != null && facilityIds.Contains(r.Booking.FacilityId))
+            .GroupBy(r => r.Booking!.FacilityId)
+            .Select(group => new { facilityId = group.Key, average = group.Average(r => r.Rating), count = group.Count() })
+            .ToDictionaryAsync(item => item.facilityId);
+
+        // Fallback to FacilityRatings if any
+        var directRatings = await _context.FacilityRatings
             .Where(rating => facilityIds.Contains(rating.FacilityId))
             .GroupBy(rating => rating.FacilityId)
             .Select(group => new { facilityId = group.Key, average = group.Average(rating => rating.Score), count = group.Count() })
             .ToDictionaryAsync(item => item.facilityId);
 
-        return Ok(new { items = facilities.Select(facility => new
+        return Ok(new
         {
-            facility.Id, facility.Name, facility.IsAvailable,
-            facility.HourlyRate, facility.Description, facility.Faq, facility.Images,
-            rating = ratings.TryGetValue(facility.Id, out var summary) ? Math.Round(summary.average, 1) : (double?)null,
-            ratingCount = ratings.TryGetValue(facility.Id, out summary) ? summary.count : 0
-        }), totalCount, page, pageSize, totalPages = (int)Math.Ceiling(totalCount / (double)pageSize) });
+            items = facilities.Select(facility =>
+            {
+                var isOccupied = activeBookingMap.TryGetValue(facility.Id, out var active);
+                double? avgRating = null;
+                int rCount = 0;
+
+                if (bookingReviews.TryGetValue(facility.Id, out var bReviewSummary) && bReviewSummary.count > 0)
+                {
+                    avgRating = Math.Round(bReviewSummary.average, 1);
+                    rCount = bReviewSummary.count;
+                }
+                else if (directRatings.TryGetValue(facility.Id, out var dSummary) && dSummary.count > 0)
+                {
+                    avgRating = Math.Round(dSummary.average, 1);
+                    rCount = dSummary.count;
+                }
+
+                var resolvedCourtType = string.IsNullOrWhiteSpace(facility.CourtType) ? "Indoor" : facility.CourtType;
+
+                return new
+                {
+                    facility.Id,
+                    facility.Name,
+                    facility.IsAvailable,
+                    facility.HourlyRate,
+                    facility.Description,
+                    facility.Faq,
+                    facility.Images,
+                    equipmentsProvided = facility.EquipmentsProvided ?? "",
+                    courtType = resolvedCourtType,
+                    courtTag = resolvedCourtType,
+                    type = resolvedCourtType,
+                    isOccupiedNow = isOccupied,
+                    currentSessionUntil = isOccupied ? active?.EndTime.ToString(@"hh\:mm") : null,
+                    status = !facility.IsAvailable ? "Maintenance" : isOccupied ? "In Play" : "Available now",
+                    rating = avgRating,
+                    ratingCount = rCount
+                };
+            }),
+            totalCount,
+            page,
+            pageSize,
+            totalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+        });
     }
 
     // Handle GET requests to /api/Facilities/{id}.
     [AllowAnonymous]
     [HttpGet("{id}")]
-    public async Task<ActionResult<Facility>> GetFacility(int id)
+    public async Task<IActionResult> GetFacility(int id)
     {
         // Search for a facility using its ID.
         var facility = await _context.Facilities.FindAsync(id);
 
-        // Check whether the facility was found.
         if (facility == null)
         {
-            // Return HTTP 404 Not Found if the facility doesn't exist.
             return NotFound();
         }
 
-        // Return the facility with HTTP 200 OK.
-        return Ok(facility);
+        var slTimeZone = TimeZoneInfo.CreateCustomTimeZone("SLST", TimeSpan.FromMinutes(330), "Sri Lanka", "Sri Lanka");
+        var slNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, slTimeZone);
+        var todayUtcDate = DateTime.SpecifyKind(slNow.Date, DateTimeKind.Utc);
+        var currentTime = slNow.TimeOfDay;
+
+        var isOccupied = await _context.Bookings.AnyAsync(b =>
+            b.FacilityId == id &&
+            b.BookingDate == todayUtcDate &&
+            b.Status != "Cancelled" &&
+            b.StartTime <= currentTime &&
+            b.EndTime > currentTime);
+
+        var reviews = await _context.BookingReviews
+            .Where(r => r.Booking != null && r.Booking.FacilityId == id)
+            .Select(r => r.Rating)
+            .ToListAsync();
+
+        double? avgRating = reviews.Count > 0 ? Math.Round(reviews.Average(), 1) : null;
+        var resolvedCourtType = string.IsNullOrWhiteSpace(facility.CourtType) ? "Indoor" : facility.CourtType;
+
+        return Ok(new
+        {
+            facility.Id,
+            facility.Name,
+            facility.IsAvailable,
+            facility.HourlyRate,
+            facility.Description,
+            facility.Faq,
+            facility.Images,
+            equipmentsProvided = facility.EquipmentsProvided ?? "",
+            courtType = resolvedCourtType,
+            courtTag = resolvedCourtType,
+            type = resolvedCourtType,
+            isOccupiedNow = isOccupied,
+            status = !facility.IsAvailable ? "Maintenance" : isOccupied ? "In Play" : "Available now",
+            rating = avgRating,
+            ratingCount = reviews.Count
+        });
     }
 
     [HttpPost("{id}/ratings")]
@@ -145,6 +245,11 @@ public class FacilitiesController : ControllerBase
             return BadRequest("Facility name is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(facility.CourtType))
+        {
+            facility.CourtType = "Indoor";
+        }
+
         // Add the new facility to the database context.
         _context.Facilities.Add(facility);
 
@@ -188,6 +293,11 @@ public class FacilitiesController : ControllerBase
         existingFacility.Description = facility.Description;
         existingFacility.Faq = facility.Faq;
         existingFacility.Images = facility.Images;
+        existingFacility.EquipmentsProvided = facility.EquipmentsProvided ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(facility.CourtType))
+        {
+            existingFacility.CourtType = facility.CourtType;
+        }
 
         try
         {

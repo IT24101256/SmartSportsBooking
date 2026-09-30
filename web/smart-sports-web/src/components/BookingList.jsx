@@ -20,7 +20,9 @@ export default function BookingList({ bookings = [], onReview, onCancel, onResch
     if (!booking?.bookingDate) return false
     const sessionDate = new Date(booking.bookingDate)
     if (isNaN(sessionDate.getTime())) return false
-    const [hours, minutes] = (booking.endTime || booking.startTime || '00:00').split(':').map(Number)
+    const isMidnight = (booking.endTime || '').startsWith('24') || (booking.endTime || '').startsWith('1.')
+    const hours = isMidnight ? 24 : Number((booking.endTime || booking.startTime || '00:00').slice(0, 2)) || 0
+    const minutes = isMidnight ? 0 : Number((booking.endTime || booking.startTime || '00:00').slice(3, 5)) || 0
     const sessionTime = new Date(
       sessionDate.getFullYear(),
       sessionDate.getMonth(),
@@ -182,6 +184,59 @@ export default function BookingList({ bookings = [], onReview, onCancel, onResch
                   </div>
                 </div>
               </div>
+
+              {/* Additional Equipment Payments / On-site Receipts */}
+              {booking.equipmentPayments && booking.equipmentPayments.length > 0 && (
+                <div className="ticket-equipment-receipt-card">
+                  <div className="receipt-card-header">
+                    <div className="receipt-header-left">
+                      <span className="receipt-gear-icon">🎒</span>
+                      <div>
+                        <span className="receipt-title">ADDITIONAL GEAR & ACCESSORIES</span>
+                        <span className="receipt-sub">Issued on-site at court reception ({booking.equipmentPayments.length} {booking.equipmentPayments.length === 1 ? 'item' : 'items'})</span>
+                      </div>
+                    </div>
+
+                    <div className="receipt-header-right">
+                      <span className="receipt-badge-status">PAID & SETTLED</span>
+                      <strong className="receipt-total-val">
+                        + LKR {booking.equipmentPayments.reduce((sum, ep) => sum + Number(ep.totalAmount || 0), 0).toLocaleString()}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="receipt-items-grid">
+                    {booking.equipmentPayments.map((ep, epIdx) => (
+                      <div key={ep.id || epIdx} className="receipt-item-row">
+                        <div className="receipt-item-left">
+                          <span className="receipt-check-dot">✓</span>
+                          <div className="receipt-item-details">
+                            <span className="receipt-item-name">
+                              <strong>{ep.equipmentName}</strong>
+                              <span className="receipt-item-qty">×{ep.quantity}</span>
+                            </span>
+                            <span className="receipt-item-formula">
+                              {ep.hours} {ep.hours === 1 ? 'hr' : 'hrs'} duration @ LKR {Number(ep.hourlyRate || 0).toLocaleString()} / hr
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="receipt-item-right">
+                          <span className={`receipt-method-pill ${ep.paymentMethod === 'Cash in hand' ? 'cash-method' : 'card-method'}`}>
+                            {ep.paymentMethod === 'Cash in hand' ? '💵 Cash in hand' : '💳 Card (machine)'}
+                          </span>
+                          <strong className="receipt-item-amount">
+                            LKR {Number(ep.totalAmount || 0).toLocaleString()}
+                          </strong>
+                          {ep.collectedBy && (
+                            <span className="receipt-collector-stamp">by {ep.collectedBy}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Special Notices & Riders */}
               {!isExpired && isRescheduleRequested && (

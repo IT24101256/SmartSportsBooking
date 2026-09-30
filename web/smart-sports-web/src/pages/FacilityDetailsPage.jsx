@@ -1,5 +1,71 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { getFacilityImage } from '../utils/facilityImages'
+
+const DEFAULT_SPORT_EQUIPMENTS = {
+  badminton: [
+    { name: 'Yonex Pro Carbon Rackets (Pair)', hourlyRate: 350, icon: '🏸' },
+    { name: 'Aerosensa Feather Shuttlecocks (Tube of 3)', hourlyRate: 400, icon: '🏸' },
+    { name: 'Tournament Badminton Net & Posts', hourlyRate: 0, icon: '🥅' },
+    { name: 'Anti-slip Grip Tape & Overgrips', hourlyRate: 150, icon: '🎗️' },
+  ],
+  basketball: [
+    { name: 'Spalding Official Leather Basketball (Size 7)', hourlyRate: 300, icon: '🏀' },
+    { name: 'Nike Elite Training Basketball (Size 6)', hourlyRate: 250, icon: '🏀' },
+    { name: 'Numbered Team Scrimmage Vests (Set of 10)', hourlyRate: 500, icon: '🎽' },
+    { name: 'Heavy-Duty Ball Pump & Pressure Gauge', hourlyRate: 0, icon: '💨' },
+  ],
+  cricket: [
+    { name: 'English Willow Cricket Bat (Grade 1)', hourlyRate: 600, icon: '🏏' },
+    { name: 'Kookaburra Regulation Leather Balls (Box of 2)', hourlyRate: 450, icon: '🏏' },
+    { name: 'Pro Batting Pads & Gloves Combo', hourlyRate: 500, icon: '🛡️' },
+    { name: 'Spring-Return Wooden Wicket Stumps', hourlyRate: 200, icon: '🪵' },
+  ],
+  football: [
+    { name: 'FIFA Quality Pro Match Football (Size 5)', hourlyRate: 350, icon: '⚽' },
+    { name: 'Agility Training Cones & Speed Ladders', hourlyRate: 300, icon: '📐' },
+    { name: 'Pro Goalkeeper Gloves with Finger Protection', hourlyRate: 400, icon: '🧤' },
+    { name: 'Team Training Bibs (Set of 12)', hourlyRate: 450, icon: '🎽' },
+  ],
+  tennis: [
+    { name: 'Wilson Pro Staff Tennis Rackets (Pair)', hourlyRate: 500, icon: '🎾' },
+    { name: 'Championship Tennis Ball Pressurized Can (4 Balls)', hourlyRate: 400, icon: '🎾' },
+    { name: 'Ball Hopper / Caddy Basket', hourlyRate: 250, icon: '🧺' },
+  ],
+  swimming: [
+    { name: 'Speedo Ergonomic Kickboards', hourlyRate: 150, icon: '🏊' },
+    { name: 'Silicone Swim Caps & Anti-Fog Goggles', hourlyRate: 200, icon: '🥽' },
+    { name: 'Pull Buoys & Training Hand Paddles', hourlyRate: 200, icon: '🏊' },
+  ],
+  'table tennis': [
+    { name: 'Butterfly Professional Paddles (Pair)', hourlyRate: 250, icon: '🏓' },
+    { name: '3-Star ITTF Approved 40+ Poly Balls (Pack of 6)', hourlyRate: 200, icon: '🏓' },
+    { name: 'Retractable Table Tennis Net Set', hourlyRate: 0, icon: '🥅' },
+  ],
+  volleyball: [
+    { name: 'Mikasa V200W Official FIVB Match Volleyball', hourlyRate: 300, icon: '🏐' },
+    { name: 'High-Tensile Boundary Antennae & Net', hourlyRate: 0, icon: '🥅' },
+    { name: 'Protective Knee Pads & Arm Sleeves', hourlyRate: 200, icon: '🛡️' },
+  ],
+}
+
+const getGearIcon = (name = '', sport = '') => {
+  const n = (name || '').toLowerCase()
+  const s = (sport || '').toLowerCase()
+  if (n.includes('racket') || n.includes('shuttlecock') || s.includes('badminton')) return '🏸'
+  if (n.includes('basketball') || s.includes('basketball')) return '🏀'
+  if (n.includes('bat') || n.includes('wicket') || n.includes('stump') || s.includes('cricket')) return '🏏'
+  if (n.includes('football') || n.includes('soccer') || s.includes('football')) return '⚽'
+  if (n.includes('tennis') && !n.includes('table')) return '🎾'
+  if (n.includes('swim') || n.includes('goggle') || n.includes('kickboard') || s.includes('swimming')) return '🏊'
+  if (n.includes('table tennis') || n.includes('paddle') || n.includes('ping pong') || s.includes('table tennis')) return '🏓'
+  if (n.includes('volleyball') || s.includes('volleyball')) return '🏐'
+  if (n.includes('glove')) return '🧤'
+  if (n.includes('vest') || n.includes('bib')) return '🎽'
+  if (n.includes('cone') || n.includes('ladder')) return '📐'
+  if (n.includes('pump')) return '💨'
+  if (n.includes('net')) return '🥅'
+  return '⚡'
+}
 
 export default function FacilityDetailsPage({
   facility,
@@ -12,6 +78,24 @@ export default function FacilityDetailsPage({
   onDeleteReview,
 }) {
   const [activeImagePreview, setActiveImagePreview] = useState(null)
+  const [catalogEquipments, setCatalogEquipments] = useState([])
+
+  // Fetch catalog equipments for the venue sport
+  useEffect(() => {
+    if (!apiBaseUrl) return
+    let active = true
+    fetch(`${apiBaseUrl}/equipments`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (active && Array.isArray(data)) {
+          setCatalogEquipments(data)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [apiBaseUrl])
 
   if (!facility) return null
 
@@ -42,6 +126,68 @@ export default function FacilityDetailsPage({
 
   const canEdit = (review) => currentUser?.id === review.userId
   const canDelete = (review) => currentUser?.role === 'admin' || canEdit(review)
+
+  const parseEquipments = (raw) => {
+    if (!raw) return []
+    if (Array.isArray(raw)) return raw
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          return parsed.map((item) => ({
+            name: typeof item === 'object' ? item.name || '' : String(item),
+            hourlyRate: typeof item === 'object' && item.hourlyRate !== undefined ? item.hourlyRate : null,
+          }))
+        }
+      } catch {
+        return raw.split(',').map((item) => item.trim()).filter(Boolean).map((name) => ({ name, hourlyRate: null }))
+      }
+    }
+    return []
+  }
+
+  const equipmentsList = useMemo(() => {
+    const rawProvided = parseEquipments(facility.equipmentsProvided)
+    const sportKey = (facility.sportCategory || facility.type || '').toLowerCase()
+
+    // Match catalog items for this facility or sport
+    const matchingCatalog = catalogEquipments
+      .filter((eq) => {
+        if (eq.facilityId != null && facility.id != null && String(eq.facilityId) === String(facility.id)) {
+          return true
+        }
+        const eqSport = (eq.sportCategory || '').toLowerCase()
+        return eqSport && (eqSport === sportKey || sportKey.includes(eqSport) || eqSport.includes(sportKey))
+      })
+      .map((eq) => ({
+        name: eq.name,
+        hourlyRate: eq.hourlyRate != null ? Number(eq.hourlyRate) : null,
+        description: eq.description || '',
+      }))
+
+    // Combine provided with catalog without duplicates
+    const combined = [...rawProvided]
+    matchingCatalog.forEach((item) => {
+      if (!combined.some((c) => (c.name || '').toLowerCase() === (item.name || '').toLowerCase())) {
+        combined.push(item)
+      }
+    })
+
+    // If still empty or sparse, blend in sport defaults
+    if (combined.length === 0) {
+      for (const [key, defaults] of Object.entries(DEFAULT_SPORT_EQUIPMENTS)) {
+        if (sportKey.includes(key) || key.includes(sportKey)) {
+          return defaults
+        }
+      }
+    }
+
+    return combined.length > 0 ? combined : [
+      { name: 'Match Session Ball Set', hourlyRate: 300, icon: '⚡' },
+      { name: 'Training Cones & Markers', hourlyRate: 150, icon: '📐' },
+      { name: 'Team Scrimmage Bibs', hourlyRate: 250, icon: '🎽' },
+    ]
+  }, [facility, catalogEquipments])
 
   return (
     <div className="facility-details-page">
@@ -89,6 +235,14 @@ export default function FacilityDetailsPage({
             <strong className="facility-detail-rate">
               LKR {Number(facility.hourlyRate || 0).toLocaleString()} <span className="rate-unit">/ hour</span>
             </strong>
+            <span className={`venue-court-badge ${(facility.courtType || facility.courtTag || 'Indoor').toLowerCase()}`}>
+              {(facility.courtType || facility.courtTag) === 'Outdoor' ? '🌳 Outdoor Court' : '🏢 Indoor Court'}
+            </span>
+            {equipmentsList.length > 0 && (
+              <span className="venue-gear-badge" title="Sports equipment available for this venue">
+                🎒 {equipmentsList.length} Sports Gear Available
+              </span>
+            )}
             {avgRating && (
               <div className="facility-hero-rating-badge">
                 <span className="star-icon">★</span>
@@ -120,6 +274,67 @@ export default function FacilityDetailsPage({
           />
         </div>
       </section>
+
+      {/* 2.5 SPORTS EQUIPMENTS & GEAR ON-DEMAND PANEL */}
+      {equipmentsList.length > 0 && (
+        <section className="booking-activity-ranking-panel facility-section-panel facility-equipments-panel">
+          <div className="section-header-compact">
+            <div>
+              <span className="section-eyebrow">SPORTS EQUIPMENT & GEAR ON-DEMAND</span>
+              <h3 className="section-title">Equipment Available for This Facility</h3>
+            </div>
+            <span className="panel-badge-subtle">
+              {equipmentsList.length} {equipmentsList.length === 1 ? 'gear item ready' : 'gear items available for play'}
+            </span>
+          </div>
+
+          {/* Informational Callout Banner */}
+          <div className="facility-equipment-notice-banner">
+            <div className="notice-icon-box">🎒</div>
+            <div className="notice-content">
+              <strong>Need equipment for your session? We've got you covered!</strong>
+              <p>
+                We have these specialized sports equipments available at this facility. If you need any equipment during your session, you can request and add them when booking your court or collect them directly at the counter upon arrival.
+              </p>
+            </div>
+            {facility.isAvailable && onBook && (
+              <button
+                type="button"
+                className="notice-action-btn"
+                onClick={() => onBook(facility)}
+              >
+                Reserve with Gear →
+              </button>
+            )}
+          </div>
+
+          <div className="facility-equipments-grid">
+            {equipmentsList.map((eq, idx) => {
+              const name = eq.name || eq
+              const rate = eq.hourlyRate != null && Number(eq.hourlyRate) > 0 ? Number(eq.hourlyRate) : null
+              const icon = eq.icon || getGearIcon(name, facility.sportCategory || facility.type)
+              return (
+                <div key={idx} className="equipment-chip-card">
+                  <span className="equipment-icon-bubble">{icon}</span>
+                  <div className="equipment-chip-content">
+                    <span className="equipment-name">{name}</span>
+                    <div className="equipment-meta-line">
+                      {rate ? (
+                        <span className="equipment-rate-pill">
+                          LKR {rate.toLocaleString()} <span className="rate-sub">/ hr</span>
+                        </span>
+                      ) : (
+                        <span className="equipment-included-pill">Complimentary on request</span>
+                      )}
+                      <span className="equipment-avail-tag">• Available to get</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* 3. GALLERY SECTION (BELOW HERO) */}
       <section className="booking-activity-ranking-panel facility-section-panel">

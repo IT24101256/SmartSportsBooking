@@ -232,4 +232,123 @@ public class AuthController : ControllerBase
             role = user.Role?.Name
         });
     }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+            return BadRequest("Email address is required.");
+
+        var cleanEmail = request.Email.Trim().ToLower();
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == cleanEmail);
+        if (user == null)
+        {
+            return Ok(new
+            {
+                message = "If an account matches that email, a verification code has been sent.",
+                emailSent = true
+            });
+        }
+
+        var otp = _otpStore.GenerateAndStoreResetOtp(cleanEmail);
+
+        try
+        {
+            var emailSent = await _emailService.SendPasswordResetEmailAsync(user.Email, user.FullName, otp);
+            if (!emailSent)
+            {
+                var environment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>();
+                if (environment.IsDevelopment())
+                {
+                    return Ok(new
+                    {
+                        message = "Verification code generated. (SMTP dev fallback).",
+                        devOtp = otp,
+                        smtpConfigured = false,
+                        emailSent = true
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send reset email to {Email}", user.Email);
+        }
+
+        return Ok(new
+        {
+            message = "A password reset verification code has been sent to your email.",
+            emailSent = true,
+            smtpConfigured = true
+        });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Otp) || string.IsNullOrWhiteSpace(request.NewPassword))
+            return BadRequest("Email, verification code, and new password are required.");
+
+        var cleanEmail = request.Email.Trim().ToLower();
+        if (!_otpStore.VerifyResetOtp(cleanEmail, request.Otp.Trim()))
+            return BadRequest("Invalid or expired verification code.");
+
+        if (request.NewPassword.Length < 8 ||
+            !request.NewPassword.Any(char.IsUpper) ||
+            !request.NewPassword.Any(char.IsLower) ||
+            !request.NewPassword.Any(char.IsDigit) ||
+            !request.NewPassword.Any(ch => !char.IsLetterOrDigit(ch)))
+        {
+            return BadRequest("Password must be at least 8 characters and include uppercase, lowercase, number, and special character.");
+        }
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == cleanEmail);
+        if (user == null)
+            return BadRequest("User account not found.");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Password has been successfully updated. You can now sign in with your new password."
+        });
+    }
+
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Unauthorized();
+
+        if (string.IsNullOrWhiteSpace(request.CurrentPassword) || string.IsNullOrWhiteSpace(request.NewPassword))
+            return BadRequest("Current password and new password are required.");
+
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+            return NotFound("User not found.");
+
+        var passwordValid = BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash);
+        if (!passwordValid)
+            return BadRequest("Current password is incorrect.");
+
+        if (request.NewPassword.Length < 8 ||
+            !request.NewPassword.Any(char.IsUpper) ||
+            !request.NewPassword.Any(char.IsLower) ||
+            !request.NewPassword.Any(char.IsDigit) ||
+            !request.NewPassword.Any(ch => !char.IsLetterOrDigit(ch)))
+        {
+            return BadRequest("New password must be at least 8 characters and include uppercase, lowercase, number, and special character.");
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Password updated successfully."
+        });
+    }
 }

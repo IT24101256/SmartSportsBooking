@@ -21,6 +21,12 @@ public class Facility
     // This stores whether the facility is currently available.
     public bool IsAvailable { get; set; } = true;
 
+    // Court setting type: "Indoor" or "Outdoor"
+    public string CourtType { get; set; } = "Indoor";
+
+    // Equipment provided with this facility (e.g. "Rackets, Shuttlecocks, Net")
+    public string EquipmentsProvided { get; set; } = string.Empty;
+
     // This represents schedules belonging to the facility.
     public ICollection<FacilitySchedule> Schedules { get; set; } = new List<FacilitySchedule>();
 

@@ -1,8 +1,11 @@
 import { useState, useMemo } from 'react'
 import { getFacilityImage } from '../utils/facilityImages'
+import { isFacilityOccupiedNow, getFacilityRatingStats } from '../utils/facilityStatus'
 
 export default function FacilityMarketplace({
   facilities = [],
+  bookings = [],
+  reviews = [],
   onBook,
   onDetails,
   onSeeAll,
@@ -90,69 +93,84 @@ export default function FacilityMarketplace({
       )}
 
       {/* Featured Facility Hero Card (if viewing 'All' and featured facility exists) */}
-      {selectedCategory === 'All' && featuredFacility && (
-        <div className="featured-facility-hero-card">
-          <div className="featured-hero-image-wrapper">
-            <img
-              src={getFacilityImage(featuredFacility)}
-              alt={featuredFacility.name}
-              className="featured-hero-image"
-            />
-            <div className="featured-gradient-shade" />
-            <div className="featured-top-badges">
-              <span className="featured-tag-badge">★ FEATURED VENUE</span>
-              <span className="featured-status-badge">
-                <span className="status-dot"></span>
-                {featuredFacility.status || 'Available now'}
-              </span>
-            </div>
-          </div>
+      {selectedCategory === 'All' && featuredFacility && (() => {
+        const isFeaturedOccupied = isFacilityOccupiedNow(featuredFacility, bookings)
+        const featuredRating = getFacilityRatingStats(featuredFacility, reviews)
+        const featuredCourtType = featuredFacility.courtType || featuredFacility.courtTag || 'Indoor'
 
-          <div className="featured-hero-body">
-            <div className="featured-meta-line">
-              <span className="featured-sport-type">{featuredFacility.type || 'Championship Arena'}</span>
-              <span className="featured-rating">★ 4.9 (Member Favorite)</span>
-            </div>
-            <h3 className="featured-facility-title">{featuredFacility.name}</h3>
-            <p className="featured-facility-desc">
-              {featuredFacility.description ||
-                'Professional championship grade sports facility featuring floodlights, pristine turf, official dimensions, and dedicated equipment rooms.'}
-            </p>
-
-            <div className="featured-footer-row">
-              <div className="featured-pricing-block">
-                <span className="pricing-label">Hourly Rate</span>
-                <strong className="pricing-amount">{featuredFacility.price}</strong>
+        return (
+          <div className="featured-facility-hero-card">
+            <div className="featured-hero-image-wrapper">
+              <img
+                src={getFacilityImage(featuredFacility)}
+                alt={featuredFacility.name}
+                className="featured-hero-image"
+              />
+              <div className="featured-gradient-shade" />
+              <div className="featured-top-badges">
+                <span className="featured-tag-badge">★ FEATURED VENUE</span>
+                <span className={`venue-court-badge ${featuredCourtType.toLowerCase()}`}>
+                  {featuredCourtType === 'Outdoor' ? '🌳 Outdoor' : '🏢 Indoor'}
+                </span>
+                <span className={`featured-status-badge ${isFeaturedOccupied ? 'status-in-play' : ''}`}>
+                  <span className={`status-dot ${isFeaturedOccupied ? 'dot-in-play' : ''}`}></span>
+                  {!featuredFacility.isAvailable ? 'Maintenance' : isFeaturedOccupied ? '🔴 In Play' : 'Available now'}
+                </span>
               </div>
+            </div>
 
-              <div className="featured-actions-group">
-                {onDetails && (
+            <div className="featured-hero-body">
+              <div className="featured-meta-line">
+                <span className="featured-sport-type">
+                  {featuredFacility.sportCategory || featuredFacility.type || 'Championship Arena'}
+                </span>
+                {featuredRating.rating != null && featuredRating.count > 0 && (
+                  <span className="featured-rating">★ {featuredRating.rating.toFixed(1)} ({featuredRating.count} {featuredRating.count === 1 ? 'review' : 'reviews'})</span>
+                )}
+              </div>
+              <h3 className="featured-facility-title">{featuredFacility.name}</h3>
+              <p className="featured-facility-desc">
+                {featuredFacility.description ||
+                  'Professional championship grade sports facility featuring floodlights, pristine turf, official dimensions, and dedicated equipment rooms.'}
+              </p>
+
+              <div className="featured-footer-row">
+                <div className="featured-pricing-block">
+                  <span className="pricing-label">Hourly Rate</span>
+                  <strong className="pricing-amount">{featuredFacility.price}</strong>
+                </div>
+
+                <div className="featured-actions-group">
+                  {onDetails && (
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      onClick={() => onDetails(featuredFacility)}
+                    >
+                      View details
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="secondary-btn"
-                    onClick={() => onDetails(featuredFacility)}
+                    className="primary-btn hero-book-btn"
+                    onClick={() => onBook(featuredFacility)}
                   >
-                    View details
+                    Book now →
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="primary-btn hero-book-btn"
-                  onClick={() => onBook(featuredFacility)}
-                >
-                  Book now →
-                </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Facilities Grid */}
       <div className="facility-marketplace-grid">
         {(selectedCategory === 'All' ? otherFacilities : filteredFacilities).map((facility) => {
           const imgUrl = getFacilityImage(facility)
-          const ratingVal = facility.rating ? Number(facility.rating).toFixed(1) : '4.8'
+          const { rating, count } = getFacilityRatingStats(facility, reviews)
+          const isOccupied = isFacilityOccupiedNow(facility, bookings)
+          const courtTypeTag = facility.courtType || facility.courtTag || 'Indoor'
 
           return (
             <article
@@ -163,10 +181,12 @@ export default function FacilityMarketplace({
                 <img src={imgUrl} alt={facility.name} className="marketplace-card-img" />
                 <div className="marketplace-card-overlay" />
                 <div className="card-floating-badges">
-                  <span className="venue-type-chip">{facility.type || 'Court'}</span>
-                  <span className="venue-status-chip">
-                    <span className="live-dot" />
-                    {facility.status || 'Available'}
+                  <span className={`venue-court-badge ${courtTypeTag.toLowerCase()}`}>
+                    {courtTypeTag === 'Outdoor' ? '🌳 Outdoor' : '🏢 Indoor'}
+                  </span>
+                  <span className={`venue-status-chip ${isOccupied ? 'status-in-play' : ''}`}>
+                    <span className={`live-dot ${isOccupied ? 'dot-in-play' : ''}`} />
+                    {!facility.isAvailable ? 'Maintenance' : isOccupied ? '🔴 In Play' : 'Available'}
                   </span>
                 </div>
               </div>
@@ -174,9 +194,11 @@ export default function FacilityMarketplace({
               <div className="marketplace-card-content">
                 <div className="card-title-row">
                   <h4 className="marketplace-card-name">{facility.name}</h4>
-                  <div className="card-rating-chip" title={`${ratingVal} star rating`}>
-                    ★ {ratingVal}
-                  </div>
+                  {rating != null && count > 0 && (
+                    <div className="card-rating-chip" title={`${rating} star rating (${count} reviews)`}>
+                      ★ {rating.toFixed(1)} {count > 1 ? `(${count})` : ''}
+                    </div>
+                  )}
                 </div>
 
                 <p className="marketplace-card-desc">

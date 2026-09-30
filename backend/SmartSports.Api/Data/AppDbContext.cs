@@ -41,10 +41,24 @@ public class AppDbContext : DbContext
     public DbSet<BookingWorkflow> BookingWorkflows => Set<BookingWorkflow>();
     public DbSet<BookingWorkflowStep> BookingWorkflowSteps => Set<BookingWorkflowStep>();
     public DbSet<BookingWorkflowAuditEvent> BookingWorkflowAuditEvents => Set<BookingWorkflowAuditEvent>();
+    public DbSet<BookingEquipmentPayment> BookingEquipmentPayments => Set<BookingEquipmentPayment>();
+    public DbSet<Equipment> Equipments => Set<Equipment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<Equipment>()
+            .HasOne(e => e.Facility)
+            .WithMany()
+            .HasForeignKey(e => e.FacilityId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<BookingEquipmentPayment>()
+            .HasOne(p => p.Booking)
+            .WithMany(b => b.EquipmentPayments)
+            .HasForeignKey(p => p.BookingId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Email)
@@ -241,13 +255,13 @@ public class AppDbContext : DbContext
     {
         var defaultFacilities = new[]
         {
-            new Facility { Name = "Cricket Ground", Description = "A full-size cricket ground for matches and training.", HourlyRate = 6500, Faq = "[{\"question\":\"Can teams book the ground?\",\"answer\":\"Yes, team and individual bookings are supported.\"}]", IsAvailable = true },
-            new Facility { Name = "Badminton Court", Description = "Indoor court with tournament-quality flooring.", HourlyRate = 1200, Faq = "[{\"question\":\"Are rackets provided?\",\"answer\":\"Equipment availability depends on the selected session.\"}]", IsAvailable = true },
-            new Facility { Name = "Football Field", Description = "Floodlit football field for training and competitive games.", HourlyRate = 4500, Faq = "[{\"question\":\"Does the rate include lighting?\",\"answer\":\"Yes, standard lighting is included.\"}]", IsAvailable = true },
-            new Facility { Name = "Indoor Basketball Arena", Description = "Professional indoor basketball arena with spectator seating.", HourlyRate = 3000, Faq = "[{\"question\":\"How many players can use the arena?\",\"answer\":\"The arena supports standard five-a-side basketball sessions.\"}]", IsAvailable = true },
-            new Facility { Name = "Swimming Pool", Description = "A maintained swimming pool for lessons, fitness, and recreation.", HourlyRate = 2000, Faq = "[{\"question\":\"Are swimming lanes available?\",\"answer\":\"Lane availability is shown during booking.\"}]", IsAvailable = true },
-            new Facility { Name = "Table Tennis Court", Description = "Indoor table tennis space for casual and competitive play.", HourlyRate = 1000, Faq = "[{\"question\":\"Are bats and balls included?\",\"answer\":\"Basic equipment can be requested at reception.\"}]", IsAvailable = true },
-            new Facility { Name = "Volleyball Court", Description = "Outdoor volleyball court suitable for training and matches.", HourlyRate = 2800, Faq = "[{\"question\":\"Can the court be reserved for tournaments?\",\"answer\":\"Yes, contact the facilities team for tournament arrangements.\"}]", IsAvailable = true }
+            new Facility { Name = "Cricket Ground", Description = "A full-size cricket ground for matches and training.", HourlyRate = 6500, Faq = "[{\"question\":\"Can teams book the ground?\",\"answer\":\"Yes, team and individual bookings are supported.\"}]", IsAvailable = true, CourtType = "Outdoor", EquipmentsProvided = "[{\"name\":\"Kashmir Willow Bats\",\"hourlyRate\":500},{\"name\":\"Red Leather Match Balls (Box of 2)\",\"hourlyRate\":400},{\"name\":\"Practice Stumps & Wickets\",\"hourlyRate\":250},{\"name\":\"Full Batting Pads & Gloves Set\",\"hourlyRate\":350},{\"name\":\"Protective Helmets\",\"hourlyRate\":200}]" },
+            new Facility { Name = "Badminton Court", Description = "Indoor court with tournament-quality flooring.", HourlyRate = 1200, Faq = "[{\"question\":\"Are rackets provided?\",\"answer\":\"Equipment availability depends on the selected session.\"}]", IsAvailable = true, CourtType = "Indoor", EquipmentsProvided = "[{\"name\":\"Yonex Carbon Rackets (Pair)\",\"hourlyRate\":300},{\"name\":\"Tournament Feather Shuttlecocks (Tube)\",\"hourlyRate\":400},{\"name\":\"Badminton Net\",\"hourlyRate\":200},{\"name\":\"Training Grip Tape & Powder\",\"hourlyRate\":150}]" },
+            new Facility { Name = "Football Field", Description = "Floodlit football field for training and competitive games.", HourlyRate = 4500, Faq = "[{\"question\":\"Does the rate include lighting?\",\"answer\":\"Yes, standard lighting is included.\"}]", IsAvailable = true, CourtType = "Outdoor", EquipmentsProvided = "[{\"name\":\"FIFA Quality Pro Match Balls\",\"hourlyRate\":300},{\"name\":\"Training Bibs Set (10 pcs)\",\"hourlyRate\":200},{\"name\":\"Agility Hurdles & Cones Set\",\"hourlyRate\":250},{\"name\":\"Goalkeeper Gloves (Pair)\",\"hourlyRate\":250}]" },
+            new Facility { Name = "Indoor Basketball Arena", Description = "Professional indoor basketball arena with spectator seating.", HourlyRate = 3000, Faq = "[{\"question\":\"How many players can use the arena?\",\"answer\":\"The arena supports standard five-a-side basketball sessions.\"}]", IsAvailable = true, CourtType = "Indoor", EquipmentsProvided = "[{\"name\":\"Spalding Official Leather Basketballs\",\"hourlyRate\":300},{\"name\":\"Electronic Shot Clock Remote\",\"hourlyRate\":400},{\"name\":\"Training Cones & Markers\",\"hourlyRate\":150}]" },
+            new Facility { Name = "Swimming Pool", Description = "A maintained swimming pool for lessons, fitness, and recreation.", HourlyRate = 2000, Faq = "[{\"question\":\"Are swimming lanes available?\",\"answer\":\"Lane availability is shown during booking.\"}]", IsAvailable = true, CourtType = "Outdoor", EquipmentsProvided = "[{\"name\":\"Competition Kickboards & Pull Buoys\",\"hourlyRate\":200},{\"name\":\"Swim Fins Set\",\"hourlyRate\":250},{\"name\":\"Water Polo Balls\",\"hourlyRate\":250},{\"name\":\"Lane Divider Set\",\"hourlyRate\":300}]" },
+            new Facility { Name = "Table Tennis Court", Description = "Indoor table tennis space for casual and competitive play.", HourlyRate = 1000, Faq = "[{\"question\":\"Are bats and balls included?\",\"answer\":\"Basic equipment can be requested at reception.\"}]", IsAvailable = true, CourtType = "Indoor", EquipmentsProvided = "[{\"name\":\"Stiga Competition Paddles (Pair)\",\"hourlyRate\":200},{\"name\":\"ITTF 3-Star Balls (Pack of 3)\",\"hourlyRate\":150},{\"name\":\"ITTF Regulation Net & Post Set\",\"hourlyRate\":150}]" },
+            new Facility { Name = "Volleyball Court", Description = "Outdoor volleyball court suitable for training and matches.", HourlyRate = 2800, Faq = "[{\"question\":\"Can the court be reserved for tournaments?\",\"answer\":\"Yes, contact the facilities team for tournament arrangements.\"}]", IsAvailable = true, CourtType = "Outdoor", EquipmentsProvided = "[{\"name\":\"Mikasa Official Match Volleyballs\",\"hourlyRate\":250},{\"name\":\"Antennae & Boundary Lines\",\"hourlyRate\":200},{\"name\":\"Ball Cart\",\"hourlyRate\":150}]" }
         };
 
         var existingFacilities = context.Facilities.ToList();
@@ -267,6 +281,11 @@ public class AppDbContext : DbContext
                 existing.HourlyRate = def.HourlyRate;
                 existing.Faq = def.Faq;
                 existing.Images = def.Images;
+                existing.EquipmentsProvided = def.EquipmentsProvided;
+                if (string.IsNullOrWhiteSpace(existing.CourtType))
+                {
+                    existing.CourtType = def.CourtType;
+                }
             }
             else
             {
@@ -346,5 +365,67 @@ public class AppDbContext : DbContext
         {
             context.SaveChanges();
         }
+    }
+
+    public static void SeedEquipments(AppDbContext context)
+    {
+        if (context.Equipments.Any())
+        {
+            return;
+        }
+
+        var defaultEquipments = new[]
+        {
+            // Badminton
+            new Equipment { Name = "Yonex Carbon Rackets (Pair)", SportCategory = "Badminton", HourlyRate = 300, TotalStock = 20, Description = "High-tension tournament carbon fiber racket pair", IsAvailable = true },
+            new Equipment { Name = "Tournament Feather Shuttlecocks (Tube)", SportCategory = "Badminton", HourlyRate = 400, TotalStock = 30, Description = "Official BWF speed-77 goose feather shuttlecocks (12 pack)", IsAvailable = true },
+            new Equipment { Name = "Badminton Training Net", SportCategory = "Badminton", HourlyRate = 200, TotalStock = 8, Description = "Heavy-duty tournament mesh court net", IsAvailable = true },
+            new Equipment { Name = "Grip Wrap & Anti-Slip Powder Set", SportCategory = "Badminton", HourlyRate = 150, TotalStock = 40, Description = "Absorbent towel grips and magnesium grip powder", IsAvailable = true },
+
+            // Cricket
+            new Equipment { Name = "Kashmir Willow Bats (Senior)", SportCategory = "Cricket", HourlyRate = 500, TotalStock = 15, Description = "Handcrafted premium willow bat with protective toe guard", IsAvailable = true },
+            new Equipment { Name = "Red Leather Match Balls (Box of 2)", SportCategory = "Cricket", HourlyRate = 400, TotalStock = 25, Description = "Grade-A alum-tanned 4-piece leather match balls", IsAvailable = true },
+            new Equipment { Name = "Practice Stumps & Bails Set", SportCategory = "Cricket", HourlyRate = 250, TotalStock = 10, Description = "Spring-loaded target wickets and zinc bails", IsAvailable = true },
+            new Equipment { Name = "Full Batting Pads & Gloves Set", SportCategory = "Cricket", HourlyRate = 350, TotalStock = 12, Description = "Moulded cane legguards and split-finger sausage gloves", IsAvailable = true },
+            new Equipment { Name = "Protective Cricket Helmet", SportCategory = "Cricket", HourlyRate = 200, TotalStock = 15, Description = "Titanium grill safety helmet for pace bowling", IsAvailable = true },
+
+            // Football
+            new Equipment { Name = "FIFA Quality Pro Match Balls", SportCategory = "Football", HourlyRate = 300, TotalStock = 20, Description = "Thermally bonded FIFA Pro official match ball size 5", IsAvailable = true },
+            new Equipment { Name = "Training Bibs Set (10 Pack)", SportCategory = "Football", HourlyRate = 200, TotalStock = 15, Description = "Breathable neon scrimmage bibs for squad drills", IsAvailable = true },
+            new Equipment { Name = "Agility Ladder & Training Cones", SportCategory = "Football", HourlyRate = 250, TotalStock = 10, Description = "6m coordination ladder and 20 marker saucer cones", IsAvailable = true },
+            new Equipment { Name = "Pro Goalkeeper Gloves (Pair)", SportCategory = "Football", HourlyRate = 250, TotalStock = 8, Description = "4mm German latex foam negative cut match gloves", IsAvailable = true },
+
+            // Basketball
+            new Equipment { Name = "Spalding Official Leather Basketball", SportCategory = "Basketball", HourlyRate = 300, TotalStock = 18, Description = "Composite leather FIBA certified indoor game ball", IsAvailable = true },
+            new Equipment { Name = "Electronic Shot Clock Remote & Whistle", SportCategory = "Basketball", HourlyRate = 400, TotalStock = 5, Description = "Handheld 24-second buzzer system and coach whistle", IsAvailable = true },
+            new Equipment { Name = "Court Marker Cones & Agility Spots", SportCategory = "Basketball", HourlyRate = 150, TotalStock = 12, Description = "Flat non-slip rubber court markers and training cones", IsAvailable = true },
+
+            // Swimming
+            new Equipment { Name = "Competition Kickboard & Pull Buoy Set", SportCategory = "Swimming", HourlyRate = 200, TotalStock = 25, Description = "High-density EVA foam buoyant stroke training tools", IsAvailable = true },
+            new Equipment { Name = "Hydrodynamic Swim Fins Set", SportCategory = "Swimming", HourlyRate = 250, TotalStock = 15, Description = "Silicone dual-flex propulsion fins for lap training", IsAvailable = true },
+            new Equipment { Name = "Water Polo Match Ball", SportCategory = "Swimming", HourlyRate = 250, TotalStock = 10, Description = "Grip-treated waterproof competition water polo ball", IsAvailable = true },
+
+            // Tennis
+            new Equipment { Name = "Wilson Pro Staff Tennis Rackets (Pair)", SportCategory = "Tennis", HourlyRate = 350, TotalStock = 16, Description = "Graphite composite balanced tennis rackets with synthetic gut strings", IsAvailable = true },
+            new Equipment { Name = "Championship Tennis Balls (Can of 3)", SportCategory = "Tennis", HourlyRate = 250, TotalStock = 30, Description = "Pressurized extra duty felt tournament tennis balls", IsAvailable = true },
+            new Equipment { Name = "Tennis Ball Collector Hopper", SportCategory = "Tennis", HourlyRate = 200, TotalStock = 6, Description = "Portable 72-ball pickup wire basket", IsAvailable = true },
+
+            // Table Tennis
+            new Equipment { Name = "Stiga Competition Paddles (Pair)", SportCategory = "Table Tennis", HourlyRate = 200, TotalStock = 20, Description = "5-ply offensive carbon blades with ITTF approved tacky rubber", IsAvailable = true },
+            new Equipment { Name = "ITTF 3-Star Balls (Pack of 6)", SportCategory = "Table Tennis", HourlyRate = 150, TotalStock = 40, Description = "40+ seamless tournament grade poly balls", IsAvailable = true },
+            new Equipment { Name = "ITTF Regulation Net & Post Set", SportCategory = "Table Tennis", HourlyRate = 150, TotalStock = 8, Description = "Heavy clamp screw-on tension adjustable net kit", IsAvailable = true },
+
+            // Volleyball
+            new Equipment { Name = "Mikasa Official Match Volleyball", SportCategory = "Volleyball", HourlyRate = 250, TotalStock = 15, Description = "18-panel dimpled composite microfiber official ball", IsAvailable = true },
+            new Equipment { Name = "Antennae & Boundary Guidelines", SportCategory = "Volleyball", HourlyRate = 200, TotalStock = 6, Description = "Fiberglass side antennas and velcro fastening court tape", IsAvailable = true },
+            new Equipment { Name = "Heavy-Duty Ball Carrying Cart", SportCategory = "Volleyball", HourlyRate = 150, TotalStock = 5, Description = "Collapsible wheeled 24-ball hammock cart", IsAvailable = true },
+
+            // Fitness & Other
+            new Equipment { Name = "Resistance Bands & Kettlebell Set", SportCategory = "Fitness", HourlyRate = 300, TotalStock = 12, Description = "Loop resistance bands (5 strengths) and cast iron kettlebells", IsAvailable = true },
+            new Equipment { Name = "Gym Training Dumbbells (Pair)", SportCategory = "Fitness", HourlyRate = 250, TotalStock = 15, Description = "Rubber encased hex dumbbells (5kg - 20kg available)", IsAvailable = true }
+        };
+
+        context.Equipments.AddRange(defaultEquipments);
+        context.SaveChanges();
     }
 }

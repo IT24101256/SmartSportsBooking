@@ -26,6 +26,8 @@ export default function OverviewPage({
   onFacilities,
   onSchedule,
   onBookings,
+  onFacilityDetails,
+  onScheduleDetails,
   onDetails,
   onReview,
   onEditReview,
@@ -55,9 +57,15 @@ export default function OverviewPage({
       {/* 3. Popular & Featured Facilities Marketplace */}
       <FacilityMarketplace
         facilities={facilities}
+        bookings={bookings}
+        reviews={reviews}
         onBook={onBooking}
         onDetails={(facility) => {
-          if (onFacilities) onFacilities()
+          if (onFacilityDetails) {
+            onFacilityDetails(facility)
+          } else if (onFacilities) {
+            onFacilities()
+          }
         }}
         onSeeAll={onFacilities}
       />
@@ -75,8 +83,15 @@ export default function OverviewPage({
       {/* 5. Member Activity Stats */}
       <ActivityStats stats={stats} />
 
-      {/* 6. Booking Activity / Leaderboard */}
-      <BookingActivityRanking analytics={analytics} />
+      {/* 6. Popularity Leaderboard & Court Timetable in One Row (50% / 50%) */}
+      <div className="overview-split-row">
+        <BookingActivityRanking analytics={analytics} />
+        <ScheduleTimeline
+          schedule={schedule}
+          onDetails={onScheduleDetails || onDetails}
+          onBookSlot={onBooking}
+        />
+      </div>
 
       {/* 7. Member Reviews */}
       <MemberReviewsSection
@@ -85,13 +100,6 @@ export default function OverviewPage({
         currentUser={currentUser}
         onEdit={onEditReview}
         onDelete={onDeleteReview}
-      />
-
-      {/* 8. Today's Schedule */}
-      <ScheduleTimeline
-        schedule={schedule}
-        onDetails={onDetails}
-        onBookSlot={onBooking}
       />
 
       {/* 9. Support Teaser */}

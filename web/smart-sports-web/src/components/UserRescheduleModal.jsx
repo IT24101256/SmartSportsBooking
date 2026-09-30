@@ -59,15 +59,31 @@ export default function UserRescheduleModal({ booking, token, apiBaseUrl, onClos
     if (!start) return ''
     const startHour = Number(start.slice(0, 2))
     const endHour = startHour + hoursNeeded
-    if (endHour >= 24) return '23:59'
+    if (endHour === 24) return '24:00 (Midnight)'
+    if (endHour > 24) return '24:00'
     return `${String(endHour).padStart(2, '0')}:00`
   }
+
+  const conflictSlot = (() => {
+    if (!newStartTime || !availability?.slots) return null
+    const startHour = Number(newStartTime.slice(0, 2))
+    for (let i = 0; i < hoursNeeded; i++) {
+      const h = startHour + i
+      if (h >= 24) return 'Midnight (Facility closes at 24:00)'
+      const timePrefix = `${String(h).padStart(2, '0')}:`
+      const s = availability.slots.find((slot) => slot.startTime.startsWith(timePrefix))
+      if (!s || String(s.status).toLowerCase() !== 'available') {
+        return `${String(h).padStart(2, '0')}:00 (${s?.status || 'Unavailable'})`
+      }
+    }
+    return null
+  })()
 
   const selectedSlot = availability?.slots?.find(
     (slot) => slot.startTime.slice(0, 5) === newStartTime && String(slot.status).toLowerCase() === 'available'
   )
 
-  const canSubmit = Boolean(newStartTime && selectedSlot && !submitting)
+  const canSubmit = Boolean(newStartTime && selectedSlot && !conflictSlot && !submitting)
 
   const handleRescheduleSubmit = async (e) => {
     e.preventDefault()
@@ -76,8 +92,10 @@ export default function UserRescheduleModal({ booking, token, apiBaseUrl, onClos
     setSubmitting(true)
     setErrorMsg('')
     try {
-      const calculatedEnd = calculateEndTime(newStartTime)
-      await onConfirm(booking, newDate, `${newStartTime}:00`, `${calculatedEnd}:00`)
+      const startHour = Number(newStartTime.slice(0, 2))
+      const endHour = startHour + hoursNeeded
+      const apiEnd = endHour === 24 ? '24:00:00' : `${String(endHour).padStart(2, '0')}:00:00`
+      await onConfirm(booking, newDate, `${newStartTime}:00`, apiEnd)
       onClose()
     } catch (err) {
       setErrorMsg(err?.message || 'Could not reschedule booking. Please try another slot.')
@@ -153,28 +171,54 @@ export default function UserRescheduleModal({ booking, token, apiBaseUrl, onClos
 
             <div className="availability-slots" style={{ maxHeight: '180px', overflowY: 'auto', marginTop: '10px' }}>
               {availability?.slots?.map((slot) => {
-                const isSelected = slot.startTime.slice(0, 5) === newStartTime
-                const isAvailable = String(slot.status).toLowerCase() === 'available'
+                const timeKey = slot.startTime.slice(0, 5)
+                const isSelected = timeKey === newStartTime
+                const startH = Number(timeKey.slice(0, 2))
+                let hasConsecutive = String(slot.status).toLowerCase() === 'available' && startH + hoursNeeded <= 24
+                if (hasConsecutive && hoursNeeded > 1) {
+                  for (let i = 1; i < hoursNeeded; i++) {
+                    const nextH = startH + i
+                    const nextPrefix = `${String(nextH).padStart(2, '0')}:`
+                    const nextSlot = availability.slots.find((s) => s.startTime.startsWith(nextPrefix))
+                    if (!nextSlot || String(nextSlot.status).toLowerCase() !== 'available') {
+                      hasConsecutive = false
+                      break
+                    }
+                  }
+                }
+                const isAvailable = hasConsecutive
                 return (
                   <button
                     key={slot.startTime}
                     type="button"
                     disabled={!isAvailable}
                     className={`availability-slot ${slot.status.toLowerCase()} ${isSelected ? 'selected' : ''}`}
-                    onClick={() => setNewStartTime(slot.startTime.slice(0, 5))}
+                    onClick={() => setNewStartTime(timeKey)}
                     style={
                       isSelected
                         ? { borderColor: '#10b981', backgroundColor: '#ecfdf5', outline: '2px solid #10b981' }
                         : {}
                     }
                   >
-                    <strong>{slot.startTime.slice(0, 5)}</strong>
-                    <small>{slot.status}</small>
+                    <strong>{timeKey}</strong>
+                    <small>{!hasConsecutive && String(slot.status).toLowerCase() === 'available' ? 'Partial' : slot.status}</small>
                   </button>
                 )
               })}
             </div>
           </div>
+
+          {conflictSlot && (
+            <div className="duration-conflict-warning" style={{ marginTop: '12px' }}>
+              <span className="warning-icon">⚠️</span>
+              <div className="warning-content">
+                <strong>Schedule Conflict</strong>
+                <p>
+                  Rescheduling for {hoursNeeded} hr(s) cannot start at {newStartTime} because the slot at <strong>{conflictSlot}</strong> is unavailable. Please pick a start time with {hoursNeeded} consecutive hours available.
+                </p>
+              </div>
+            </div>
+          )}
 
           {newStartTime && (
             <div className="reschedule-summary-box">

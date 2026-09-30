@@ -82,9 +82,20 @@ public class DashboardDataController : ControllerBase
             .Where(booking => booking.BookingDate >= start && booking.BookingDate < end &&
                 booking.Status != "Cancelled" && (booking.PaymentStatus == "Paid" || booking.PaymentStatus == "Approved" || booking.Status == "Confirmed"))
             .Include(booking => booking.Facility)
+            .Include(booking => booking.EquipmentPayments)
             .OrderByDescending(booking => booking.BookingDate)
             .ThenByDescending(booking => booking.StartTime)
             .ToListAsync();
+
+        var equipmentPaymentsQuery = await _context.BookingEquipmentPayments
+            .Include(ep => ep.Booking)
+            .ThenInclude(b => b!.Facility)
+            .Where(ep => ep.CreatedAtUtc >= start && ep.CreatedAtUtc < end)
+            .OrderByDescending(ep => ep.CreatedAtUtc)
+            .ToListAsync();
+
+        var totalEquipmentRevenue = bookings.Sum(b => b.EquipmentPayments?.Sum(ep => ep.TotalAmount) ?? 0);
+        var totalGrossRevenue = bookings.Sum(booking => booking.TotalAmount);
 
         return Ok(new
         {
@@ -92,8 +103,11 @@ public class DashboardDataController : ControllerBase
             toDate = end.AddDays(-1),
             startDate = start,
             endDate = end.AddDays(-1),
-            totalRevenue = bookings.Sum(booking => booking.TotalAmount),
+            totalRevenue = totalGrossRevenue,
+            courtRevenue = totalGrossRevenue - totalEquipmentRevenue,
+            equipmentRevenue = totalEquipmentRevenue,
             bookingCount = bookings.Count,
+            equipmentTransactionsCount = equipmentPaymentsQuery.Count,
             items = bookings.Select(booking => new
             {
                 booking.Id,
@@ -103,7 +117,38 @@ public class DashboardDataController : ControllerBase
                 booking.TotalAmount,
                 booking.PaymentMethod,
                 paymentStatus = booking.PaymentStatus,
-                booking.Status
+                booking.Status,
+                equipmentPayments = booking.EquipmentPayments?.Select(ep => new
+                {
+                    ep.Id,
+                    ep.EquipmentName,
+                    ep.Quantity,
+                    ep.HourlyRate,
+                    ep.Hours,
+                    ep.TotalAmount,
+                    ep.PaymentMethod,
+                    ep.PaymentStatus,
+                    ep.CollectedBy,
+                    ep.Notes,
+                    ep.CreatedAtUtc
+                }).ToList() ?? new()
+            }),
+            equipmentTransactions = equipmentPaymentsQuery.Select(ep => new
+            {
+                ep.Id,
+                bookingId = ep.BookingId,
+                facility = ep.Booking?.Facility?.Name ?? "General Venue",
+                customer = ep.Booking?.CustomerName ?? "Member",
+                equipmentName = ep.EquipmentName,
+                quantity = ep.Quantity,
+                hourlyRate = ep.HourlyRate,
+                hours = ep.Hours,
+                totalAmount = ep.TotalAmount,
+                paymentMethod = ep.PaymentMethod,
+                paymentStatus = ep.PaymentStatus,
+                collectedBy = ep.CollectedBy,
+                notes = ep.Notes,
+                createdAtUtc = ep.CreatedAtUtc
             })
         });
     }

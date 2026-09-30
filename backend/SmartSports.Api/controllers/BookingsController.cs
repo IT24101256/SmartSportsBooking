@@ -161,6 +161,7 @@ public class BookingsController : ControllerBase
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Include(booking => booking.Facility)
+            .Include(booking => booking.EquipmentPayments)
             .ToListAsync();
 
         var slNow = CancellationRefundService.GetCurrentLocalTime();
@@ -172,7 +173,7 @@ public class BookingsController : ControllerBase
             b.Facility,
             b.BookingDate,
             b.StartTime,
-            b.EndTime,
+            EndTime = b.EndTime.TotalHours >= 24 ? "24:00:00" : b.EndTime.ToString(@"hh\:mm\:ss"),
             b.HoursNeeded,
             b.TotalAmount,
             b.CustomerName,
@@ -194,7 +195,22 @@ public class BookingsController : ControllerBase
             b.IsRescheduleRequested,
             b.RescheduleReason,
             b.RescheduleRequestedAt,
-            IsExpired = CancellationRefundService.IsBookingExpired(b.BookingDate, b.StartTime, slNow)
+            IsExpired = CancellationRefundService.IsBookingExpired(b.BookingDate, b.StartTime, slNow),
+            EquipmentPayments = b.EquipmentPayments?.Select(ep => new
+            {
+                ep.Id,
+                ep.BookingId,
+                ep.EquipmentName,
+                ep.Quantity,
+                ep.HourlyRate,
+                ep.Hours,
+                ep.TotalAmount,
+                ep.PaymentMethod,
+                ep.PaymentStatus,
+                ep.CollectedBy,
+                ep.Notes,
+                ep.CreatedAtUtc
+            }).ToList() ?? new()
         });
 
         return Ok(new
@@ -236,10 +252,15 @@ public class BookingsController : ControllerBase
             return BadRequest("Bookings must start on a whole hour between 08:00 and 23:00.");
         }
 
-        if (request.HoursNeeded < 1 || request.EndTime != request.StartTime.Add(TimeSpan.FromHours(request.HoursNeeded)) || request.EndTime > TimeSpan.FromHours(24))
+        var expectedEndTime = request.StartTime.Add(TimeSpan.FromHours(request.HoursNeeded));
+
+        if (request.HoursNeeded < 1 || expectedEndTime > TimeSpan.FromHours(24))
         {
             return BadRequest("Bookings must be for at least one whole hour and end by midnight.");
         }
+
+        // Normalise EndTime to the exact computed end time based on StartTime + HoursNeeded
+        request.EndTime = expectedEndTime;
 
         if (!new[] { "Card", "BankTransfer", "Cash" }.Contains(request.PaymentMethod, StringComparer.OrdinalIgnoreCase) ||
             (request.PaymentMethod.Equals("Cash", StringComparison.OrdinalIgnoreCase) && !User.IsInRole("Admin") && !User.IsInRole("Manager")))
@@ -252,13 +273,32 @@ public class BookingsController : ControllerBase
             return BadRequest("A bank transfer slip is required.");
         }
 
-        if (request.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) &&
-            (request.CardNumber?.Length != 16 || !request.CardNumber.All(char.IsDigit) ||
-             request.ExpiryMonth is < 1 or > 12 || request.ExpiryYear is null || request.ExpiryYear < DateTime.UtcNow.Year || request.ExpiryYear > DateTime.UtcNow.Year + 10 ||
-             (request.ExpiryYear == DateTime.UtcNow.Year && request.ExpiryMonth < DateTime.UtcNow.Month) ||
-             request.Cvv?.Length != 3 || !request.Cvv.All(char.IsDigit)))
+        if (request.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase))
         {
-            return BadRequest("Card number, expiry month/year, and CVV are invalid.");
+            if (request.ExpiryYear is < 100)
+            {
+                request.ExpiryYear += 2000;
+            }
+
+            bool isValidCard = !string.IsNullOrWhiteSpace(request.CardNumber) &&
+                ((request.CardNumber.Length == 16 && request.CardNumber.All(char.IsDigit)) ||
+                 request.CardNumber.StartsWith("tok_") ||
+                 request.CardNumber.Contains("•") ||
+                 !string.IsNullOrWhiteSpace(request.CardLastFour));
+
+            if (!isValidCard ||
+                request.ExpiryMonth is < 1 or > 12 ||
+                request.ExpiryYear is null ||
+                request.ExpiryYear < DateTime.UtcNow.Year ||
+                request.ExpiryYear > DateTime.UtcNow.Year + 15 ||
+                (request.ExpiryYear == DateTime.UtcNow.Year && request.ExpiryMonth < DateTime.UtcNow.Month) ||
+                string.IsNullOrWhiteSpace(request.Cvv) ||
+                request.Cvv.Length != 3 ||
+                !request.Cvv.All(char.IsDigit) ||
+                request.Cvv == "000")
+            {
+                return BadRequest("Card number, expiry month/year, and CVV are invalid.");
+            }
         }
 
         if (!System.Text.RegularExpressions.Regex.IsMatch(request.NicNumber.Trim(), @"^(\d{9}[VvXx]|\d{12})$"))
@@ -316,7 +356,11 @@ public class BookingsController : ControllerBase
             ContactNumber = request.ContactNumber.Trim(),
             PaymentMethod = request.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ? "Card" : request.PaymentMethod.Equals("Cash", StringComparison.OrdinalIgnoreCase) ? "Cash" : "BankTransfer",
             PaymentStatus = request.PaymentMethod.Equals("BankTransfer", StringComparison.OrdinalIgnoreCase) ? "Pending" : "Paid",
-            CardLastFour = request.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ? request.CardLastFour : null,
+            CardLastFour = request.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) 
+                ? (!string.IsNullOrWhiteSpace(request.CardLastFour) 
+                    ? request.CardLastFour 
+                    : request.CardNumber?.Length >= 4 ? request.CardNumber.Substring(request.CardNumber.Length - 4) : null) 
+                : null,
             Status = request.PaymentMethod.Equals("BankTransfer", StringComparison.OrdinalIgnoreCase) ? "Pending" : "Confirmed"
         };
 
@@ -588,16 +632,13 @@ public class BookingsController : ControllerBase
             return BadRequest("Bookings must start on a whole hour between 08:00 and 23:00.");
         }
 
-        var endTime = request.EndTime ?? request.StartTime.Add(TimeSpan.FromHours(booking.HoursNeeded));
-        if (endTime <= request.StartTime)
-        {
-            return BadRequest("The end time must be after the start time.");
-        }
-
-        if (endTime > TimeSpan.FromHours(24))
+        var expectedEndTime = request.StartTime.Add(TimeSpan.FromHours(booking.HoursNeeded));
+        if (booking.HoursNeeded < 1 || expectedEndTime > TimeSpan.FromHours(24))
         {
             return BadRequest("Bookings must end by midnight.");
         }
+
+        var endTime = expectedEndTime;
 
         // Check conflicts (excluding this booking and cancelled bookings)
         var overlap = await _context.Bookings.AnyAsync(other =>
@@ -641,6 +682,104 @@ public class BookingsController : ControllerBase
         return Ok(booking);
     }
 
+    [HttpPost("{id:int}/additional-equipment")]
+    [Authorize(Roles = "Admin,Manager")]
+    public async Task<IActionResult> AddAdditionalEquipment(int id, [FromBody] AddEquipmentPaymentRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.EquipmentName))
+        {
+            return BadRequest("Equipment name is required.");
+        }
+
+        if (request.Quantity <= 0)
+        {
+            return BadRequest("Quantity must be greater than zero.");
+        }
+
+        if (request.HourlyRate < 0)
+        {
+            return BadRequest("Hourly rate cannot be negative.");
+        }
+
+        if (request.Hours <= 0)
+        {
+            return BadRequest("Hours must be greater than zero.");
+        }
+
+        var normalizedPaymentMethod = request.PaymentMethod?.Trim();
+        if (!string.Equals(normalizedPaymentMethod, "Cash in hand", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(normalizedPaymentMethod, "Card (Machine)", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(normalizedPaymentMethod, "Card(machine)", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(normalizedPaymentMethod, "Card", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest("Payment method must be 'Cash in hand' or 'Card (Machine)'.");
+        }
+
+        var standardPaymentMethod = string.Equals(normalizedPaymentMethod, "Cash in hand", StringComparison.OrdinalIgnoreCase)
+            ? "Cash in hand"
+            : "Card (Machine)";
+
+        var booking = await _context.Bookings
+            .Include(b => b.EquipmentPayments)
+            .Include(b => b.Facility)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking == null) return NotFound("Booking not found.");
+
+        if (booking.Status == "Cancelled")
+        {
+            return BadRequest("Cannot add additional equipment to a cancelled booking.");
+        }
+
+        var staffName = User.FindFirstValue(ClaimTypes.Name) 
+            ?? User.FindFirstValue(ClaimTypes.Email) 
+            ?? (User.IsInRole("Admin") ? "Admin" : "Manager");
+
+        var totalAmount = Math.Round(request.Quantity * request.HourlyRate * request.Hours, 2);
+
+        var payment = new BookingEquipmentPayment
+        {
+            BookingId = booking.Id,
+            EquipmentName = request.EquipmentName.Trim(),
+            Quantity = request.Quantity,
+            HourlyRate = request.HourlyRate,
+            Hours = request.Hours,
+            TotalAmount = totalAmount,
+            PaymentMethod = standardPaymentMethod,
+            PaymentStatus = "Paid",
+            CollectedBy = staffName,
+            Notes = request.Notes?.Trim(),
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        booking.EquipmentPayments.Add(payment);
+        booking.TotalAmount += totalAmount;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Additional equipment payment recorded successfully.",
+            payment = new
+            {
+                payment.Id,
+                payment.BookingId,
+                payment.EquipmentName,
+                payment.Quantity,
+                payment.HourlyRate,
+                payment.Hours,
+                payment.TotalAmount,
+                payment.PaymentMethod,
+                payment.PaymentStatus,
+                payment.CollectedBy,
+                payment.Notes,
+                payment.CreatedAtUtc
+            },
+            updatedBookingTotal = booking.TotalAmount,
+            bookingId = booking.Id
+        });
+    }
+
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateBooking(int id, UpdateBookingRequest request)
     {
@@ -650,6 +789,12 @@ public class BookingsController : ControllerBase
         var booking = await _context.Bookings.FindAsync(id);
         if (booking == null) return NotFound();
         if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && booking.UserId != userId.Value) return Forbid();
+        // Normalise 24:00:00 (which .NET can parse as 24 days / 576 hours)
+        if (request.EndTime.TotalHours == 576 || (request.EndTime.Days == 24 && request.EndTime.Hours == 0))
+        {
+            request.EndTime = TimeSpan.FromHours(24);
+        }
+
         if (request.EndTime <= request.StartTime) return BadRequest("The end time must be after the start time.");
         if (!await _context.Facilities.AnyAsync(facility => facility.Id == request.FacilityId)) return NotFound("Facility not found.");
 

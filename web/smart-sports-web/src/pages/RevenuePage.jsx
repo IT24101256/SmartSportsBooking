@@ -21,6 +21,7 @@ export default function RevenuePage({ apiBaseUrl, token }) {
   // Search & filter for transactions
   const [searchQuery, setSearchQuery] = useState('')
   const [paymentFilter, setPaymentFilter] = useState('All')
+  const [ledgerTab, setLedgerTab] = useState('all') // 'all', 'bookings', 'equipments'
 
   // Date Presets
   const applyPreset = (preset) => {
@@ -124,6 +125,25 @@ export default function RevenuePage({ apiBaseUrl, token }) {
       return matchesSearch && matchesPayment
     })
   }, [report.items, searchQuery, paymentFilter])
+
+  // Filtered equipment transactions
+  const filteredEquipmentTransactions = useMemo(() => {
+    return (report.equipmentTransactions || []).filter((ep) => {
+      const q = searchQuery.toLowerCase()
+      const matchesSearch =
+        !searchQuery ||
+        (ep.equipmentName || '').toLowerCase().includes(q) ||
+        (ep.customer || '').toLowerCase().includes(q) ||
+        (ep.facility || '').toLowerCase().includes(q) ||
+        String(ep.bookingId || '').includes(q)
+
+      const matchesPayment =
+        paymentFilter === 'All' ||
+        (ep.paymentMethod || '').toLowerCase() === paymentFilter.toLowerCase()
+
+      return matchesSearch && matchesPayment
+    })
+  }, [report.equipmentTransactions, searchQuery, paymentFilter])
 
   // Download PDF
   const downloadPdf = () => {
@@ -424,6 +444,24 @@ export default function RevenuePage({ apiBaseUrl, token }) {
             </span>
           </div>
         </article>
+
+        <article className="revenue-kpi-card kpi-highlight-emerald">
+          <div className="kpi-header">
+            <span className="kpi-tag">EQUIPMENT & ON-SITE GEAR</span>
+            <div className="kpi-icon-wrap green">
+              🎒
+            </div>
+          </div>
+          <div className="kpi-value-row">
+            <span className="kpi-main-number">
+              {loading ? '...' : currency.format(report.equipmentRevenue || 0)}
+            </span>
+          </div>
+          <div className="kpi-footer">
+            <span className="kpi-status-dot green" />
+            <span>{report.equipmentTransactionsCount || 0} desk equipment payments</span>
+          </div>
+        </article>
       </section>
 
       {/* 3. VISUAL ANALYTICS: VENUE BREAKDOWN & PAYMENT METHODS */}
@@ -504,7 +542,9 @@ export default function RevenuePage({ apiBaseUrl, token }) {
           <div>
             <h3 className="ledger-title">Confirmed Transactions Ledger</h3>
             <span className="ledger-sub">
-              Showing {filteredItems.length} of {report.items?.length || 0} recorded settlements
+              {ledgerTab === 'equipments'
+                ? `Showing ${filteredEquipmentTransactions.length} of ${report.equipmentTransactions?.length || 0} equipment payments`
+                : `Showing ${filteredItems.length} of ${report.items?.length || 0} recorded settlements`}
             </span>
           </div>
 
@@ -517,7 +557,7 @@ export default function RevenuePage({ apiBaseUrl, token }) {
               </svg>
               <input
                 type="text"
-                placeholder="Search customer, venue..."
+                placeholder="Search customer, venue, gear..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="ledger-search-input"
@@ -541,95 +581,209 @@ export default function RevenuePage({ apiBaseUrl, token }) {
               <option value="All">All Payment Types</option>
               <option value="BankSlip">Bank Transfer</option>
               <option value="Card">Credit/Debit Card</option>
-              <option value="Cash">Cash / On-Site</option>
+              <option value="Cash">Cash (Standard)</option>
+              <option value="Cash in hand">💵 Cash in hand (Desk)</option>
+              <option value="Card (Machine)">💳 Card (Machine) (Desk)</option>
             </select>
           </div>
         </div>
 
+        {/* Ledger View Tabs */}
+        <div className="revenue-ledger-tabs-row">
+          <button
+            type="button"
+            className={`ledger-tab-btn ${ledgerTab === 'all' ? 'active' : ''}`}
+            onClick={() => setLedgerTab('all')}
+          >
+            📋 All Settlements ({report.items?.length || 0})
+          </button>
+          <button
+            type="button"
+            className={`ledger-tab-btn ${ledgerTab === 'equipments' ? 'active' : ''}`}
+            onClick={() => setLedgerTab('equipments')}
+          >
+            🎒 Equipment Payments ({report.equipmentTransactions?.length || 0})
+          </button>
+        </div>
+
         {/* Ledger Table */}
         <div className="ledger-table-wrap">
-          <table className="ledger-table">
-            <thead>
-              <tr>
-                <th>Booking Ref & Date</th>
-                <th>Arena / Facility</th>
-                <th>Customer</th>
-                <th>Settlement</th>
-                <th className="align-right">Gross Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
+          {ledgerTab === 'equipments' ? (
+            <table className="ledger-table">
+              <thead>
                 <tr>
-                  <td colSpan="5" className="ledger-loading-state">
-                    <span className="ledger-spinner" /> Loading financial records...
-                  </td>
+                  <th>Booking Ref & Date</th>
+                  <th>Equipment Item Issued</th>
+                  <th>Arena / Venue</th>
+                  <th>Customer</th>
+                  <th>Desk Settlement</th>
+                  <th className="align-right">Amount (LKR)</th>
                 </tr>
-              ) : filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="ledger-empty-state">
-                    <div className="empty-content">
-                      <span className="empty-icon">📊</span>
-                      <h4>No Transactions Found</h4>
-                      <p>
-                        {searchQuery
-                          ? `No transactions match your search "${searchQuery}".`
-                          : 'No confirmed income recorded for this selected period.'}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredItems.map((item) => (
-                  <tr key={item.id} className="ledger-row">
-                    <td>
-                      <div className="ledger-date-cell">
-                        <span className="ledger-booking-id">#{item.id}</span>
-                        <span className="ledger-date-str">
-                          {new Date(item.bookingDate).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className="ledger-venue-cell">
-                        <span className="ledger-court-icon">🏟️</span>
-                        <span className="ledger-venue-name">{item.facility}</span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className="ledger-customer-cell">
-                        <span className="customer-avatar-dot">
-                          {(item.customer || 'U')[0].toUpperCase()}
-                        </span>
-                        <span className="customer-name">{item.customer || 'Member'}</span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className="ledger-payment-pill">
-                        <span className="payment-method-tag">
-                          {item.paymentMethod === 'BankSlip' ? '🏦 Bank Transfer' : `💳 ${item.paymentMethod || 'Online'}`}
-                        </span>
-                        <span className="payment-status-badge verified">Paid</span>
-                      </div>
-                    </td>
-
-                    <td className="align-right">
-                      <span className="ledger-amount-value">
-                        {currency.format(item.totalAmount)}
-                      </span>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="6" className="ledger-loading-state">
+                      <span className="ledger-spinner" /> Loading equipment records...
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : filteredEquipmentTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="ledger-empty-state">
+                      <div className="empty-content">
+                        <span className="empty-icon">🎒</span>
+                        <h4>No Equipment Payments Recorded</h4>
+                        <p>No on-site equipment payments found for this selected period.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredEquipmentTransactions.map((ep) => (
+                    <tr key={ep.id} className="ledger-row">
+                      <td>
+                        <div className="ledger-date-cell">
+                          <span className="ledger-booking-id">#BK-{ep.bookingId}</span>
+                          <span className="ledger-date-str">
+                            {new Date(ep.createdAtUtc).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div className="ledger-equip-cell">
+                          <strong>{ep.equipmentName}</strong>
+                          <span className="ledger-equip-sub">
+                            Qty: ×{ep.quantity} · {ep.hours} hrs @ LKR {Number(ep.hourlyRate).toLocaleString()}/hr
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div className="ledger-venue-cell">
+                          <span className="ledger-court-icon">🏟️</span>
+                          <span className="ledger-venue-name">{ep.facility}</span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div className="ledger-customer-cell">
+                          <span className="customer-avatar-dot">{(ep.customer || 'U')[0].toUpperCase()}</span>
+                          <span className="customer-name">{ep.customer || 'Member'}</span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div className="ledger-payment-pill">
+                          <span className={`payment-method-tag ${ep.paymentMethod === 'Cash in hand' ? 'cash-tag' : 'card-tag'}`}>
+                            {ep.paymentMethod === 'Cash in hand' ? '💵 Cash in hand' : '💳 Card (machine)'}
+                          </span>
+                          {ep.collectedBy && <span className="ledger-collector-tag">by {ep.collectedBy}</span>}
+                        </div>
+                      </td>
+
+                      <td className="align-right">
+                        <span className="ledger-amount-value" style={{ color: '#059669', fontWeight: 800 }}>
+                          {currency.format(ep.totalAmount)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <table className="ledger-table">
+              <thead>
+                <tr>
+                  <th>Booking Ref & Date</th>
+                  <th>Arena / Facility</th>
+                  <th>Customer</th>
+                  <th>Settlement & Gear</th>
+                  <th className="align-right">Gross Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="5" className="ledger-loading-state">
+                      <span className="ledger-spinner" /> Loading financial records...
+                    </td>
+                  </tr>
+                ) : filteredItems.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="ledger-empty-state">
+                      <div className="empty-content">
+                        <span className="empty-icon">📊</span>
+                        <h4>No Transactions Found</h4>
+                        <p>
+                          {searchQuery
+                            ? `No transactions match your search "${searchQuery}".`
+                            : 'No confirmed income recorded for this selected period.'}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredItems.map((item) => (
+                    <tr key={item.id} className="ledger-row">
+                      <td>
+                        <div className="ledger-date-cell">
+                          <span className="ledger-booking-id">#{item.id}</span>
+                          <span className="ledger-date-str">
+                            {new Date(item.bookingDate).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div className="ledger-venue-cell">
+                          <span className="ledger-court-icon">🏟️</span>
+                          <span className="ledger-venue-name">{item.facility}</span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div className="ledger-customer-cell">
+                          <span className="customer-avatar-dot">
+                            {(item.customer || 'U')[0].toUpperCase()}
+                          </span>
+                          <span className="customer-name">{item.customer || 'Member'}</span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div className="ledger-payment-pill">
+                          <span className="payment-method-tag">
+                            {item.paymentMethod === 'BankSlip' ? '🏦 Bank Transfer' : `💳 ${item.paymentMethod || 'Online'}`}
+                          </span>
+                          <span className="payment-status-badge verified">Paid</span>
+                          {item.equipmentPayments && item.equipmentPayments.length > 0 && (
+                            <span className="ledger-gear-included-chip" title="Includes additional on-site equipment">
+                              🎒 +{item.equipmentPayments.length} gear (LKR {item.equipmentPayments.reduce((s, e) => s + Number(e.totalAmount || 0), 0).toLocaleString()})
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="align-right">
+                        <span className="ledger-amount-value">
+                          {currency.format(item.totalAmount)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </section>
     </div>
