@@ -11,6 +11,32 @@ using SmartSportsFacilityBooking.Data;
 using SmartSportsFacilityBooking.Services;
 
 using System.Text.Json.Serialization;
+
+// Load environment variables from .env file if present
+var currentDir = Directory.GetCurrentDirectory();
+var envPath = File.Exists(Path.Combine(currentDir, ".env"))
+    ? Path.Combine(currentDir, ".env")
+    : Path.Combine(AppContext.BaseDirectory, ".env");
+
+if (File.Exists(envPath))
+{
+    foreach (var line in File.ReadAllLines(envPath))
+    {
+        var trimmed = line.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#")) continue;
+        var separatorIdx = trimmed.IndexOf('=');
+        if (separatorIdx > 0)
+        {
+            var key = trimmed.Substring(0, separatorIdx).Trim();
+            var val = trimmed.Substring(separatorIdx + 1).Trim().Trim('"').Trim('\'');
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+            {
+                Environment.SetEnvironmentVariable(key, val);
+            }
+        }
+    }
+}
+
 // Create the application builder.
 var builder = WebApplication.CreateBuilder(args);
 

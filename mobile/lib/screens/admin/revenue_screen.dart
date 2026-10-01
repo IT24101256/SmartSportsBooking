@@ -22,16 +22,23 @@ class _RevenueScreenState extends State<RevenueScreen> {
   String? _error;
   String _activeTab = 'all'; // 'all', 'court', 'equipment'
 
+  late DateTime _fromDate;
+  late DateTime _toDate;
+  String _activePreset = 'month';
+
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _fromDate = DateTime(now.year, now.month, 1);
+    _toDate = now;
     _loadRevenue();
   }
 
   Future<void> _loadRevenue() async {
     setState(() => _isLoading = true);
     try {
-      final r = await _apiService.getRevenue();
+      final r = await _apiService.getRevenue(fromDate: _fromDate, toDate: _toDate);
       if (mounted) {
         setState(() {
           _report = r;
@@ -46,6 +53,30 @@ class _RevenueScreenState extends State<RevenueScreen> {
         });
       }
     }
+  }
+
+  void _applyPreset(String preset) {
+    final now = DateTime.now();
+    setState(() {
+      _activePreset = preset;
+      if (preset == 'today') {
+        _fromDate = DateTime(now.year, now.month, now.day);
+        _toDate = DateTime(now.year, now.month, now.day);
+      } else if (preset == '7days') {
+        _fromDate = now.subtract(const Duration(days: 7));
+        _toDate = now;
+      } else if (preset == 'month') {
+        _fromDate = DateTime(now.year, now.month, 1);
+        _toDate = now;
+      } else if (preset == '30days') {
+        _fromDate = now.subtract(const Duration(days: 30));
+        _toDate = now;
+      } else if (preset == 'ytd') {
+        _fromDate = DateTime(now.year, 1, 1);
+        _toDate = DateTime(now.year, 12, 31);
+      }
+    });
+    _loadRevenue();
   }
 
   Future<void> _downloadRevenueReportPdf() async {
@@ -259,6 +290,45 @@ class _RevenueScreenState extends State<RevenueScreen> {
                       child: Text(_error!, style: const TextStyle(color: AppTheme.dangerDark, fontSize: 13)),
                     ),
 
+                  // Period Presets Toolbar (including YTD)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildPresetChip('Today', 'today'),
+                        _buildPresetChip('7 Days', '7days'),
+                        _buildPresetChip('This Month', 'month'),
+                        _buildPresetChip('30 Days', '30days'),
+                        _buildPresetChip('YTD', 'ytd'),
+                        const SizedBox(width: 6),
+                        ActionChip(
+                          avatar: const Icon(Icons.date_range_rounded, size: 16),
+                          label: Text(
+                            '${DateFormat('MM/dd').format(_fromDate)} - ${DateFormat('MM/dd').format(_toDate)}',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                          ),
+                          onPressed: () async {
+                            final picked = await showDateRangePicker(
+                              context: context,
+                              firstDate: DateTime(2024),
+                              lastDate: DateTime(2030),
+                              initialDateRange: DateTimeRange(start: _fromDate, end: _toDate),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                _fromDate = picked.start;
+                                _toDate = picked.end;
+                                _activePreset = '';
+                              });
+                              _loadRevenue();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
                   // Total Revenue Hero Card
                   Container(
                     padding: const EdgeInsets.all(22),
@@ -283,9 +353,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'TOTAL GROSS REVENUE (MTD)',
-                              style: TextStyle(color: Color(0xFFD1FAE5), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                            Text(
+                              'TOTAL GROSS REVENUE ${_activePreset.isNotEmpty ? '(${_activePreset.toUpperCase()})' : ''}',
+                              style: const TextStyle(color: Color(0xFFD1FAE5), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5),
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -535,6 +605,26 @@ class _RevenueScreenState extends State<RevenueScreen> {
             fontWeight: FontWeight.w800,
             fontSize: 12,
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPresetChip(String label, String presetKey) {
+    final isSel = _activePreset == presetKey;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: isSel,
+        onSelected: (val) {
+          if (val) _applyPreset(presetKey);
+        },
+        selectedColor: AppTheme.primaryBg,
+        labelStyle: TextStyle(
+          color: isSel ? AppTheme.primary : AppTheme.deepHeading,
+          fontWeight: isSel ? FontWeight.w800 : FontWeight.w600,
+          fontSize: 12,
         ),
       ),
     );

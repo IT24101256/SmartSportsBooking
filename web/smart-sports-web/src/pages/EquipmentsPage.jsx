@@ -7,11 +7,8 @@ const SPORT_CATEGORIES = [
   { label: 'Football', icon: '⚽' },
   { label: 'Basketball', icon: '🏀' },
   { label: 'Swimming', icon: '🏊' },
-  { label: 'Tennis', icon: '🎾' },
   { label: 'Table Tennis', icon: '🏓' },
   { label: 'Volleyball', icon: '🏐' },
-  { label: 'Fitness', icon: '🏋️' },
-  { label: 'Other', icon: '🏟️' },
 ]
 
 export default function EquipmentsPage({

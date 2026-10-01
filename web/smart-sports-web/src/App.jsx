@@ -1310,7 +1310,7 @@ function App() {
                     </div>
                   </div>
                   <div className="slot-list">
-                    {['08:00', '10:30', '17:30'].map((slot, index) => (
+                    {['08:00', '10:30', '17:00'].map((slot, index) => (
                       <button
                         key={slot}
                         type="button"

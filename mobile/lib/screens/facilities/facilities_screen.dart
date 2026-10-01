@@ -34,12 +34,12 @@ class _FacilitiesScreenState extends State<FacilitiesScreen> {
   final List<String> _sportsList = [
     'All',
     'Badminton',
-    'Football',
-    'Cricket',
-    'Tennis',
     'Basketball',
+    'Cricket',
+    'Football',
     'Swimming',
-    'Fitness',
+    'Table Tennis',
+    'Volleyball',
   ];
 
   @override
@@ -74,6 +74,31 @@ class _FacilitiesScreenState extends State<FacilitiesScreen> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         children: [
+          // Admin Add Facility Bar
+          if (ApiService().currentUser?.isAdmin == true) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Facilities (${widget.facilities.length})',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppTheme.deepHeading),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => EditFacilityModal.show(context, null, widget.onRefresh),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add Facility', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ],
+
           // Search Bar
           TextField(
             onChanged: (val) => setState(() => _searchQuery = val),

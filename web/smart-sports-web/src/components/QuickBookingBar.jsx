@@ -22,7 +22,7 @@ export default function QuickBookingBar({
     { value: '11:00', label: '11:00 AM' },
     { value: '14:00', label: '02:00 PM' },
     { value: '16:00', label: '04:00 PM' },
-    { value: '17:30', label: '05:30 PM (Peak)' },
+    { value: '17:00', label: '05:00 PM (Peak)' },
     { value: '18:00', label: '06:00 PM (Peak)' },
     { value: '19:00', label: '07:00 PM (Floodlit)' },
     { value: '20:00', label: '08:00 PM (Evening)' },

@@ -5,6 +5,7 @@ import 'models/facility.dart';
 import 'models/booking.dart';
 import 'models/support.dart';
 import 'widgets/auth_modal.dart';
+import 'widgets/edit_facility_modal.dart';
 import 'screens/home/overview_screen.dart';
 import 'screens/facilities/facilities_screen.dart';
 import 'screens/facilities/facility_details_screen.dart';
@@ -135,11 +136,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               runSpacing: 8,
               children: [
                 ActionChip(
-                  label: const Text('Localhost (USB / Web)'),
+                  label: const Text('Localhost (USB / adb reverse)'),
                   onPressed: () => controller.text = 'http://localhost:5187',
                 ),
                 ActionChip(
-                  label: const Text('Wi-Fi LAN (192.168.8.140)'),
+                  label: const Text('Current Wi-Fi (172.28.6.251)'),
+                  onPressed: () => controller.text = 'http://172.28.6.251:5187',
+                ),
+                ActionChip(
+                  label: const Text('Home LAN (192.168.8.140)'),
                   onPressed: () => controller.text = 'http://192.168.8.140:5187',
                 ),
                 ActionChip(
@@ -147,6 +152,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   onPressed: () => controller.text = 'http://10.0.2.2:5187',
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'For USB: Run "adb reverse tcp:5187 tcp:5187" on PC and use Localhost.',
+              style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppTheme.textMuted),
             ),
           ],
         ),
@@ -394,6 +404,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         ],
       ),
       body: currentScreen,
+      floatingActionButton: (_selectedTab == 2 && _apiService.currentUser?.isAdmin == true && _viewingFacility == null)
+          ? FloatingActionButton.extended(
+              onPressed: () => EditFacilityModal.show(context, null, _loadAllData),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add Facility', style: TextStyle(fontWeight: FontWeight.w800)),
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+            )
+          : null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedTab,
         onTap: (index) {

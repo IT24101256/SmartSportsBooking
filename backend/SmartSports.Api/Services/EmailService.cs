@@ -21,10 +21,11 @@ public class EmailService
 
     public async Task<bool> SendOtpEmailAsync(string toEmail, string toName, string otp)
     {
-        var fromAddress = (_config["Smtp:From"] ?? Environment.GetEnvironmentVariable("SMTP_FROM"))?.Trim();
-        var password = (_config["Smtp:Password"] ?? Environment.GetEnvironmentVariable("SMTP_PASSWORD"))?.Trim();
-        var host = _config["Smtp:Host"] ?? "smtp.gmail.com";
-        var port = int.Parse(_config["Smtp:Port"] ?? "587");
+        var fromAddress = (Environment.GetEnvironmentVariable("SMTP_FROM") ?? _config["Smtp:From"])?.Trim();
+        var password = (Environment.GetEnvironmentVariable("SMTP_PASSWORD") ?? _config["Smtp:Password"])?.Trim();
+        var host = Environment.GetEnvironmentVariable("SMTP_HOST") ?? _config["Smtp:Host"] ?? "smtp.gmail.com";
+        var portStr = Environment.GetEnvironmentVariable("SMTP_PORT") ?? _config["Smtp:Port"] ?? "587";
+        var port = int.Parse(portStr);
 
         if (!string.IsNullOrWhiteSpace(password) && host.Contains("gmail", StringComparison.OrdinalIgnoreCase))
         {

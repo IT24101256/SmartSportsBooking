@@ -7,13 +7,20 @@ const currency = new Intl.NumberFormat('en-LK', {
   maximumFractionDigits: 0,
 })
 
+const toLocalDateStr = (d = new Date()) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export default function RevenuePage({ apiBaseUrl, token }) {
-  const getToday = () => new Date().toISOString().slice(0, 10)
-  const today = getToday()
+  const today = toLocalDateStr()
 
   // Default to 1st of current month to today
   const [fromDate, setFromDate] = useState(`${today.slice(0, 8)}01`)
   const [toDate, setToDate] = useState(today)
+  const [activePreset, setActivePreset] = useState('month')
   const [report, setReport] = useState({ totalRevenue: 0, bookingCount: 0, items: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -25,8 +32,9 @@ export default function RevenuePage({ apiBaseUrl, token }) {
 
   // Date Presets
   const applyPreset = (preset) => {
+    setActivePreset(preset)
     const now = new Date()
-    const currentToday = now.toISOString().slice(0, 10)
+    const currentToday = toLocalDateStr(now)
 
     if (preset === 'today') {
       setFromDate(currentToday)
@@ -34,19 +42,20 @@ export default function RevenuePage({ apiBaseUrl, token }) {
     } else if (preset === '7days') {
       const d = new Date()
       d.setDate(d.getDate() - 7)
-      setFromDate(d.toISOString().slice(0, 10))
+      setFromDate(toLocalDateStr(d))
       setToDate(currentToday)
     } else if (preset === 'month') {
-      setFromDate(`${currentToday.slice(0, 8)}01`)
+      setFromDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`)
       setToDate(currentToday)
     } else if (preset === '30days') {
       const d = new Date()
       d.setDate(d.getDate() - 30)
-      setFromDate(d.toISOString().slice(0, 10))
+      setFromDate(toLocalDateStr(d))
       setToDate(currentToday)
     } else if (preset === 'ytd') {
-      setFromDate(`${now.getFullYear()}-01-01`)
-      setToDate(currentToday)
+      const year = now.getFullYear()
+      setFromDate(`${year}-01-01`)
+      setToDate(`${year}-12-31`)
     }
   }
 
@@ -303,19 +312,39 @@ export default function RevenuePage({ apiBaseUrl, token }) {
         <div className="revenue-filter-toolbar">
           <div className="revenue-presets-group">
             <span className="presets-label">Period:</span>
-            <button type="button" className="preset-pill" onClick={() => applyPreset('today')}>
+            <button
+              type="button"
+              className={`preset-pill ${activePreset === 'today' ? 'active' : ''}`}
+              onClick={() => applyPreset('today')}
+            >
               Today
             </button>
-            <button type="button" className="preset-pill" onClick={() => applyPreset('7days')}>
+            <button
+              type="button"
+              className={`preset-pill ${activePreset === '7days' ? 'active' : ''}`}
+              onClick={() => applyPreset('7days')}
+            >
               7 Days
             </button>
-            <button type="button" className="preset-pill active" onClick={() => applyPreset('month')}>
+            <button
+              type="button"
+              className={`preset-pill ${activePreset === 'month' ? 'active' : ''}`}
+              onClick={() => applyPreset('month')}
+            >
               This Month
             </button>
-            <button type="button" className="preset-pill" onClick={() => applyPreset('30days')}>
+            <button
+              type="button"
+              className={`preset-pill ${activePreset === '30days' ? 'active' : ''}`}
+              onClick={() => applyPreset('30days')}
+            >
               30 Days
             </button>
-            <button type="button" className="preset-pill" onClick={() => applyPreset('ytd')}>
+            <button
+              type="button"
+              className={`preset-pill ${activePreset === 'ytd' ? 'active' : ''}`}
+              onClick={() => applyPreset('ytd')}
+            >
               YTD
             </button>
           </div>
@@ -327,7 +356,10 @@ export default function RevenuePage({ apiBaseUrl, token }) {
                 type="date"
                 value={fromDate}
                 max={toDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={(e) => {
+                  setFromDate(e.target.value)
+                  setActivePreset('')
+                }}
                 className="date-input"
               />
             </label>
@@ -340,7 +372,10 @@ export default function RevenuePage({ apiBaseUrl, token }) {
                 type="date"
                 value={toDate}
                 min={fromDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={(e) => {
+                  setToDate(e.target.value)
+                  setActivePreset('')
+                }}
                 className="date-input"
               />
             </label>

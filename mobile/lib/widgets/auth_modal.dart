@@ -20,7 +20,7 @@ class AuthModal extends StatefulWidget {
   }) {
     return showDialog<void>(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: false,
       barrierColor: const Color(0xBF0F172A), // rgba(15, 23, 42, 0.75)
       builder: (ctx) => AuthModal(
         onLoginSuccess: onLoginSuccess,

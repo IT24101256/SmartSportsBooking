@@ -149,9 +149,9 @@ public class BookingsController : ControllerBase
 
         bookingsQuery = sort?.ToLowerInvariant() switch
         {
-            "status" => bookingsQuery.OrderBy(booking => booking.Status).ThenByDescending(booking => booking.BookingDate),
-            "facility" => bookingsQuery.OrderBy(booking => booking.Facility!.Name).ThenByDescending(booking => booking.BookingDate),
-            _ => bookingsQuery.OrderByDescending(booking => booking.BookingDate).ThenByDescending(booking => booking.StartTime)
+            "status" => bookingsQuery.OrderBy(booking => booking.Status).ThenByDescending(booking => booking.Id),
+            "facility" => bookingsQuery.OrderBy(booking => booking.Facility!.Name).ThenByDescending(booking => booking.Id),
+            _ => bookingsQuery.OrderByDescending(booking => booking.Id)
         };
 
         page = Math.Max(page, 1);

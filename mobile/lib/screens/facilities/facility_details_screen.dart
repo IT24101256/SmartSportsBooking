@@ -6,7 +6,6 @@ import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/facility_images.dart';
 import '../../widgets/edit_facility_modal.dart';
-import '../../widgets/review_modal.dart';
 
 class FacilityDetailsScreen extends StatefulWidget {
   final Facility facility;
@@ -416,23 +415,13 @@ class _FacilityDetailsScreenState extends State<FacilityDetailsScreen> {
 
                   // Reviews & Ratings Section
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Text('Player Reviews', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppTheme.deepHeading)),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(color: AppTheme.primaryBg, borderRadius: BorderRadius.circular(6)),
-                            child: Text('${_reviews.length}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w800, fontSize: 11)),
-                          ),
-                        ],
-                      ),
-                      TextButton.icon(
-                        onPressed: _openReviewModalForFacility,
-                        icon: const Icon(Icons.rate_review_outlined, size: 16),
-                        label: const Text('Write Review', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                      const Text('Player Reviews', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppTheme.deepHeading)),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(color: AppTheme.primaryBg, borderRadius: BorderRadius.circular(6)),
+                        child: Text('${_reviews.length}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w800, fontSize: 11)),
                       ),
                     ],
                   ),
@@ -666,94 +655,5 @@ class _FacilityDetailsScreenState extends State<FacilityDetailsScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _openReviewModalForFacility() async {
-    if (!_apiService.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to write a player review.')),
-      );
-      return;
-    }
-
-    try {
-      final userBookings = await _apiService.getBookings();
-      final match = userBookings.firstWhere(
-        (b) =>
-            (b.facilityId == widget.facility.id ||
-                b.facilityName.toLowerCase().contains(widget.facility.name.toLowerCase())) &&
-            !b.isCancelled,
-        orElse: () => Booking(
-          id: 0,
-          userId: _apiService.currentUser?.id ?? 0,
-          facilityId: widget.facility.id,
-          facilityName: widget.facility.name,
-          bookingDate: DateTime.now(),
-          startTime: '10:00',
-          endTime: '11:00',
-          hoursNeeded: 1,
-          totalAmount: widget.facility.hourlyRate,
-          paymentMethod: 'Card',
-          status: 'Confirmed',
-          paymentStatus: 'Paid',
-          customerName: _apiService.currentUser?.fullName ?? 'Player',
-        ),
-      );
-
-      if (!mounted) return;
-
-      if (match.id == 0) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: AppTheme.primaryBg, borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.verified_user_rounded, color: AppTheme.primary, size: 22),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(child: Text('Verified Player Only', style: TextStyle(fontSize: 16))),
-              ],
-            ),
-            content: Text(
-              'Player reviews are reserved for athletes who have booked ${widget.facility.name}. Reserve your slot today to unlock review perks!',
-              style: const TextStyle(fontSize: 13, color: AppTheme.textMuted, height: 1.4),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  widget.onBookNow();
-                },
-                child: const Text('Book Court Now'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-
-      ReviewModal.show(
-        context,
-        match,
-        existingReview: _reviews.cast<BookingReviewItem?>().firstWhere(
-              (r) => r?.userId == _apiService.currentUser?.id,
-              orElse: () => null,
-            ),
-        onSaved: () {
-          _loadReviews();
-        },
-      );
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not load session bookings. Please try again.')),
-        );
-      }
-    }
   }
 }

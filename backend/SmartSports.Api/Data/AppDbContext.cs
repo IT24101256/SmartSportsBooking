@@ -369,6 +369,16 @@ public class AppDbContext : DbContext
 
     public static void SeedEquipments(AppDbContext context)
     {
+        // Remove unwanted sports and equipment (Tennis, Fitness) from existing database
+        var unwanted = context.Equipments
+            .Where(e => e.SportCategory == "Tennis" || e.SportCategory == "Fitness")
+            .ToList();
+        if (unwanted.Count > 0)
+        {
+            context.Equipments.RemoveRange(unwanted);
+            context.SaveChanges();
+        }
+
         if (context.Equipments.Any())
         {
             return;
@@ -405,11 +415,6 @@ public class AppDbContext : DbContext
             new Equipment { Name = "Hydrodynamic Swim Fins Set", SportCategory = "Swimming", HourlyRate = 250, TotalStock = 15, Description = "Silicone dual-flex propulsion fins for lap training", IsAvailable = true },
             new Equipment { Name = "Water Polo Match Ball", SportCategory = "Swimming", HourlyRate = 250, TotalStock = 10, Description = "Grip-treated waterproof competition water polo ball", IsAvailable = true },
 
-            // Tennis
-            new Equipment { Name = "Wilson Pro Staff Tennis Rackets (Pair)", SportCategory = "Tennis", HourlyRate = 350, TotalStock = 16, Description = "Graphite composite balanced tennis rackets with synthetic gut strings", IsAvailable = true },
-            new Equipment { Name = "Championship Tennis Balls (Can of 3)", SportCategory = "Tennis", HourlyRate = 250, TotalStock = 30, Description = "Pressurized extra duty felt tournament tennis balls", IsAvailable = true },
-            new Equipment { Name = "Tennis Ball Collector Hopper", SportCategory = "Tennis", HourlyRate = 200, TotalStock = 6, Description = "Portable 72-ball pickup wire basket", IsAvailable = true },
-
             // Table Tennis
             new Equipment { Name = "Stiga Competition Paddles (Pair)", SportCategory = "Table Tennis", HourlyRate = 200, TotalStock = 20, Description = "5-ply offensive carbon blades with ITTF approved tacky rubber", IsAvailable = true },
             new Equipment { Name = "ITTF 3-Star Balls (Pack of 6)", SportCategory = "Table Tennis", HourlyRate = 150, TotalStock = 40, Description = "40+ seamless tournament grade poly balls", IsAvailable = true },
@@ -418,11 +423,7 @@ public class AppDbContext : DbContext
             // Volleyball
             new Equipment { Name = "Mikasa Official Match Volleyball", SportCategory = "Volleyball", HourlyRate = 250, TotalStock = 15, Description = "18-panel dimpled composite microfiber official ball", IsAvailable = true },
             new Equipment { Name = "Antennae & Boundary Guidelines", SportCategory = "Volleyball", HourlyRate = 200, TotalStock = 6, Description = "Fiberglass side antennas and velcro fastening court tape", IsAvailable = true },
-            new Equipment { Name = "Heavy-Duty Ball Carrying Cart", SportCategory = "Volleyball", HourlyRate = 150, TotalStock = 5, Description = "Collapsible wheeled 24-ball hammock cart", IsAvailable = true },
-
-            // Fitness & Other
-            new Equipment { Name = "Resistance Bands & Kettlebell Set", SportCategory = "Fitness", HourlyRate = 300, TotalStock = 12, Description = "Loop resistance bands (5 strengths) and cast iron kettlebells", IsAvailable = true },
-            new Equipment { Name = "Gym Training Dumbbells (Pair)", SportCategory = "Fitness", HourlyRate = 250, TotalStock = 15, Description = "Rubber encased hex dumbbells (5kg - 20kg available)", IsAvailable = true }
+            new Equipment { Name = "Heavy-Duty Ball Carrying Cart", SportCategory = "Volleyball", HourlyRate = 150, TotalStock = 5, Description = "Collapsible wheeled 24-ball hammock cart", IsAvailable = true }
         };
 
         context.Equipments.AddRange(defaultEquipments);

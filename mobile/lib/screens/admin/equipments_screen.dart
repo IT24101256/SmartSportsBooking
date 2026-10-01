@@ -18,7 +18,7 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
   bool _isLoading = true;
   String _selectedSport = 'All';
 
-  final List<String> _sports = ['All', 'Badminton', 'Football', 'Cricket', 'Tennis', 'Basketball', 'Swimming', 'Fitness'];
+  final List<String> _sports = ['All', 'Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball'];
 
   @override
   void initState() {

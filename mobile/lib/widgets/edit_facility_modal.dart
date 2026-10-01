@@ -7,12 +7,12 @@ import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 
 class EditFacilityModal extends StatefulWidget {
-  final Facility facility;
+  final Facility? facility;
   final VoidCallback onSaved;
 
-  const EditFacilityModal({super.key, required this.facility, required this.onSaved});
+  const EditFacilityModal({super.key, this.facility, required this.onSaved});
 
-  static Future<void> show(BuildContext context, Facility facility, VoidCallback onSaved) {
+  static Future<void> show(BuildContext context, Facility? facility, VoidCallback onSaved) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -46,37 +46,39 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
 
   static const List<String> _availableSports = [
     'Badminton',
+    'Basketball',
     'Cricket',
     'Football',
-    'Basketball',
     'Swimming',
-    'Tennis',
-    'Fitness',
-    'Other',
+    'Table Tennis',
+    'Volleyball',
   ];
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.facility.name);
-    _rateCtrl = TextEditingController(text: widget.facility.hourlyRate.toInt().toString());
-    _descCtrl = TextEditingController(text: widget.facility.description);
+    final f = widget.facility;
+    _nameCtrl = TextEditingController(text: f?.name ?? '');
+    _rateCtrl = TextEditingController(text: (f?.hourlyRate ?? 2500).toInt().toString());
+    _descCtrl = TextEditingController(text: f?.description ?? '');
     _equipCtrl = TextEditingController(
-      text: widget.facility.equipments.map((e) => e.name).join(', '),
+      text: f != null ? f.equipments.map((e) => e.name).join(', ') : '',
     );
 
-    _sportCategory = _availableSports.firstWhere(
-      (s) => s.toLowerCase() == widget.facility.type.toLowerCase(),
-      orElse: () => _availableSports.firstWhere(
-        (s) => widget.facility.name.toLowerCase().contains(s.toLowerCase()),
-        orElse: () => 'Badminton',
-      ),
-    );
+    _sportCategory = f != null
+        ? _availableSports.firstWhere(
+            (s) => s.toLowerCase() == f.type.toLowerCase(),
+            orElse: () => _availableSports.firstWhere(
+              (s) => f.name.toLowerCase().contains(s.toLowerCase()),
+              orElse: () => 'Badminton',
+            ),
+          )
+        : 'Badminton';
 
-    _courtType = widget.facility.courtType.isNotEmpty ? widget.facility.courtType : 'Indoor';
-    _isAvailable = widget.facility.isAvailable;
-    _images = List<String>.from(widget.facility.images);
-    _faqs = List<FacilityFaqItem>.from(widget.facility.faq);
+    _courtType = (f != null && f.courtType.isNotEmpty) ? f.courtType : 'Indoor';
+    _isAvailable = f?.isAvailable ?? true;
+    _images = f != null ? List<String>.from(f.images) : [];
+    _faqs = f != null ? List<FacilityFaqItem>.from(f.faq) : [];
 
     _loadMasterEquipments();
   }
@@ -351,8 +353,9 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
     });
 
     try {
-      final payload = {
-        'id': widget.facility.id,
+      final isNew = widget.facility == null;
+      final payload = <String, dynamic>{
+        if (!isNew) 'id': widget.facility!.id,
         'name': name,
         'type': _sportCategory,
         'hourlyRate': rate,
@@ -364,14 +367,14 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
         'images': _images,
       };
 
-      await _apiService.saveFacility(payload, id: widget.facility.id);
+      await _apiService.saveFacility(payload, id: widget.facility?.id);
 
       if (mounted) {
         Navigator.pop(context);
         widget.onSaved();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Facility updated successfully with photos & settings!'),
+          SnackBar(
+            content: Text(isNew ? 'Facility created successfully!' : 'Facility updated successfully with photos & settings!'),
             backgroundColor: AppTheme.successDark,
           ),
         );
@@ -416,7 +419,7 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('VENUE ADMINISTRATION', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: AppTheme.primary, letterSpacing: 0.5)),
-                  Text('Edit Facility #${widget.facility.id}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppTheme.deepHeading)),
+                  Text(widget.facility != null ? 'Edit Facility #${widget.facility!.id}' : 'Add New Facility', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppTheme.deepHeading)),
                 ],
               ),
               IconButton(icon: const Icon(Icons.close, color: AppTheme.textMuted), onPressed: () => Navigator.pop(context)),
@@ -708,7 +711,7 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
             icon: _isSaving
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.check_circle_outline, size: 18),
-            label: Text(_isSaving ? 'Saving Changes...' : 'Save Facility Changes', style: const TextStyle(fontWeight: FontWeight.w800)),
+            label: Text(_isSaving ? 'Saving Changes...' : (widget.facility != null ? 'Save Facility Changes' : 'Create Facility'), style: const TextStyle(fontWeight: FontWeight.w800)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primary,
               foregroundColor: Colors.white,

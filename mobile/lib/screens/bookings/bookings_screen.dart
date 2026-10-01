@@ -147,6 +147,15 @@ class _BookingsScreenState extends State<BookingsScreen> {
       }
     }).toList();
 
+    // Show the last booking at first (newest ID / most recently booked at top)
+    final sorted = List<Booking>.from(filtered)
+      ..sort((a, b) {
+        if (b.id != a.id) {
+          return b.id.compareTo(a.id);
+        }
+        return b.bookingDate.compareTo(a.bookingDate);
+      });
+
     return RefreshIndicator(
       onRefresh: () async => widget.onRefresh(),
       child: ListView(
@@ -157,7 +166,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Bookings (${filtered.length})',
+                'Bookings (${sorted.length})',
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppTheme.deepHeading),
               ),
               ElevatedButton.icon(
@@ -210,7 +219,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           ),
           const SizedBox(height: 16),
 
-          if (filtered.isEmpty)
+          if (sorted.isEmpty)
             Container(
               padding: const EdgeInsets.all(40),
               alignment: Alignment.center,
@@ -227,7 +236,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               ),
             )
           else
-            ...filtered.map((b) {
+            ...sorted.map((b) {
               final fac = widget.facilities.where((f) => f.id == b.facilityId).isNotEmpty
                   ? widget.facilities.firstWhere((f) => f.id == b.facilityId)
                   : null;

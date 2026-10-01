@@ -169,12 +169,24 @@ export default function BookingsPage({
     })
   }, [bookings, selectedDate, selectedTurf, searchQuery, selectedFilter])
 
+  // Show the last booking at first (newest ID / most recently booked at top)
+  const sortedBookings = useMemo(() => {
+    return [...filteredBookings].sort((a, b) => {
+      const idA = Number(a.id) || 0
+      const idB = Number(b.id) || 0
+      if (idB !== idA) return idB - idA
+      const dateA = new Date(a.bookingDate || 0).getTime()
+      const dateB = new Date(b.bookingDate || 0).getTime()
+      return dateB - dateA
+    })
+  }, [filteredBookings])
+
   // Pagination calculation
-  const totalCount = filteredBookings.length
+  const totalCount = sortedBookings.length
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const safePage = Math.min(page, totalPages)
   const startIndex = (safePage - 1) * pageSize
-  const visibleBookings = filteredBookings.slice(startIndex, startIndex + pageSize)
+  const visibleBookings = sortedBookings.slice(startIndex, startIndex + pageSize)
 
   // Reset page when filter changes
   const handleFilterChange = (newFilter) => {

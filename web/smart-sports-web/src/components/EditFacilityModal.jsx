@@ -86,9 +86,8 @@ export default function EditFacilityModal({
     { label: 'Football', icon: '⚽' },
     { label: 'Basketball', icon: '🏀' },
     { label: 'Swimming', icon: '🏊' },
-    { label: 'Tennis', icon: '🎾' },
-    { label: 'Fitness', icon: '🏋️' },
-    { label: 'Other', icon: '🏟️' },
+    { label: 'Table Tennis', icon: '🏓' },
+    { label: 'Volleyball', icon: '🏐' },
   ]
 
   const handleAddEquipment = () => {

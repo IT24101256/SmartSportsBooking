@@ -268,8 +268,8 @@ export default function AuthModal({
   }
 
   return (
-    <div className="auth-modal-backdrop" onClick={onClose}>
-      <div className="auth-modal-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className="auth-modal-backdrop">
+      <div className="auth-modal-dialog">
         {/* Top Header with Brand & Close Button */}
         <div className="auth-dialog-header">
           <div className="auth-brand-lockup">
