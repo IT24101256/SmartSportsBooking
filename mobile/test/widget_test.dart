@@ -13,8 +13,8 @@ void main() {
     await tester.pump();
 
     // Verify initial launch lands on the Overview dashboard
-    expect(find.text('SmartSports'), findsOneWidget);
-    expect(find.text('GUEST MODE'), findsOneWidget);
+    expect(find.text('MySpot'), findsOneWidget);
+    expect(find.text('GUEST'), findsOneWidget);
     expect(find.text('Overview'), findsOneWidget);
     expect(find.text('Sign In'), findsOneWidget);
 
@@ -36,6 +36,6 @@ void main() {
 
     // Modal is dismissed, user remains on Overview
     expect(find.text('Secure Member Access'), findsNothing);
-    expect(find.text('GUEST MODE'), findsOneWidget);
+    expect(find.text('GUEST'), findsOneWidget);
   });
 }

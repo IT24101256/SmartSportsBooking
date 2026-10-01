@@ -13,6 +13,8 @@ import 'screens/bookings/bookings_screen.dart';
 import 'screens/bookings/booking_wizard_sheet.dart';
 import 'screens/support/support_screen.dart';
 import 'screens/profile/profile_screen.dart';
+import 'widgets/ai_chat_sheet.dart';
+import 'widgets/book_with_ai_sheet.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -221,6 +223,20 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     );
   }
 
+  void _openBookWithAi() {
+    if (!_apiService.isAuthenticated) {
+      _openAuthModal();
+      return;
+    }
+    BookWithAiSheet.show(
+      context,
+      onBookingCreated: () {
+        _loadAllData();
+        setState(() => _selectedTab = 1);
+      },
+    );
+  }
+
   void _logout() {
     _apiService.logout();
     setState(() {
@@ -304,6 +320,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           onNavigateTab: (tab) => setState(() => _selectedTab = tab),
           onSelectFacility: (f) => setState(() => _viewingFacility = f),
           onOpenBookingWizard: () => _openBookingWizard(),
+          onOpenBookWithAi: _openBookWithAi,
         ),
     };
 
@@ -311,45 +328,43 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 12,
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(9),
               child: Image.asset(
                 'assets/images/app-icon.png',
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Image.asset(
-                  'assets/images/logo-square.png',
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF2DD4BF), AppTheme.primary],
-                      ),
-                      borderRadius: BorderRadius.circular(10),
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2DD4BF), AppTheme.primary],
                     ),
-                    child: const Center(
-                      child: Text('S', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
-                    ),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: const Center(
+                    child: Text('S', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
                   'MySpot',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppTheme.deepHeading),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppTheme.deepHeading),
                 ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
                       width: 6,
@@ -358,8 +373,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      user != null ? '${user.role.toUpperCase()} LIVE' : 'GUEST MODE',
-                      style: const TextStyle(fontSize: 10, color: AppTheme.successDark, fontWeight: FontWeight.w700),
+                      user != null ? '${user.role.toUpperCase()} LIVE' : 'GUEST',
+                      style: const TextStyle(fontSize: 9.5, color: AppTheme.successDark, fontWeight: FontWeight.w700),
                     ),
                   ],
                 ),
@@ -369,35 +384,40 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.dns_rounded, size: 20, color: AppTheme.textMuted),
+            icon: const Icon(Icons.dns_rounded, size: 19, color: AppTheme.textMuted),
             tooltip: 'Server URL',
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             onPressed: _showServerSettingsDialog,
           ),
+          const SizedBox(width: 2),
           if (!_apiService.isAuthenticated)
             Padding(
-              padding: const EdgeInsets.only(right: 14),
+              padding: const EdgeInsets.only(right: 12),
               child: ElevatedButton.icon(
                 onPressed: () => _openAuthModal(),
-                icon: const Icon(Icons.login_rounded, size: 16),
-                label: const Text('Sign In'),
+                icon: const Icon(Icons.login_rounded, size: 15),
+                label: const Text('Sign In', style: TextStyle(fontSize: 12.5)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0284C7),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: const Size(0, 34),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             )
           else
             Padding(
-              padding: const EdgeInsets.only(right: 14),
+              padding: const EdgeInsets.only(right: 12),
               child: ElevatedButton.icon(
                 onPressed: () => _openBookingWizard(),
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Book'),
+                icon: const Icon(Icons.add, size: 15),
+                label: const Text('Book', style: TextStyle(fontSize: 12.5)),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: const Size(0, 34),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             ),
@@ -412,7 +432,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               backgroundColor: AppTheme.primary,
               foregroundColor: Colors.white,
             )
-          : null,
+          : (_selectedTab == 0 && _viewingFacility == null)
+              ? FloatingActionButton.extended(
+                  onPressed: () => AiChatSheet.show(context),
+                  icon: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
+                  label: const Text('Ask AI', style: TextStyle(fontWeight: FontWeight.w800)),
+                  backgroundColor: const Color(0xFF0284C7),
+                  foregroundColor: Colors.white,
+                )
+              : null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedTab,
         onTap: (index) {

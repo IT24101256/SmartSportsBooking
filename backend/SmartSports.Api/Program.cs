@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 // Import our application's database context.
 using SmartSportsFacilityBooking.Data;
 using SmartSportsFacilityBooking.Services;
+using SmartSportsFacilityBooking.AI;
 
 using System.Text.Json.Serialization;
 
@@ -92,6 +93,9 @@ builder.Services.AddCors(options =>
 // Register OTP & Email Services
 builder.Services.AddSingleton<SmartSportsFacilityBooking.Services.OtpStore>();
 builder.Services.AddScoped<SmartSportsFacilityBooking.Services.EmailService>();
+
+// Register Grounded Agentic RAG & Book With AI Subsystems
+builder.Services.AddMySpotAiSubsystem();
 
 
 // Add controller support to the application.

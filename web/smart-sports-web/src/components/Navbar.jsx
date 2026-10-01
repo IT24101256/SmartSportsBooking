@@ -8,6 +8,7 @@ export default function Navbar({
   currentUser,
   loggedIn,
   onOpenBooking,
+  onOpenBookWithAi,
   onLoginClick,
   onSignOutClick,
   theme,
@@ -114,6 +115,32 @@ export default function Navbar({
               />
             </div>
           )}
+
+          {/* Book With AI CTA */}
+          <button
+            className="navbar-ai-cta-btn"
+            type="button"
+            onClick={onOpenBookWithAi}
+            title="Book With AI Assistant"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'linear-gradient(135deg, #0284c7 0%, #6366f1 100%)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '8px 14px',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+              transition: 'all 0.2s',
+            }}
+          >
+            <span>✨</span>
+            <span>Book With AI</span>
+          </button>
 
           {/* Strong Book Now CTA */}
           <button

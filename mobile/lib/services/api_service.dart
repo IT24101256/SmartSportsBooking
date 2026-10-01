@@ -979,6 +979,114 @@ class ApiService {
     return '$_baseUrl/api/bookings/$bookingId/bank-slip';
   }
 
+  // ----------------------------------------------------
+  // GROUNDED AGENTIC RAG & AI BOOKING SUB-SYSTEM
+  // ----------------------------------------------------
+
+  Future<Map<String, dynamic>> chatWithAi({
+    required String message,
+    String? conversationId,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/ai/chat');
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: _headers,
+            body: jsonEncode({
+              'message': message.trim(),
+              'conversationId': ?conversationId,
+            }),
+          )
+          .timeout(const Duration(seconds: 25));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      throw Exception(_extractErrorMessage(response));
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> startAiBookingWorkflow({String? initialGoal}) async {
+    final uri = Uri.parse('$_baseUrl/api/ai/booking/start');
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: _headers,
+            body: jsonEncode({
+              'initialGoal': initialGoal ?? 'Book sports facility with AI',
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      throw Exception(_extractErrorMessage(response));
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> sendAiBookingMessage({
+    required String workflowId,
+    required String message,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/ai/booking/message');
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: _headers,
+            body: jsonEncode({
+              'workflowId': workflowId,
+              'message': message.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      throw Exception(_extractErrorMessage(response));
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> confirmAiBooking({
+    required String workflowId,
+    String paymentMethod = 'Card',
+    String? cardNumber,
+    String? cardLastFour = '4242',
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/ai/booking/confirm');
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: _headers,
+            body: jsonEncode({
+              'workflowId': workflowId,
+              'paymentMethod': paymentMethod,
+              'cardNumber': ?cardNumber,
+              'cardLastFour': ?cardLastFour,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      throw Exception(_extractErrorMessage(response));
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   String _extractErrorMessage(http.Response response) {
     try {
       final body = response.body;

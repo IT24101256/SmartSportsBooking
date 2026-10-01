@@ -21,6 +21,7 @@ class OverviewScreen extends StatelessWidget {
   final Function(int) onNavigateTab;
   final Function(Facility) onSelectFacility;
   final VoidCallback onOpenBookingWizard;
+  final VoidCallback onOpenBookWithAi;
 
   const OverviewScreen({
     super.key,
@@ -35,6 +36,7 @@ class OverviewScreen extends StatelessWidget {
     required this.onNavigateTab,
     required this.onSelectFacility,
     required this.onOpenBookingWizard,
+    required this.onOpenBookWithAi,
   });
 
   Booking? get _nextGame {
@@ -115,20 +117,31 @@ class OverviewScreen extends StatelessWidget {
                   style: TextStyle(color: Color(0xFFBFDBFE), fontSize: 13, height: 1.3),
                 ),
                 const SizedBox(height: 18),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     ElevatedButton.icon(
-                      onPressed: onOpenBookingWizard,
-                      icon: const Icon(Icons.add_circle_outline, size: 18),
-                      label: const Text('Book Court'),
+                      onPressed: onOpenBookWithAi,
+                      icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: Color(0xFFFBBF24)),
+                      label: const Text('Book With AI', style: TextStyle(fontWeight: FontWeight.w800)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: AppTheme.primary,
+                        foregroundColor: const Color(0xFF4338CA),
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    OutlinedButton.icon(
+                      onPressed: onOpenBookingWizard,
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('Manual'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
                     OutlinedButton(
                       onPressed: () => onNavigateTab(2), // Facilities
                       style: OutlinedButton.styleFrom(
@@ -136,7 +149,7 @@ class OverviewScreen extends StatelessWidget {
                         side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
-                      child: const Text('Browse All'),
+                      child: const Text('Venues'),
                     ),
                   ],
                 ),

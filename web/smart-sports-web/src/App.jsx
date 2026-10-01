@@ -20,6 +20,8 @@ import AdminTopBar from './components/AdminTopBar'
 import ProfilePage from './pages/ProfilePage'
 import AuthModal from './components/AuthModal'
 import EquipmentsPage from './pages/EquipmentsPage'
+import FloatingAiChat from './components/FloatingAiChat'
+import BookWithAiModal from './components/BookWithAiModal'
 
 const API_BASE_URL = 'http://localhost:5187/api'
 const localDateString = (date = new Date()) => {
@@ -122,6 +124,7 @@ function App() {
   const [selectedSupportRequest, setSelectedSupportRequest] = useState(null)
   const [facilitiesList, setFacilitiesList] = useState([])
   const [isBookingOpen, setIsBookingOpen] = useState(false)
+  const [isBookWithAiOpen, setIsBookWithAiOpen] = useState(false)
   const [bookingForm, setBookingForm] = useState(initialBookingForm)
   const setBookingNotice = (msg) => {
     if (msg) alert(msg)
@@ -1057,6 +1060,7 @@ function App() {
         apiBaseUrl={API_BASE_URL}
         currentUser={currentUser}
         onBooking={openBooking}
+        onBookWithAi={() => setIsBookWithAiOpen(true)}
         onTicket={openTicket}
         onSupport={() => setActiveTab('Support')}
         onFacilities={() => setActiveTab('Facilities')}
@@ -1253,6 +1257,7 @@ function App() {
             currentUser={currentUser}
             loggedIn={loggedIn}
             onOpenBooking={() => openBooking()}
+            onOpenBookWithAi={() => setIsBookWithAiOpen(true)}
             onLoginClick={() => {
               setAuthMode('login')
               setShowAuthPanel(true)
@@ -1372,6 +1377,30 @@ function App() {
         apiBaseUrl={API_BASE_URL}
         onLoginSuccess={handleLoginSuccess}
       />
+
+      {/* Floating AI Knowledge Assistant (Available across all pages) */}
+      <FloatingAiChat
+        apiBaseUrl={API_BASE_URL}
+        token={authToken}
+      />
+
+      {/* Book With AI Multi-Agent Modal */}
+      {isBookWithAiOpen && (
+        <BookWithAiModal
+          apiBaseUrl={API_BASE_URL}
+          token={authToken}
+          currentUser={currentUser}
+          onClose={() => setIsBookWithAiOpen(false)}
+          onBookingSuccess={() => {
+            if (authToken) loadBookings(authToken)
+            setActiveTab('Bookings')
+          }}
+          onOpenAuth={() => {
+            setAuthMode('login')
+            setShowAuthPanel(true)
+          }}
+        />
+      )}
     </div>
   )
 }

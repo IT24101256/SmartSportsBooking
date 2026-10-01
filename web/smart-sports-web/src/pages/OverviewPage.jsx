@@ -21,6 +21,7 @@ export default function OverviewPage({
   apiBaseUrl,
   currentUser,
   onBooking,
+  onBookWithAi,
   onTicket,
   onSupport,
   onFacilities,
@@ -45,6 +46,7 @@ export default function OverviewPage({
         reviews={reviews}
         averageRating={averageRating}
         onBooking={onBooking}
+        onBookWithAi={onBookWithAi}
         onExploreFacilities={onFacilities}
       />
 

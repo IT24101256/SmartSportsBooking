@@ -449,12 +449,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (isStaff) ...[
           const Text('Management Tools', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppTheme.deepHeading)),
           const SizedBox(height: 10),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: AppTheme.border),
+              side: const BorderSide(color: AppTheme.border),
             ),
+            clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
                 ListTile(
@@ -501,12 +503,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
 
         // App Settings & Actions
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
+        Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppTheme.border),
+            side: const BorderSide(color: AppTheme.border),
           ),
+          clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
               ListTile(
