@@ -11,48 +11,15 @@ namespace SmartSports.Api.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<decimal>(
-                name: "RefundAmount",
-                table: "Bookings",
-                type: "numeric",
-                nullable: true);
-
-            migrationBuilder.AddColumn<int>(
-                name: "RefundPercentage",
-                table: "Bookings",
-                type: "integer",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "RefundStatus",
-                table: "Bookings",
-                type: "text",
-                nullable: true);
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "CancelledAt",
-                table: "Bookings",
-                type: "timestamp with time zone",
-                nullable: true);
-
-            migrationBuilder.AddColumn<bool>(
-                name: "IsRescheduleRequested",
-                table: "Bookings",
-                type: "boolean",
-                nullable: false,
-                defaultValue: false);
-
-            migrationBuilder.AddColumn<string>(
-                name: "RescheduleReason",
-                table: "Bookings",
-                type: "text",
-                nullable: true);
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "RescheduleRequestedAt",
-                table: "Bookings",
-                type: "timestamp with time zone",
-                nullable: true);
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""Bookings"" ADD COLUMN IF NOT EXISTS ""RefundAmount"" numeric;
+                ALTER TABLE ""Bookings"" ADD COLUMN IF NOT EXISTS ""RefundPercentage"" integer;
+                ALTER TABLE ""Bookings"" ADD COLUMN IF NOT EXISTS ""RefundStatus"" text;
+                ALTER TABLE ""Bookings"" ADD COLUMN IF NOT EXISTS ""CancelledAt"" timestamp with time zone;
+                ALTER TABLE ""Bookings"" ADD COLUMN IF NOT EXISTS ""IsRescheduleRequested"" boolean NOT NULL DEFAULT false;
+                ALTER TABLE ""Bookings"" ADD COLUMN IF NOT EXISTS ""RescheduleReason"" text;
+                ALTER TABLE ""Bookings"" ADD COLUMN IF NOT EXISTS ""RescheduleRequestedAt"" timestamp with time zone;
+            ");
         }
 
         /// <inheritdoc />

@@ -122,14 +122,15 @@ export default function AuthModal({
       }
 
       const data = await response.json().catch(() => ({}))
-      setOtpPendingEmail(registerEmail.trim().toLowerCase())
+      const cleanEmail = registerEmail.trim().replace(/\.+$/, '')
+      setOtpPendingEmail(cleanEmail.toLowerCase())
 
       if (data.devOtp) {
         setOtpValue(data.devOtp)
         setFeedback({ type: 'info', text: `Verification code generated: ${data.devOtp} (auto-filled below).` })
       } else {
         setOtpValue('')
-        setFeedback({ type: 'success', text: `Verification code sent to ${registerEmail.trim()}. Check your inbox!` })
+        setFeedback({ type: 'success', text: `Verification code sent to "${cleanEmail}" — please check your inbox!` })
       }
       setAuthMode('verify-otp')
     } catch {
@@ -199,11 +200,12 @@ export default function AuthModal({
       }
 
       const data = await response.json().catch(() => ({}))
+      const cleanForgot = forgotEmail.trim().replace(/\.+$/, '')
       if (data.devOtp) {
         setForgotOtp(data.devOtp)
         setFeedback({ type: 'info', text: `Recovery code: ${data.devOtp} (auto-filled below).` })
       } else {
-        setFeedback({ type: 'success', text: `A 6-digit recovery code was sent to ${forgotEmail.trim()}. Check your inbox!` })
+        setFeedback({ type: 'success', text: `A 6-digit recovery code was sent to "${cleanForgot}" — please check your inbox!` })
       }
       setForgotStep(2)
     } catch {

@@ -180,7 +180,8 @@ class _AuthModalState extends State<AuthModal> {
         password: password,
       );
 
-      _otpPendingEmail = email.toLowerCase();
+      final cleanEmail = email.trim().replaceAll(RegExp(r'\.+$'), '');
+      _otpPendingEmail = cleanEmail.toLowerCase();
       final devOtp = res['devOtp']?.toString();
       _devOtp = devOtp;
       if (devOtp != null && devOtp.isNotEmpty) {
@@ -188,7 +189,7 @@ class _AuthModalState extends State<AuthModal> {
         _setFeedback('info', 'Verification code generated: $devOtp (auto-filled below).');
       } else {
         _otpController.clear();
-        _setFeedback('success', 'Verification code sent to $email. Check your inbox!');
+        _setFeedback('success', 'Verification code sent to "$cleanEmail" — check your inbox!');
       }
 
       setState(() => _authMode = 'verify-otp');
@@ -239,14 +240,15 @@ class _AuthModalState extends State<AuthModal> {
 
     setState(() => _loading = true);
     try {
-      final res = await _apiService.forgotPassword(email);
+      final cleanForgotEmail = email.trim().replaceAll(RegExp(r'\.+$'), '');
+      final res = await _apiService.forgotPassword(cleanForgotEmail);
       final devOtp = res['devOtp']?.toString();
       _devForgotOtp = devOtp;
       if (devOtp != null && devOtp.isNotEmpty) {
         _forgotOtpController.text = devOtp;
         _setFeedback('info', 'Recovery code: $devOtp (auto-filled below).');
       } else {
-        _setFeedback('success', 'A 6-digit recovery code was sent to $email. Check your inbox!');
+        _setFeedback('success', 'A 6-digit recovery code was sent to "$cleanForgotEmail" — check your inbox!');
       }
       setState(() => _forgotStep = 2);
     } catch (e) {

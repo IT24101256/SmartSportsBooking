@@ -62,8 +62,9 @@ public class AuthController : ControllerBase
             return BadRequest("Password must be at least 8 characters and include uppercase, lowercase, number, and special character.");
         }
 
+        var cleanEmail = request.Email.Trim().TrimEnd('.').ToLower();
         var existingUser = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email.Trim().ToLower());
+            .FirstOrDefaultAsync(u => u.Email == cleanEmail);
 
         if (existingUser != null)
         {
@@ -71,7 +72,7 @@ public class AuthController : ControllerBase
         }
 
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-        var otp = _otpStore.GenerateAndStore(request.Email.Trim().ToLower(), request.FullName.Trim(), request.ContactNumber.Trim(), request.NicNumber.Trim(), passwordHash);
+        var otp = _otpStore.GenerateAndStore(cleanEmail, request.FullName.Trim(), request.ContactNumber.Trim(), request.NicNumber.Trim(), passwordHash);
 
         var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
         var isDevelopment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment();
@@ -79,7 +80,7 @@ public class AuthController : ControllerBase
         try
         {
             var emailSent = await _emailService.SendOtpEmailAsync(
-                request.Email.Trim(),
+                cleanEmail,
                 request.FullName.Trim(),
                 otp);
 
@@ -141,12 +142,13 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Otp))
             return BadRequest("Email and OTP are required.");
 
-        var (valid, fullName, contactNumber, nicNumber, passwordHash) = _otpStore.Verify(request.Email.Trim().ToLower(), request.Otp.Trim());
+        var cleanEmail = request.Email.Trim().TrimEnd('.').ToLower();
+        var (valid, fullName, contactNumber, nicNumber, passwordHash) = _otpStore.Verify(cleanEmail, request.Otp.Trim());
         if (!valid)
             return BadRequest("Invalid or expired OTP. Please register again.");
 
         // Double-check the email isn't already registered (race-condition guard)
-        if (await _context.Users.AnyAsync(u => u.Email == request.Email.Trim().ToLower()))
+        if (await _context.Users.AnyAsync(u => u.Email == cleanEmail))
             return BadRequest("Email is already registered.");
 
         var customerRole = await _context.Roles
@@ -158,7 +160,7 @@ public class AuthController : ControllerBase
         var user = new User
         {
             FullName = fullName!,
-            Email = request.Email.Trim().ToLower(),
+            Email = cleanEmail,
             ContactNumber = contactNumber!,
             NicNumber = nicNumber!,
             PasswordHash = passwordHash!,

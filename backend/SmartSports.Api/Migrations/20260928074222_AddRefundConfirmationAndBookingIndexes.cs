@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -32,6 +32,12 @@ namespace SmartSports.Api.Migrations
                 table: "Bookings",
                 type: "text",
                 nullable: true);
+
+            // Ensure columns exist before creating indexes (handles out-of-order migration replay on fresh databases)
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""Bookings"" ADD COLUMN IF NOT EXISTS ""IsRescheduleRequested"" boolean NOT NULL DEFAULT false;
+                ALTER TABLE ""Bookings"" ADD COLUMN IF NOT EXISTS ""RefundStatus"" text;
+            ");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Bookings_BookingDate",
