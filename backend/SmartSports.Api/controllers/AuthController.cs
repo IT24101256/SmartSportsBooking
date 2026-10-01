@@ -73,6 +73,9 @@ public class AuthController : ControllerBase
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
         var otp = _otpStore.GenerateAndStore(request.Email.Trim().ToLower(), request.FullName.Trim(), request.ContactNumber.Trim(), request.NicNumber.Trim(), passwordHash);
 
+        var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
+        var isDevelopment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment();
+
         try
         {
             var emailSent = await _emailService.SendOtpEmailAsync(
@@ -82,24 +85,44 @@ public class AuthController : ControllerBase
 
             if (!emailSent)
             {
-                var environment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>();
-                if (environment.IsDevelopment())
+                if (requireRealEmail || !isDevelopment)
                 {
-                    return Ok(new
-                    {
-                        message = "SMTP is not configured. For local development, use the OTP shown below or in the API console.",
-                        devOtp = otp,
-                        smtpConfigured = false
-                    });
+                    return StatusCode(503, "Email delivery is not configured. Configure SMTP_FROM and SMTP_PASSWORD in .env.");
                 }
 
-                return StatusCode(503, "Email delivery is not configured. Configure an email provider and try again.");
+                return Ok(new
+                {
+                    message = "SMTP is not configured. For local development, use the OTP shown below or in the API console.",
+                    devOtp = otp,
+                    smtpConfigured = false
+                });
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send registration OTP to {Email}.", request.Email);
-            return StatusCode(503, "Unable to send the verification email. Check the SMTP configuration and try again.");
+            _logger.LogError(ex, "[SMTP ERROR] Failed to send registration OTP to {Email}: {Message}", request.Email, ex.Message);
+
+            if (requireRealEmail || !isDevelopment)
+            {
+                var userFriendlyReason = ex switch
+                {
+                    MailKit.Security.AuthenticationException => "SMTP authentication failed. Verify your email address and 16-character Google App Password (not your regular Google password).",
+                    System.Net.Sockets.SocketException or TimeoutException => "SMTP connection timed out or port was blocked by your network/firewall. Try port 465 or check internet connection.",
+                    _ => $"SMTP error: {ex.Message}"
+                };
+
+                return StatusCode(503, $"Unable to send verification email. {userFriendlyReason}");
+            }
+
+            // In local development without REQUIRE_REAL_EMAIL=true, allow fallback so developers on Mac/Windows/Linux are never blocked
+            _logger.LogWarning("[SMTP FALLBACK] Using dev OTP for {Email} because SMTP failed: {Message}", request.Email, ex.Message);
+            return Ok(new
+            {
+                message = $"SMTP failed ({ex.Message}). For local development, use the OTP shown below or in the API console.",
+                devOtp = otp,
+                smtpConfigured = false,
+                smtpError = ex.Message
+            });
         }
 
         return Ok(new
@@ -252,27 +275,45 @@ public class AuthController : ControllerBase
 
         var otp = _otpStore.GenerateAndStoreResetOtp(cleanEmail);
 
+        var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
+        var isDevelopment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment();
+
         try
         {
             var emailSent = await _emailService.SendPasswordResetEmailAsync(user.Email, user.FullName, otp);
             if (!emailSent)
             {
-                var environment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>();
-                if (environment.IsDevelopment())
+                if (requireRealEmail || !isDevelopment)
                 {
-                    return Ok(new
-                    {
-                        message = "Verification code generated. (SMTP dev fallback).",
-                        devOtp = otp,
-                        smtpConfigured = false,
-                        emailSent = true
-                    });
+                    return StatusCode(503, "Email delivery is not configured. Configure SMTP in .env to enable password resets.");
                 }
+
+                return Ok(new
+                {
+                    message = "Verification code generated. (SMTP dev fallback).",
+                    devOtp = otp,
+                    smtpConfigured = false,
+                    emailSent = true
+                });
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send reset email to {Email}", user.Email);
+            _logger.LogError(ex, "[SMTP ERROR] Failed to send reset email to {Email}: {Message}", user.Email, ex.Message);
+
+            if (requireRealEmail || !isDevelopment)
+            {
+                return StatusCode(503, $"Unable to send password reset email. Check SMTP configuration: {ex.Message}");
+            }
+
+            return Ok(new
+            {
+                message = $"SMTP error ({ex.Message}). (SMTP dev fallback).",
+                devOtp = otp,
+                smtpConfigured = false,
+                emailSent = true,
+                smtpError = ex.Message
+            });
         }
 
         return Ok(new
@@ -280,6 +321,33 @@ public class AuthController : ControllerBase
             message = "A password reset verification code has been sent to your email.",
             emailSent = true,
             smtpConfigured = true
+        });
+    }
+
+    /// <summary>
+    /// Checks the current SMTP configuration status (never reveals passwords).
+    /// Useful for cross-platform debugging on Windows, macOS, and Linux.
+    /// </summary>
+    [HttpGet("smtp-status")]
+    public IActionResult GetSmtpStatus()
+    {
+        var (host, port, fromAddress, password, fromName, ignoreCertErrors) = _emailService.GetSmtpConfig();
+        var isConfigured = !string.IsNullOrWhiteSpace(fromAddress) && !string.IsNullOrWhiteSpace(password);
+        var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
+
+        return Ok(new
+        {
+            isConfigured,
+            host,
+            port,
+            fromAddress = string.IsNullOrWhiteSpace(fromAddress) ? "Not set" : fromAddress,
+            fromName,
+            ignoreCertErrors,
+            requireRealEmail,
+            environment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().EnvironmentName,
+            status = isConfigured
+                ? "SMTP is configured for real email delivery."
+                : "SMTP is not configured. Running in local development mode (devOtp enabled)."
         });
     }
 

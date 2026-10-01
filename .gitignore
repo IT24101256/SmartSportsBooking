@@ -22,7 +22,11 @@ web/smart-sports-web/dist/
 # Local secrets and environment overrides
 .env
 .env.*
+*.env
+**/.env
+**/.env.*
 !*.env.example
+!**/.env.example
 
 # Test and coverage output
 coverage/

@@ -13,40 +13,29 @@ using SmartSportsFacilityBooking.AI;
 
 using System.Text.Json.Serialization;
 
-// Load environment variables from .env file if present
-var currentDir = Directory.GetCurrentDirectory();
-var envPath = File.Exists(Path.Combine(currentDir, ".env"))
-    ? Path.Combine(currentDir, ".env")
-    : Path.Combine(AppContext.BaseDirectory, ".env");
-
-if (File.Exists(envPath))
-{
-    foreach (var line in File.ReadAllLines(envPath))
-    {
-        var trimmed = line.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#")) continue;
-        var separatorIdx = trimmed.IndexOf('=');
-        if (separatorIdx > 0)
-        {
-            var key = trimmed.Substring(0, separatorIdx).Trim();
-            var val = trimmed.Substring(separatorIdx + 1).Trim().Trim('"').Trim('\'');
-            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
-            {
-                Environment.SetEnvironmentVariable(key, val);
-            }
-        }
-    }
-}
+// Load environment variables from .env file (searching current directory, project directory, parent directories, and base directory)
+DotEnvLoader.Load();
 
 // Create the application builder.
 var builder = WebApplication.CreateBuilder(args);
+
+// Ensure Environment variables override appsettings
+builder.Configuration.AddEnvironmentVariables();
 
 var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY")
     ?? builder.Configuration["Jwt:Key"];
 
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
-    throw new InvalidOperationException("JWT key is not configured. Set the JWT_KEY environment variable.");
+    if (builder.Environment.IsDevelopment())
+    {
+        jwtKey = "local-development-only-signing-key-change-before-deployment-1234567890";
+        Console.WriteLine("[MySpot Auth] Using local development JWT fallback key.");
+    }
+    else
+    {
+        throw new InvalidOperationException("JWT key is not configured. Set the JWT_KEY environment variable.");
+    }
 }
 
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
@@ -106,13 +95,13 @@ builder.Services.AddControllers()
     });
 
 // Register Entity Framework Core with the dependency injection container.
+var dbConnectionString = Environment.GetEnvironmentVariable("SMARTSPORTS_DB_CONNECTION")
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? "Host=localhost;Port=5432;Database=SmartSportsBookingDb;Username=postgres;Password=postgres";
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    // Configure Entity Framework Core to use PostgreSQL.
-    options.UseNpgsql(
-        Environment.GetEnvironmentVariable("SMARTSPORTS_DB_CONNECTION")
-            ?? builder.Configuration.GetConnectionString("DefaultConnection")
-            ?? "Host=localhost;Port=5432;Database=SmartSportsBookingDb;Username=postgres;Password=Niru2356"
-    )
+    options.UseNpgsql(dbConnectionString)
 );
 
 // Add support for API endpoint discovery.
@@ -197,3 +186,89 @@ app.MapControllers();
 
 // Start the application.
 app.Run();
+
+/// <summary>
+/// Robust cross-platform .env loader that searches current directory, project directory,
+/// parent directories, and base directories to support Windows, macOS, and Linux workflows.
+/// </summary>
+public static class DotEnvLoader
+{
+    public static void Load()
+    {
+        var candidateDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var currentDir = Directory.GetCurrentDirectory();
+        candidateDirs.Add(currentDir);
+        candidateDirs.Add(Path.Combine(currentDir, "backend", "SmartSports.Api"));
+
+        var dir = new DirectoryInfo(currentDir);
+        for (int i = 0; i < 4 && dir.Parent != null; i++)
+        {
+            dir = dir.Parent;
+            candidateDirs.Add(dir.FullName);
+            candidateDirs.Add(Path.Combine(dir.FullName, "backend", "SmartSports.Api"));
+        }
+
+        var baseDir = new DirectoryInfo(AppContext.BaseDirectory);
+        candidateDirs.Add(baseDir.FullName);
+        for (int i = 0; i < 4 && baseDir.Parent != null; i++)
+        {
+            baseDir = baseDir.Parent;
+            candidateDirs.Add(baseDir.FullName);
+            candidateDirs.Add(Path.Combine(baseDir.FullName, "backend", "SmartSports.Api"));
+        }
+
+        string? loadedPath = null;
+        foreach (var candidate in candidateDirs)
+        {
+            var envFile = Path.Combine(candidate, ".env");
+            if (File.Exists(envFile))
+            {
+                try
+                {
+                    foreach (var line in File.ReadAllLines(envFile))
+                    {
+                        var trimmed = line.Trim();
+                        if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#")) continue;
+
+                        if (trimmed.StartsWith("export ", StringComparison.OrdinalIgnoreCase))
+                        {
+                            trimmed = trimmed.Substring(7).Trim();
+                        }
+
+                        var separatorIdx = trimmed.IndexOf('=');
+                        if (separatorIdx > 0)
+                        {
+                            var key = trimmed.Substring(0, separatorIdx).Trim();
+                            var val = trimmed.Substring(separatorIdx + 1).Trim();
+                            if ((val.StartsWith("\"") && val.EndsWith("\"")) || (val.StartsWith("'") && val.EndsWith("'")))
+                            {
+                                val = val.Length >= 2 ? val.Substring(1, val.Length - 2) : "";
+                            }
+
+                            Environment.SetEnvironmentVariable(key, val);
+                        }
+                    }
+                    loadedPath = envFile;
+                    Console.WriteLine($"[MySpot Config] Loaded environment configuration from: {envFile}");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[MySpot Config] Error reading {envFile}: {ex.Message}");
+                }
+            }
+        }
+
+        if (loadedPath == null)
+        {
+            Console.WriteLine("[MySpot Config] Notice: No .env file found. Using system environment variables or appsettings.json.");
+        }
+
+        // Ensure ASPNETCORE_ENVIRONMENT defaults to Development for local development convenience
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")))
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
+        }
+    }
+}
