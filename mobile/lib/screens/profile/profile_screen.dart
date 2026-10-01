@@ -449,93 +449,97 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (isStaff) ...[
           const Text('Management Tools', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppTheme.deepHeading)),
           const SizedBox(height: 10),
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            shape: RoundedRectangleBorder(
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
               borderRadius: BorderRadius.circular(22),
-              side: const BorderSide(color: AppTheme.border),
+              border: Border.all(color: AppTheme.border),
             ),
             clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: AppTheme.successBg, borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.attach_money_rounded, color: AppTheme.successDark),
+            child: Material(
+              type: MaterialType.transparency,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: AppTheme.successBg, borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.attach_money_rounded, color: AppTheme.successDark),
+                    ),
+                    title: const Text('Revenue & Financials', style: TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: const Text('Gross revenue, court vs equipment income', style: TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RevenueScreen())),
                   ),
-                  title: const Text('Revenue & Financials', style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: const Text('Gross revenue, court vs equipment income', style: TextStyle(fontSize: 12)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RevenueScreen())),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.sports_tennis_rounded, color: Color(0xFFB45309)),
-                  ),
-                  title: const Text('Equipment Inventory', style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: const Text('Manage sports equipment & rental stock', style: TextStyle(fontSize: 12)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EquipmentsScreen())),
-                ),
-                if (isAdmin) ...[
                   const Divider(height: 1),
                   ListTile(
                     leading: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppTheme.primaryBg, borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(Icons.group_outlined, color: AppTheme.primary),
+                      decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.sports_tennis_rounded, color: Color(0xFFB45309)),
                     ),
-                    title: const Text('Registered Members', style: TextStyle(fontWeight: FontWeight.w700)),
-                    subtitle: const Text('Directory of active member accounts', style: TextStyle(fontSize: 12)),
+                    title: const Text('Equipment Inventory', style: TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: const Text('Manage sports equipment & rental stock', style: TextStyle(fontSize: 12)),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MembersScreen())),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EquipmentsScreen())),
                   ),
+                  if (isAdmin) ...[
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: AppTheme.primaryBg, borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.group_outlined, color: AppTheme.primary),
+                      ),
+                      title: const Text('Registered Members', style: TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: const Text('Directory of active member accounts', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MembersScreen())),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
         ],
 
         // App Settings & Actions
-        Material(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          shape: RoundedRectangleBorder(
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
             borderRadius: BorderRadius.circular(22),
-            side: const BorderSide(color: AppTheme.border),
+            border: Border.all(color: AppTheme.border),
           ),
           clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.credit_card_rounded, color: AppTheme.primary),
-                title: const Text('Saved Payment Cards', style: TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: const Text('Manage debit & credit cards for fast checkout', style: TextStyle(fontSize: 12)),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                onTap: _showSavedCardsSheet,
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.lock_reset_rounded, color: AppTheme.primary),
-                title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w700)),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                onTap: _showChangePasswordDialog,
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.dns_rounded, color: AppTheme.primary),
-                title: const Text('Configure Backend URL', style: TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: Text(_apiService.baseUrl, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                onTap: widget.onConfigureServer,
-              ),
-            ],
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.credit_card_rounded, color: AppTheme.primary),
+                  title: const Text('Saved Payment Cards', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('Manage debit & credit cards for fast checkout', style: TextStyle(fontSize: 12)),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                  onTap: _showSavedCardsSheet,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.lock_reset_rounded, color: AppTheme.primary),
+                  title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w700)),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                  onTap: _showChangePasswordDialog,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.dns_rounded, color: AppTheme.primary),
+                  title: const Text('Configure Backend URL', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text(_apiService.baseUrl, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                  onTap: widget.onConfigureServer,
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 20),

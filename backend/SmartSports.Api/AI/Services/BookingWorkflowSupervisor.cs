@@ -259,17 +259,108 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             };
         }
 
-        // Step 4: Commit booking atomically (Booking Agent Execution)
+        // Step 4: Validate payment credentials and commit booking atomically (Booking Agent Execution)
         var paymentMethod = string.IsNullOrWhiteSpace(request.PaymentMethod) ? state.PaymentMethod : request.PaymentMethod;
         var paymentStatus = paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ? "Paid" : "Pending";
         var bookingStatus = paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ? "Confirmed" : "Pending";
+        string? bankSlipStoredName = null;
+
+        if (paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(request.Cvv) || !Regex.IsMatch(request.Cvv.Trim(), @"^\d{3}$"))
+            {
+                return new BookingWorkflowResponse
+                {
+                    WorkflowId = state.WorkflowId,
+                    Status = "awaiting_confirmation",
+                    CurrentStep = 3,
+                    Message = "Payment validation failed: Please enter a valid 3-digit CVV security code for your card."
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.CardNumber))
+            {
+                var cleanCard = Regex.Replace(request.CardNumber, @"\D", "");
+                if (cleanCard.Length != 16)
+                {
+                    return new BookingWorkflowResponse
+                    {
+                        WorkflowId = state.WorkflowId,
+                        Status = "awaiting_confirmation",
+                        CurrentStep = 3,
+                        Message = "Payment validation failed: Card number must be exactly 16 digits."
+                    };
+                }
+
+                if (request.ExpiryMonth.HasValue && (request.ExpiryMonth.Value < 1 || request.ExpiryMonth.Value > 12))
+                {
+                    return new BookingWorkflowResponse
+                    {
+                        WorkflowId = state.WorkflowId,
+                        Status = "awaiting_confirmation",
+                        CurrentStep = 3,
+                        Message = "Payment validation failed: Expiry month must be between 01 and 12."
+                    };
+                }
+            }
+        }
+        else if (paymentMethod.Equals("BankTransfer", StringComparison.OrdinalIgnoreCase))
+        {
+            if (request.BankSlip == null && string.IsNullOrWhiteSpace(request.BankSlipBase64))
+            {
+                return new BookingWorkflowResponse
+                {
+                    WorkflowId = state.WorkflowId,
+                    Status = "awaiting_confirmation",
+                    CurrentStep = 3,
+                    Message = "Payment validation failed: Please upload your bank transfer slip / receipt to complete your booking."
+                };
+            }
+
+            try
+            {
+                var uploadsFolder = Path.Combine(AppContext.BaseDirectory, "uploads", "slips");
+                Directory.CreateDirectory(uploadsFolder);
+
+                if (request.BankSlip != null)
+                {
+                    var extension = Path.GetExtension(request.BankSlip.FileName);
+                    if (string.IsNullOrWhiteSpace(extension)) extension = ".jpg";
+                    bankSlipStoredName = $"{Guid.NewGuid()}{extension}";
+                    var filePath = Path.Combine(uploadsFolder, bankSlipStoredName);
+                    await using var stream = new FileStream(filePath, FileMode.Create);
+                    await request.BankSlip.CopyToAsync(stream);
+                }
+                else if (!string.IsNullOrWhiteSpace(request.BankSlipBase64))
+                {
+                    var cleanBase64 = Regex.Replace(request.BankSlipBase64, @"^data:image\/[a-zA-Z]+;base64,", string.Empty);
+                    var bytes = Convert.FromBase64String(cleanBase64);
+                    var extension = string.IsNullOrWhiteSpace(request.BankSlipFileName) ? ".jpg" : Path.GetExtension(request.BankSlipFileName);
+                    if (string.IsNullOrWhiteSpace(extension)) extension = ".jpg";
+                    bankSlipStoredName = $"{Guid.NewGuid()}{extension}";
+                    var filePath = Path.Combine(uploadsFolder, bankSlipStoredName);
+                    await File.WriteAllBytesAsync(filePath, bytes);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to store bank slip");
+                return new BookingWorkflowResponse
+                {
+                    WorkflowId = state.WorkflowId,
+                    Status = "awaiting_confirmation",
+                    CurrentStep = 3,
+                    Message = "Could not process bank slip upload. Please try uploading the image again."
+                };
+            }
+        }
 
         string? cardLastFour = request.CardLastFour;
         if (string.IsNullOrWhiteSpace(cardLastFour) && !string.IsNullOrWhiteSpace(request.CardNumber) && request.CardNumber.Length >= 4)
         {
             cardLastFour = request.CardNumber[^4..];
         }
-        else if (string.IsNullOrWhiteSpace(cardLastFour))
+        else if (string.IsNullOrWhiteSpace(cardLastFour) && paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase))
         {
             cardLastFour = "4242"; // Default mock card token
         }
@@ -289,6 +380,7 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             PaymentMethod = paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ? "Card" : "BankTransfer",
             PaymentStatus = paymentStatus,
             CardLastFour = cardLastFour,
+            BankSlipFileName = bankSlipStoredName,
             Status = bookingStatus
         };
 
@@ -386,33 +478,72 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             {
                 state.BookingDate = parsedDate.ToString("yyyy-MM-dd");
             }
-        }
-
-        // 3. Time extraction (e.g. 7 PM, 19:00, 8:00 AM, 18:00)
-        var time12Match = Regex.Match(message, @"\b(\d{1,2})(?::00)?\s*(am|pm)\b", RegexOptions.IgnoreCase);
-        if (time12Match.Success)
-        {
-            int hour = int.Parse(time12Match.Groups[1].Value);
-            var period = time12Match.Groups[2].Value.ToLowerInvariant();
-            if (period == "pm" && hour < 12) hour += 12;
-            if (period == "am" && hour == 12) hour = 0;
-            state.StartTime = $"{hour:D2}:00";
-        }
-        else
-        {
-            var time24Match = Regex.Match(message, @"\b([01]?\d|2[0-3]):00\b");
-            if (time24Match.Success)
+            else
             {
-                int hour = int.Parse(time24Match.Groups[1].Value);
-                state.StartTime = $"{hour:D2}:00";
+                var generalDate = Regex.Match(message, @"\b(\d{4}-\d{2}-\d{2})\b");
+                if (generalDate.Success && DateTime.TryParse(generalDate.Value, out var gd))
+                {
+                    state.BookingDate = gd.ToString("yyyy-MM-dd");
+                }
+                else
+                {
+                    var altDate = Regex.Match(message, @"\b(\d{1,2}[-/]\d{1,2}[-/]202\d)\b");
+                    if (altDate.Success && DateTime.TryParse(altDate.Value, out var ad))
+                    {
+                        state.BookingDate = ad.ToString("yyyy-MM-dd");
+                    }
+                }
             }
         }
 
-        // 4. Duration extraction (e.g. "2 hours", "1 hr", "3 hrs")
-        var durMatch = Regex.Match(message, @"\b(\d+)\s*(?:hour|hours|hr|hrs)\b", RegexOptions.IgnoreCase);
-        if (durMatch.Success && int.TryParse(durMatch.Groups[1].Value, out int dur) && dur >= 1 && dur <= 8)
+        // 3. Time extraction & linear multi-slot duration extraction
+        // Check for multiple slots mentioned, e.g. "slots 10:00, 11:00", "slots from 10:00 to 12:00"
+        var multiSlotsMatch = Regex.Matches(message, @"\b([01]?\d|2[0-3]):00\b");
+        var rangeMatch = Regex.Match(message, @"(?:from\s+)?([01]?\d|2[0-3]):00\s*(?:to|-)\s*([01]?\d|2[0-3]):00", RegexOptions.IgnoreCase);
+
+        if (rangeMatch.Success)
         {
-            state.HoursNeeded = dur;
+            int startH = int.Parse(rangeMatch.Groups[1].Value);
+            int endH = int.Parse(rangeMatch.Groups[2].Value);
+            if (endH > startH)
+            {
+                state.StartTime = $"{startH:D2}:00";
+                state.HoursNeeded = Math.Clamp(endH - startH, 1, 8);
+            }
+        }
+        else if (multiSlotsMatch.Count > 1)
+        {
+            var hoursList = multiSlotsMatch.Select(m => int.Parse(m.Value.Split(':')[0])).Distinct().OrderBy(h => h).ToList();
+            state.StartTime = $"{hoursList.First():D2}:00";
+            state.HoursNeeded = Math.Clamp(hoursList.Last() - hoursList.First() + 1, 1, 8);
+        }
+        else
+        {
+            var time12Match = Regex.Match(message, @"\b(\d{1,2})(?::00)?\s*(am|pm)\b", RegexOptions.IgnoreCase);
+            if (time12Match.Success)
+            {
+                int hour = int.Parse(time12Match.Groups[1].Value);
+                var period = time12Match.Groups[2].Value.ToLowerInvariant();
+                if (period == "pm" && hour < 12) hour += 12;
+                if (period == "am" && hour == 12) hour = 0;
+                state.StartTime = $"{hour:D2}:00";
+            }
+            else
+            {
+                var time24Match = Regex.Match(message, @"\b([01]?\d|2[0-3]):00\b");
+                if (time24Match.Success)
+                {
+                    int hour = int.Parse(time24Match.Groups[1].Value);
+                    state.StartTime = $"{hour:D2}:00";
+                }
+            }
+
+            // Duration extraction (e.g. "2 hours", "1 hr", "3 hrs")
+            var durMatch = Regex.Match(message, @"\b(\d+)\s*(?:hour|hours|hr|hrs)\b", RegexOptions.IgnoreCase);
+            if (durMatch.Success && int.TryParse(durMatch.Groups[1].Value, out int dur) && dur >= 1 && dur <= 8)
+            {
+                state.HoursNeeded = dur;
+            }
         }
 
         // 5. Player details extraction (NIC, Phone, Name)
@@ -490,22 +621,34 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
         state.AvailableSlots = freeSlots;
         state.Trajectory.Add($"Availability Agent found {freeSlots.Count} free slots on {state.BookingDate} for {state.FacilityName}.");
 
-        // Validate selected start time if user specified one
+        // Validate selected start time and all consecutive hours if user specified one
         if (!string.IsNullOrWhiteSpace(state.StartTime))
         {
-            if (!freeSlots.Contains(state.StartTime))
+            var startSpan = TimeSpan.Parse(state.StartTime);
+            bool allConsecutiveAvailable = true;
+            for (int i = 0; i < state.HoursNeeded; i++)
             {
-                state.Trajectory.Add($"Availability Agent: Requested slot {state.StartTime} is not available.");
+                var slotCheck = startSpan.Add(TimeSpan.FromHours(i)).ToString(@"hh\:mm");
+                if (!freeSlots.Contains(slotCheck))
+                {
+                    allConsecutiveAvailable = false;
+                    break;
+                }
+            }
+
+            if (!allConsecutiveAvailable)
+            {
+                state.Trajectory.Add($"Availability Agent: Requested slot {state.StartTime} for {state.HoursNeeded} linear hr(s) is not fully available.");
                 state.StartTime = null; // Clear conflicting slot
             }
             else
             {
                 // Validate duration
-                var startSpan = TimeSpan.Parse(state.StartTime);
                 var endSpan = startSpan.Add(TimeSpan.FromHours(state.HoursNeeded));
                 if (endSpan > TimeSpan.FromHours(24))
                 {
                     state.HoursNeeded = (int)(TimeSpan.FromHours(24) - startSpan).TotalHours;
+                    endSpan = startSpan.Add(TimeSpan.FromHours(state.HoursNeeded));
                 }
                 state.EndTime = endSpan.ToString(@"hh\:mm");
                 state.TotalAmount = (state.HourlyRate ?? 1000m) * state.HoursNeeded;
@@ -565,7 +708,7 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             else if (string.IsNullOrWhiteSpace(state.BookingDate))
             {
                 message = $"Great choice! {state.FacilityName} costs LKR {state.HourlyRate:N0}/hour. Which date would you like to play?";
-                suggestedOptions.AddRange(new[] { "Today", "Tomorrow" });
+                suggestedOptions.AddRange(new[] { "Today", "Tomorrow", "Pick a date" });
             }
             else if (string.IsNullOrWhiteSpace(state.StartTime))
             {

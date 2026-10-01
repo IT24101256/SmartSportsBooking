@@ -1062,26 +1062,57 @@ class ApiService {
     String paymentMethod = 'Card',
     String? cardNumber,
     String? cardLastFour = '4242',
+    String? cvv,
+    int? expiryMonth,
+    int? expiryYear,
+    XFile? bankSlip,
   }) async {
     final uri = Uri.parse('$_baseUrl/api/ai/booking/confirm');
     try {
-      final response = await http
-          .post(
-            uri,
-            headers: _headers,
-            body: jsonEncode({
-              'workflowId': workflowId,
-              'paymentMethod': paymentMethod,
-              'cardNumber': ?cardNumber,
-              'cardLastFour': ?cardLastFour,
-            }),
-          )
-          .timeout(const Duration(seconds: 20));
+      if (paymentMethod == 'BankTransfer' && bankSlip != null) {
+        final request = http.MultipartRequest('POST', uri);
+        request.headers.addAll(_authHeaderOnly);
+        request.fields['workflowId'] = workflowId;
+        request.fields['paymentMethod'] = paymentMethod;
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        final bytes = await bankSlip.readAsBytes();
+        request.files.add(http.MultipartFile.fromBytes(
+          'bankSlip',
+          bytes,
+          filename: bankSlip.name.isNotEmpty ? bankSlip.name : 'bank_slip.jpg',
+        ));
+
+        final streamedResponse = await request.send().timeout(const Duration(seconds: 20));
+        final response = await http.Response.fromStream(streamedResponse);
+
+        if (response.statusCode == 200) {
+          return jsonDecode(response.body) as Map<String, dynamic>;
+        }
+        throw Exception(_extractErrorMessage(response));
+      } else {
+        final payload = <String, dynamic>{
+          'workflowId': workflowId,
+          'paymentMethod': paymentMethod,
+          'cardNumber': ?cardNumber,
+          'cardLastFour': ?cardLastFour,
+          'cvv': ?cvv,
+          'expiryMonth': ?expiryMonth,
+          'expiryYear': ?expiryYear,
+        };
+
+        final response = await http
+            .post(
+              uri,
+              headers: _headers,
+              body: jsonEncode(payload),
+            )
+            .timeout(const Duration(seconds: 20));
+
+        if (response.statusCode == 200) {
+          return jsonDecode(response.body) as Map<String, dynamic>;
+        }
+        throw Exception(_extractErrorMessage(response));
       }
-      throw Exception(_extractErrorMessage(response));
     } catch (e) {
       rethrow;
     }

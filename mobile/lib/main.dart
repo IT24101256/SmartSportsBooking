@@ -425,22 +425,37 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       ),
       body: currentScreen,
       floatingActionButton: (_selectedTab == 2 && _apiService.currentUser?.isAdmin == true && _viewingFacility == null)
-          ? FloatingActionButton.extended(
-              onPressed: () => EditFacilityModal.show(context, null, _loadAllData),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add Facility', style: TextStyle(fontWeight: FontWeight.w800)),
-              backgroundColor: AppTheme.primary,
-              foregroundColor: Colors.white,
-            )
-          : (_selectedTab == 0 && _viewingFacility == null)
-              ? FloatingActionButton.extended(
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'addFacilityFab',
+                  onPressed: () => EditFacilityModal.show(context, null, _loadAllData),
+                  tooltip: 'Add Facility',
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  child: const Icon(Icons.add_rounded),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton.extended(
+                  heroTag: 'askAiFab',
                   onPressed: () => AiChatSheet.show(context),
                   icon: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
                   label: const Text('Ask AI', style: TextStyle(fontWeight: FontWeight.w800)),
                   backgroundColor: const Color(0xFF0284C7),
                   foregroundColor: Colors.white,
-                )
-              : null,
+                ),
+              ],
+            )
+          : FloatingActionButton.extended(
+              heroTag: 'askAiFab',
+              onPressed: () => AiChatSheet.show(context),
+              icon: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
+              label: const Text('Ask AI', style: TextStyle(fontWeight: FontWeight.w800)),
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+            ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedTab,
         onTap: (index) {

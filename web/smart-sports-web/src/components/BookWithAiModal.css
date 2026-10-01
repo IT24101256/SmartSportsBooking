@@ -332,6 +332,160 @@
   transform: translateY(-2px);
 }
 
+.ai-slot-chip.selected {
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  color: #ffffff;
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+  transform: scale(1.04);
+}
+
+.slots-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.slots-selected-count {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.slots-confirm-bar {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.slots-selection-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slots-selection-info .time-range {
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.slots-selection-info .duration-pill {
+  color: #38bdf8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.slots-continue-btn {
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+}
+
+.slots-continue-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.5);
+}
+
+/* Date Picker Card (Step 1) */
+.ai-date-picker-card {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.date-picker-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.date-picker-header strong {
+  color: #38bdf8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.date-picker-header small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.date-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ai-date-quick-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f1f5f9;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-date-quick-btn:hover {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+.ai-custom-date-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 6px 12px;
+  border-radius: 10px;
+}
+
+.ai-date-label {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.ai-custom-date-picker input[type="date"] {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  color-scheme: dark;
+}
+
 /* Summary Card */
 .ai-summary-card {
   background: rgba(30, 41, 59, 0.9);
@@ -405,19 +559,396 @@
   font-weight: 900;
 }
 
-.payment-select-mini {
+/* Payment Section in Summary Card */
+.ai-payment-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
+  flex-direction: column;
   gap: 12px;
-  margin-top: 4px;
 }
 
-.payment-select-mini label {
+.ai-payment-section h5 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 0.3px;
+}
+
+.ai-payment-method-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.payment-method-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.payment-method-option:hover {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.payment-method-option.active {
+  background: rgba(2, 132, 199, 0.2);
+  border-color: #0284c7;
+  box-shadow: 0 0 12px rgba(2, 132, 199, 0.25);
+}
+
+.method-label-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.method-label-wrap strong {
+  font-size: 13px;
+  color: #f1f5f9;
+}
+
+.method-label-wrap small {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+/* Card Payment Tabs & Saved Cards */
+.ai-card-payment-form {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-card-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+
+.card-tab {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.card-tab.active {
+  background: rgba(2, 132, 199, 0.25);
+  color: #38bdf8;
+}
+
+.ai-saved-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-saved-card-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-saved-card-item.selected {
+  border-color: #38bdf8;
+  background: rgba(2, 132, 199, 0.15);
+}
+
+.card-brand-badge {
+  background: #1e3a8a;
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.card-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin-left: 12px;
+}
+
+.card-info strong {
+  font-size: 13px;
+  color: #ffffff;
+}
+
+.card-info small {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.card-radio {
+  font-size: 16px;
+  color: #38bdf8;
+}
+
+.ai-cvv-field {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-cvv-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #cbd5e1;
+  display: flex;
+  gap: 4px;
+}
+
+.required-star {
+  color: #ef4444;
+}
+
+.ai-cvv-field input {
+  width: 140px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  letter-spacing: 2px;
+  outline: none;
+}
+
+.ai-cvv-field input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+}
+
+.ai-cvv-field small {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* New Card Form */
+.ai-new-card-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-new-card-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-new-card-form label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.ai-new-card-form input[type="text"],
+.ai-new-card-form input[type="password"] {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+
+.ai-new-card-form input:focus {
+  border-color: #38bdf8;
+}
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.exp-inputs {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.ai-select-dropdown,
+.exp-inputs select {
+  flex: 1;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 8px 8px;
+  border-radius: 8px;
   font-size: 13px;
-  color: #cbd5e1;
+  font-weight: 600;
+  outline: none;
   cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-select-dropdown:focus,
+.exp-inputs select:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+}
+
+.ai-select-dropdown option,
+.exp-inputs select option {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.exp-inputs span {
+  color: #64748B;
+  font-weight: 700;
+}
+
+.save-card-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+/* Bank Transfer Form */
+.ai-bank-transfer-form {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bank-account-box {
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bank-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.bank-row span {
+  color: #94a3b8;
+}
+
+.bank-row strong {
+  color: #f1f5f9;
+}
+
+.bank-slip-upload-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bank-slip-upload-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #cbd5e1;
+  display: flex;
+  gap: 4px;
+}
+
+.bank-slip-upload-field input[type="file"] {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px dashed rgba(56, 189, 248, 0.4);
+  color: #cbd5e1;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.slip-uploaded-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.slip-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.slip-name {
+  flex: 1;
+  font-size: 12px;
+  color: #a7f3d0;
+  font-weight: 600;
+}
+
+.slip-remove-btn {
+  background: transparent;
+  border: none;
+  color: #f87171;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.slip-remove-btn:hover {
+  text-decoration: underline;
+}
+
+.slip-instruction {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.ai-payment-error-alert {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .summary-actions {

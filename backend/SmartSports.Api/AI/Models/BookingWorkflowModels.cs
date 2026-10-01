@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+
 namespace SmartSportsFacilityBooking.AI.Models;
 
 public class BookingWorkflowState
@@ -73,6 +75,9 @@ public class ConfirmBookingWorkflowRequest
     public string? Cvv { get; set; }
     public int? ExpiryMonth { get; set; }
     public int? ExpiryYear { get; set; }
+    public IFormFile? BankSlip { get; set; }
+    public string? BankSlipBase64 { get; set; }
+    public string? BankSlipFileName { get; set; }
 }
 
 public class BookingWorkflowResponse

@@ -44,10 +44,37 @@ public class AiBookingController : ControllerBase
     }
 
     [HttpPost("confirm")]
-    public async Task<IActionResult> ConfirmBooking([FromBody] ConfirmBookingWorkflowRequest request)
+    public async Task<IActionResult> ConfirmBooking()
     {
         var userId = GetUserId();
         if (!userId.HasValue) return Unauthorized();
+
+        ConfirmBookingWorkflowRequest? request = null;
+
+        if (Request.HasFormContentType)
+        {
+            var form = await Request.ReadFormAsync();
+            request = new ConfirmBookingWorkflowRequest
+            {
+                WorkflowId = Guid.TryParse(form["workflowId"], out var wid) ? wid : Guid.Empty,
+                PaymentMethod = string.IsNullOrWhiteSpace(form["paymentMethod"]) ? "Card" : form["paymentMethod"].ToString(),
+                CardNumber = form["cardNumber"],
+                CardLastFour = form["cardLastFour"],
+                Cvv = form["cvv"],
+                ExpiryMonth = int.TryParse(form["expiryMonth"], out var em) ? em : null,
+                ExpiryYear = int.TryParse(form["expiryYear"], out var ey) ? ey : null,
+                BankSlip = form.Files.GetFile("bankSlip")
+            };
+        }
+        else
+        {
+            using var reader = new StreamReader(Request.Body);
+            var body = await reader.ReadToEndAsync();
+            if (!string.IsNullOrWhiteSpace(body))
+            {
+                request = System.Text.Json.JsonSerializer.Deserialize<ConfirmBookingWorkflowRequest>(body, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+        }
 
         if (request == null || request.WorkflowId == Guid.Empty)
         {

@@ -6,6 +6,7 @@ import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/facility_images.dart';
 import '../../widgets/edit_facility_modal.dart';
+import '../../widgets/ai_chat_sheet.dart';
 
 class FacilityDetailsScreen extends StatefulWidget {
   final Facility facility;
@@ -84,6 +85,18 @@ class _FacilityDetailsScreenState extends State<FacilityDetailsScreen> {
               onPressed: widget.onBack ?? () => Navigator.pop(context),
             ),
             actions: [
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF0284C7),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
+                ),
+                tooltip: 'Ask AI',
+                onPressed: () => AiChatSheet.show(context),
+              ),
               if (ApiService().currentUser?.isAdmin == true)
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
