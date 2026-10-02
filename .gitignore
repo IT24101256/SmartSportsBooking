@@ -31,3 +31,5 @@ web/smart-sports-web/dist/
 # Test and coverage output
 coverage/
 test-results/
+.neon
+node_modules/
