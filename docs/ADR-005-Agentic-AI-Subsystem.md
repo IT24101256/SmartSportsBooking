@@ -6,6 +6,8 @@
 - **Component**: SmartSports Booking System – Part 5: Agentic AI Subsystem
 - **Authors**: SmartSports Engineering Team
 
+> **Current implementation contract (2026-10-02):** The customer-facing AI booking path is confirmed by the authenticated customer and does not require manager approval. The runtime implementation uses `BookingWorkflowSupervisor` with deterministic C# validation; the four-agent/tool-registry design below is a target architecture and must not be presented as an implemented runtime feature.
+
 ---
 
 ## 1. Context and Problem Statement

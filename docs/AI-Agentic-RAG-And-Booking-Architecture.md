@@ -1,4 +1,6 @@
 # MySpot: Grounded Agentic RAG & "Book With AI" Multi-Agent Subsystem
+
+> **Implementation note (2026-10-02):** AI booking is customer-confirmed and does not require manager approval. The live backend currently uses `BookingWorkflowSupervisor` and deterministic services rather than the four independent agents and manager-gated tool registry described as the target architecture below.
 ## Architecture Analysis & Implementation Plan
 
 ### 1. Existing System Analysis

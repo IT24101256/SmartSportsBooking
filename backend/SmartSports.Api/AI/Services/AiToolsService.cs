@@ -140,6 +140,10 @@ public class AiToolsService : IAiToolsService
             .Select(b => new { b.StartTime, b.EndTime })
             .ToListAsync();
 
+        var schedules = await _context.FacilitySchedules
+            .Where(s => s.FacilityId == facilityId && s.DayOfWeek == day.DayOfWeek)
+            .ToListAsync();
+
         var slNow = CancellationRefundService.GetCurrentLocalTime();
         var todayLocalDate = slNow.Date;
         var currentLocalTime = slNow.TimeOfDay;
@@ -150,7 +154,8 @@ public class AiToolsService : IAiToolsService
             var end = start.Add(TimeSpan.FromHours(1));
             var isPast = day.Date < todayLocalDate || (day.Date == todayLocalDate && start <= currentLocalTime);
             var isBooked = bookings.Any(b => b.StartTime < end && b.EndTime > start);
-            var status = isPast ? "Past" : isBooked ? "Booked" : "Available";
+            var isWithinSchedule = schedules.Count == 0 || schedules.Any(s => s.StartTime <= start && s.EndTime >= end);
+            var status = isPast ? "Past" : !isWithinSchedule ? "Closed" : isBooked ? "Booked" : "Available";
 
             return new
             {

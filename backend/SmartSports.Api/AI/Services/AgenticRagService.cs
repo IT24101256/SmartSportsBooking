@@ -40,15 +40,17 @@ public class AgenticRagService : IAgenticRagService
             UserId = userId
         });
 
-        // Security check: verify conversation ownership if session has a bound user
-        if (session.UserId.HasValue && userId.HasValue && session.UserId.Value != userId.Value)
+        // A conversation cannot be reused across users. Start a fresh session for the
+        // current request so stale client-side conversation IDs do not block chat.
+        if (session.UserId.HasValue && (!userId.HasValue || session.UserId.Value != userId.Value))
         {
-            return new AiChatResponse
+            conversationId = Guid.NewGuid().ToString("N")[..12];
+            session = new AiChatSession
             {
                 ConversationId = conversationId,
-                Answer = "You are not authorized to view or continue this conversation.",
-                Sources = new()
+                UserId = userId
             };
+            _sessions[conversationId] = session;
         }
 
         if (!session.UserId.HasValue && userId.HasValue)
@@ -244,6 +246,11 @@ Follow these strict instructions:
 
             var userPrompt = $"User Question: {userMessage}\n\nEvidence Context:\n{contextBuilder}\n\nProvide a helpful, concise, well-formatted answer with human-readable citations:";
             answerText = await _geminiClient.GenerateContentAsync(systemPrompt, userPrompt);
+
+            if (string.IsNullOrWhiteSpace(answerText))
+            {
+                answerText = SynthesizeOfflineAnswer(userMessage, bestRetrievals, liveToolContext);
+            }
         }
         else
         {
@@ -265,7 +272,7 @@ Follow these strict instructions:
     {
         if (_sessions.TryGetValue(conversationId, out var session))
         {
-            if (session.UserId.HasValue && userId.HasValue && session.UserId.Value != userId.Value)
+            if (session.UserId.HasValue && (!userId.HasValue || session.UserId.Value != userId.Value))
             {
                 return Task.FromResult<AiChatSession?>(null);
             }

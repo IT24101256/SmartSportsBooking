@@ -15,10 +15,12 @@ namespace SmartSportsFacilityBooking.Controllers;
 public class BookingsController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IBookingSlotValidationService _slotValidationService;
 
-    public BookingsController(AppDbContext context)
+    public BookingsController(AppDbContext context, IBookingSlotValidationService slotValidationService)
     {
         _context = context;
+        _slotValidationService = slotValidationService;
     }
 
     [HttpGet]
@@ -224,6 +226,7 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPost]
+    [RequestSizeLimit(5 * 1024 * 1024)]
     public async Task<IActionResult> CreateBooking([FromForm] CreateBookingRequest request)
     {
         var userId = GetUserId();
@@ -232,34 +235,21 @@ public class BookingsController : ControllerBase
             return Unauthorized();
         }
 
-        // Normalise the date to UTC regardless of serialised Kind
-        var bookingDate = DateTime.SpecifyKind(request.BookingDate.Date, DateTimeKind.Utc);
-        var today = DateTime.UtcNow.Date;
-        var now = DateTime.UtcNow.TimeOfDay;
+        var isPrivileged = User.IsInRole("Admin") || User.IsInRole("Manager");
+        var slotValidation = await _slotValidationService.ValidateAsync(
+            request.FacilityId,
+            request.BookingDate,
+            request.StartTime,
+            request.HoursNeeded,
+            checkOverlap: !isPrivileged);
 
-        if (bookingDate.Date < today)
+        if (!slotValidation.IsValid)
         {
-            return BadRequest("Bookings cannot be made for a previous date.");
+            return BadRequest(slotValidation.ErrorMessage);
         }
 
-        if (bookingDate.Date == today && request.StartTime < now)
-        {
-            return BadRequest("Bookings cannot start before the current time.");
-        }
-
-        if (request.StartTime.Minutes != 0 || request.StartTime.Seconds != 0 || request.StartTime < TimeSpan.FromHours(8) || request.StartTime >= TimeSpan.FromHours(24))
-        {
-            return BadRequest("Bookings must start on a whole hour between 08:00 and 23:00.");
-        }
-
-        var expectedEndTime = request.StartTime.Add(TimeSpan.FromHours(request.HoursNeeded));
-
-        if (request.HoursNeeded < 1 || expectedEndTime > TimeSpan.FromHours(24))
-        {
-            return BadRequest("Bookings must be for at least one whole hour and end by midnight.");
-        }
-
-        // Normalise EndTime to the exact computed end time based on StartTime + HoursNeeded
+        var bookingDate = slotValidation.BookingDate;
+        var expectedEndTime = slotValidation.EndTime;
         request.EndTime = expectedEndTime;
 
         if (!new[] { "Card", "BankTransfer", "Cash" }.Contains(request.PaymentMethod, StringComparer.OrdinalIgnoreCase) ||
@@ -317,29 +307,7 @@ public class BookingsController : ControllerBase
             return BadRequest("The end time must be after the start time.");
         }
 
-        var facility = await _context.Facilities.FindAsync(request.FacilityId);
-        if (facility == null)
-        {
-            return NotFound("Facility not found.");
-        }
-
-        // Admins and Managers may override schedule conflicts
-        bool isPrivileged = User.IsInRole("Admin") || User.IsInRole("Manager");
-
-        if (!isPrivileged)
-        {
-            var overlap = await _context.Bookings.AnyAsync(booking =>
-                booking.FacilityId == request.FacilityId &&
-                booking.BookingDate == bookingDate &&
-                booking.StartTime < request.EndTime &&
-                booking.EndTime > request.StartTime &&
-                booking.Status != "Cancelled");
-
-            if (overlap)
-            {
-                return Conflict("This facility is already booked for that time.");
-            }
-        }
+        var facility = slotValidation.Facility!;
 
         var validStatuses = new[] { "Pending", "Confirmed" };
         var booking = new Booking
@@ -366,9 +334,19 @@ public class BookingsController : ControllerBase
 
         if (request.BankSlip != null)
         {
+            if (request.BankSlip.Length <= 0 || request.BankSlip.Length > 4 * 1024 * 1024)
+            {
+                return BadRequest("The bank slip must be a non-empty file no larger than 4 MB.");
+            }
+
             var uploadDirectory = Path.Combine(AppContext.BaseDirectory, "uploads", "slips");
             Directory.CreateDirectory(uploadDirectory);
             var extension = Path.GetExtension(request.BankSlip.FileName);
+            if (!new[] { ".jpg", ".jpeg", ".png", ".pdf" }.Contains(extension, StringComparer.OrdinalIgnoreCase))
+            {
+                return BadRequest("The bank slip must be a JPG, PNG, or PDF file.");
+            }
+
             var storedName = $"{Guid.NewGuid():N}{extension}";
             await using var stream = System.IO.File.Create(Path.Combine(uploadDirectory, storedName));
             await request.BankSlip.CopyToAsync(stream);

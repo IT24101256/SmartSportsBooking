@@ -34,7 +34,7 @@ public class AiChatController : ControllerBase
     }
 
     [HttpGet("history/{conversationId}")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<IActionResult> GetHistory(string conversationId)
     {
         if (string.IsNullOrWhiteSpace(conversationId))

@@ -42,6 +42,8 @@ public class Booking
 
     public string PaymentStatus { get; set; } = "Pending";
 
+    public bool IsMockPayment { get; set; }
+
     public string? BankSlipFileName { get; set; }
 
     public string? CardLastFour { get; set; }

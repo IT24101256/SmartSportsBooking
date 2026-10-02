@@ -25,7 +25,10 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  String _baseUrl = 'http://localhost:5187';
+  String _baseUrl = const String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:5187',
+  );
 
   String get baseUrl => _baseUrl;
   set baseUrl(String url) {
@@ -51,7 +54,7 @@ class ApiService {
       };
 
   void initialize() {
-    if (!kIsWeb) {
+    if (!kIsWeb && kDebugMode) {
       HttpOverrides.global = DevHttpOverrides();
     }
   }

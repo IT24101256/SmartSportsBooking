@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -10,21 +11,28 @@ namespace SmartSportsFacilityBooking.AI.Services;
 
 public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
 {
+    private const int MaxBankSlipBytes = 4 * 1024 * 1024;
     private readonly AppDbContext _context;
     private readonly IAiToolsService _toolsService;
     private readonly IGeminiClient _geminiClient;
     private readonly ILogger<BookingWorkflowSupervisor> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly IBookingSlotValidationService _slotValidationService;
 
     public BookingWorkflowSupervisor(
         AppDbContext context,
         IAiToolsService toolsService,
         IGeminiClient geminiClient,
-        ILogger<BookingWorkflowSupervisor> logger)
+        ILogger<BookingWorkflowSupervisor> logger,
+        IConfiguration configuration,
+        IBookingSlotValidationService slotValidationService)
     {
         _context = context;
         _toolsService = toolsService;
         _geminiClient = geminiClient;
         _logger = logger;
+        _configuration = configuration;
+        _slotValidationService = slotValidationService;
     }
 
     public async Task<BookingWorkflowResponse> StartWorkflowAsync(int userId, string? initialGoal = null)
@@ -111,6 +119,27 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
         }
 
         var state = DeserializeState(workflow.PlanJson, workflow.WorkflowId, userId);
+
+        if (state.ConfirmedBookingId.HasValue)
+        {
+            var existingBooking = await _context.Bookings
+                .Include(b => b.Facility)
+                .FirstOrDefaultAsync(b => b.Id == state.ConfirmedBookingId.Value && b.UserId == userId);
+
+            if (existingBooking != null)
+            {
+                return new BookingWorkflowResponse
+                {
+                    WorkflowId = state.WorkflowId,
+                    Status = "completed",
+                    CurrentStep = 4,
+                    Message = $"Booking #{existingBooking.Id} was already confirmed.",
+                    BookingId = existingBooking.Id,
+                    Booking = existingBooking,
+                    Trajectory = state.Trajectory
+                };
+            }
+        }
         state.Trajectory.Add($"User: \"{message.Trim()}\"");
 
         // Hard loop iteration limit protection (SE3090 Lab 05)
@@ -222,87 +251,123 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             };
         }
 
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
         // Step 3: Re-validate slot availability immediately before commit (anti-race condition)
-        var facility = await _context.Facilities.FindAsync(state.FacilityId.Value);
-        if (facility == null)
+        if (!DateTime.TryParse(state.BookingDate, out var requestedDate) ||
+            !TimeSpan.TryParse(state.StartTime, out var parsedStart))
         {
-            return new BookingWorkflowResponse { Status = "failed", Message = "Selected facility is no longer available." };
-        }
-
-        var targetDate = DateTime.SpecifyKind(DateTime.Parse(state.BookingDate).Date, DateTimeKind.Utc);
-        var parsedStart = TimeSpan.Parse(state.StartTime);
-        var parsedEnd = parsedStart.Add(TimeSpan.FromHours(state.HoursNeeded));
-
-        var hasOverlap = await _context.Bookings.AnyAsync(b =>
-            b.FacilityId == state.FacilityId.Value &&
-            b.BookingDate == targetDate &&
-            b.StartTime < parsedEnd &&
-            b.EndTime > parsedStart &&
-            b.Status != "Cancelled");
-
-        if (hasOverlap)
-        {
-            state.AvailableSlots.Clear();
-            state.AwaitingConfirmation = false;
-            state.StartTime = null;
-            state.Status = "collecting_requirements";
-            state.CurrentStep = 1;
-            workflow.PlanJson = JsonSerializer.Serialize(state);
-            await _context.SaveChangesAsync();
-
             return new BookingWorkflowResponse
             {
                 WorkflowId = state.WorkflowId,
                 Status = "collecting_requirements",
                 CurrentStep = 1,
-                Message = "Slot conflict: That time slot was just booked by another user! Please select another available time slot."
+                Message = "The requested booking date or time is invalid. Please select another available slot."
             };
         }
 
-        // Step 4: Validate payment credentials and commit booking atomically (Booking Agent Execution)
+        var slotValidation = await _slotValidationService.ValidateAsync(
+            state.FacilityId.Value,
+            requestedDate,
+            parsedStart,
+            state.HoursNeeded);
+
+        if (!slotValidation.IsValid)
+        {
+            return new BookingWorkflowResponse
+            {
+                WorkflowId = state.WorkflowId,
+                Status = "collecting_requirements",
+                CurrentStep = 1,
+                Message = slotValidation.ErrorMessage
+            };
+        }
+
+        var facility = slotValidation.Facility!;
+        var targetDate = slotValidation.BookingDate;
+        var parsedEnd = slotValidation.EndTime;
+
+        // Step 4: Validate payment credentials and commit booking (Booking Agent Execution)
         var paymentMethod = string.IsNullOrWhiteSpace(request.PaymentMethod) ? state.PaymentMethod : request.PaymentMethod;
-        var paymentStatus = paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ? "Paid" : "Pending";
-        var bookingStatus = paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ? "Confirmed" : "Pending";
+        if (!paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) &&
+            !paymentMethod.Equals("BankTransfer", StringComparison.OrdinalIgnoreCase))
+        {
+            return new BookingWorkflowResponse
+            {
+                WorkflowId = state.WorkflowId,
+                Status = "awaiting_confirmation",
+                CurrentStep = 3,
+                Message = "Payment validation failed: only Card or Bank Transfer is supported."
+            };
+        }
+
+        var isMockPayment = false;
+        var paymentStatus = "Pending";
+        var bookingStatus = "Pending";
         string? bankSlipStoredName = null;
 
         if (paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase))
         {
-            if (string.IsNullOrWhiteSpace(request.Cvv) || !Regex.IsMatch(request.Cvv.Trim(), @"^\d{3}$"))
+            var configuredMockCard = Regex.Replace(
+                _configuration["AI_MOCK_CARD_NUMBER"] ?? _configuration["Ai:MockCardNumber"] ?? string.Empty,
+                @"\D",
+                string.Empty);
+            var configuredMockCvv = _configuration["AI_MOCK_CARD_CVV"] ?? _configuration["Ai:MockCardCvv"];
+            var mockPaymentsEnabled = bool.TryParse(
+                _configuration["AI_ENABLE_MOCK_CARD_PAYMENTS"] ?? _configuration["Ai:EnableMockCardPayments"],
+                out var enabled) && enabled;
+            var submittedCard = Regex.Replace(request.CardNumber ?? string.Empty, @"\D", string.Empty);
+            var submittedLastFour = Regex.Replace(request.CardLastFour ?? string.Empty, @"\D", string.Empty);
+            var mockCardMatches = submittedCard.Length > 0
+                ? string.Equals(submittedCard, configuredMockCard, StringComparison.Ordinal)
+                : configuredMockCard.Length >= 4 &&
+                  string.Equals(submittedLastFour, configuredMockCard[^4..], StringComparison.Ordinal);
+
+            if (!mockPaymentsEnabled ||
+                string.IsNullOrWhiteSpace(configuredMockCard) ||
+                !mockCardMatches ||
+                string.IsNullOrWhiteSpace(configuredMockCvv) ||
+                !string.Equals(request.Cvv?.Trim(), configuredMockCvv.Trim(), StringComparison.Ordinal))
             {
                 return new BookingWorkflowResponse
                 {
                     WorkflowId = state.WorkflowId,
                     Status = "awaiting_confirmation",
                     CurrentStep = 3,
-                    Message = "Payment validation failed: Please enter a valid 3-digit CVV security code for your card."
+                    Message = "Payment validation failed: this deployment accepts only the configured mock test card."
                 };
             }
 
-            if (!string.IsNullOrWhiteSpace(request.CardNumber))
+            if ((submittedCard.Length > 0 && submittedCard.Length != 16) ||
+                (submittedCard.Length == 0 && submittedLastFour.Length != 4) ||
+                string.IsNullOrWhiteSpace(request.Cvv) ||
+                !Regex.IsMatch(request.Cvv.Trim(), @"^\d{3}$"))
             {
-                var cleanCard = Regex.Replace(request.CardNumber, @"\D", "");
-                if (cleanCard.Length != 16)
+                return new BookingWorkflowResponse
                 {
-                    return new BookingWorkflowResponse
-                    {
-                        WorkflowId = state.WorkflowId,
-                        Status = "awaiting_confirmation",
-                        CurrentStep = 3,
-                        Message = "Payment validation failed: Card number must be exactly 16 digits."
-                    };
-                }
-
-                if (request.ExpiryMonth.HasValue && (request.ExpiryMonth.Value < 1 || request.ExpiryMonth.Value > 12))
-                {
-                    return new BookingWorkflowResponse
-                    {
-                        WorkflowId = state.WorkflowId,
-                        Status = "awaiting_confirmation",
-                        CurrentStep = 3,
-                        Message = "Payment validation failed: Expiry month must be between 01 and 12."
-                    };
-                }
+                    WorkflowId = state.WorkflowId,
+                    Status = "awaiting_confirmation",
+                    CurrentStep = 3,
+                    Message = "Payment validation failed: the configured mock card details are invalid."
+                };
             }
+
+            if (!request.ExpiryMonth.HasValue || request.ExpiryMonth.Value < 1 || request.ExpiryMonth.Value > 12 ||
+                !request.ExpiryYear.HasValue || request.ExpiryYear.Value < DateTime.UtcNow.Year ||
+                (request.ExpiryYear.Value == DateTime.UtcNow.Year && request.ExpiryMonth.Value < DateTime.UtcNow.Month))
+            {
+                return new BookingWorkflowResponse
+                {
+                    WorkflowId = state.WorkflowId,
+                    Status = "awaiting_confirmation",
+                    CurrentStep = 3,
+                    Message = "Payment validation failed: the mock card expiry date is invalid or expired."
+                };
+            }
+
+            isMockPayment = true;
+            paymentStatus = "MockPaid";
+            bookingStatus = "Confirmed";
         }
         else if (paymentMethod.Equals("BankTransfer", StringComparison.OrdinalIgnoreCase))
         {
@@ -324,8 +389,30 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
 
                 if (request.BankSlip != null)
                 {
-                    var extension = Path.GetExtension(request.BankSlip.FileName);
-                    if (string.IsNullOrWhiteSpace(extension)) extension = ".jpg";
+                    if (request.BankSlip.Length <= 0 || request.BankSlip.Length > MaxBankSlipBytes)
+                    {
+                        return new BookingWorkflowResponse
+                        {
+                            WorkflowId = state.WorkflowId,
+                            Status = "awaiting_confirmation",
+                            CurrentStep = 3,
+                            Message = "The bank slip must be a non-empty file no larger than 4 MB."
+                        };
+                    }
+
+                    var signature = await ReadFileSignatureAsync(request.BankSlip);
+                    var extension = DetectFileExtension(signature);
+                    if (extension == null)
+                    {
+                        return new BookingWorkflowResponse
+                        {
+                            WorkflowId = state.WorkflowId,
+                            Status = "awaiting_confirmation",
+                            CurrentStep = 3,
+                            Message = "The bank slip must be a valid JPG, PNG, or PDF file."
+                        };
+                    }
+
                     bankSlipStoredName = $"{Guid.NewGuid()}{extension}";
                     var filePath = Path.Combine(uploadsFolder, bankSlipStoredName);
                     await using var stream = new FileStream(filePath, FileMode.Create);
@@ -335,8 +422,17 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
                 {
                     var cleanBase64 = Regex.Replace(request.BankSlipBase64, @"^data:image\/[a-zA-Z]+;base64,", string.Empty);
                     var bytes = Convert.FromBase64String(cleanBase64);
-                    var extension = string.IsNullOrWhiteSpace(request.BankSlipFileName) ? ".jpg" : Path.GetExtension(request.BankSlipFileName);
-                    if (string.IsNullOrWhiteSpace(extension)) extension = ".jpg";
+                    if (bytes.Length <= 0 || bytes.Length > MaxBankSlipBytes)
+                    {
+                        throw new InvalidDataException("Bank slip exceeds the 4 MB limit.");
+                    }
+
+                    var extension = DetectFileExtension(bytes);
+                    if (extension == null)
+                    {
+                        throw new InvalidDataException("Bank slip format is not supported.");
+                    }
+
                     bankSlipStoredName = $"{Guid.NewGuid()}{extension}";
                     var filePath = Path.Combine(uploadsFolder, bankSlipStoredName);
                     await File.WriteAllBytesAsync(filePath, bytes);
@@ -358,11 +454,8 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
         string? cardLastFour = request.CardLastFour;
         if (string.IsNullOrWhiteSpace(cardLastFour) && !string.IsNullOrWhiteSpace(request.CardNumber) && request.CardNumber.Length >= 4)
         {
-            cardLastFour = request.CardNumber[^4..];
-        }
-        else if (string.IsNullOrWhiteSpace(cardLastFour) && paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase))
-        {
-            cardLastFour = "4242"; // Default mock card token
+            var cleanCard = Regex.Replace(request.CardNumber, @"\D", string.Empty);
+            cardLastFour = cleanCard.Length >= 4 ? cleanCard[^4..] : null;
         }
 
         var booking = new Booking
@@ -379,6 +472,7 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             ContactNumber = state.ContactNumber.Trim(),
             PaymentMethod = paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ? "Card" : "BankTransfer",
             PaymentStatus = paymentStatus,
+            IsMockPayment = isMockPayment,
             CardLastFour = cardLastFour,
             BankSlipFileName = bankSlipStoredName,
             Status = bookingStatus
@@ -414,6 +508,7 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
         });
 
         await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return new BookingWorkflowResponse
         {
@@ -600,6 +695,10 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             .Select(b => new { b.StartTime, b.EndTime })
             .ToListAsync();
 
+        var schedules = await _context.FacilitySchedules
+            .Where(s => s.FacilityId == facilityId && s.DayOfWeek == day.DayOfWeek)
+            .ToListAsync();
+
         var slNow = CancellationRefundService.GetCurrentLocalTime();
         var today = slNow.Date;
         var nowTime = slNow.TimeOfDay;
@@ -611,8 +710,9 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             var end = start.Add(TimeSpan.FromHours(1));
             bool isPast = day.Date < today || (day.Date == today && start <= nowTime);
             bool isBooked = bookedSlots.Any(b => b.StartTime < end && b.EndTime > start);
+            bool isWithinSchedule = schedules.Count == 0 || schedules.Any(s => s.StartTime <= start && s.EndTime >= end);
 
-            if (!isPast && !isBooked)
+            if (!isPast && !isBooked && isWithinSchedule)
             {
                 freeSlots.Add($"{h:D2}:00");
             }
@@ -797,5 +897,33 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             WorkflowId = workflowId,
             CustomerId = userId
         };
+    }
+
+    private static async Task<byte[]> ReadFileSignatureAsync(IFormFile file)
+    {
+        await using var stream = file.OpenReadStream();
+        var signature = new byte[Math.Min(8, file.Length)];
+        var read = await stream.ReadAsync(signature.AsMemory(0, signature.Length));
+        return signature[..read];
+    }
+
+    private static string? DetectFileExtension(byte[] bytes)
+    {
+        if (bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF)
+        {
+            return ".jpg";
+        }
+
+        if (bytes.Length >= 8 && bytes.Take(8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }))
+        {
+            return ".png";
+        }
+
+        if (bytes.Length >= 4 && bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46)
+        {
+            return ".pdf";
+        }
+
+        return null;
     }
 }

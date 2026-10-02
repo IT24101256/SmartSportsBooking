@@ -44,6 +44,7 @@ public class AiBookingController : ControllerBase
     }
 
     [HttpPost("confirm")]
+    [RequestSizeLimit(5 * 1024 * 1024)]
     public async Task<IActionResult> ConfirmBooking()
     {
         var userId = GetUserId();

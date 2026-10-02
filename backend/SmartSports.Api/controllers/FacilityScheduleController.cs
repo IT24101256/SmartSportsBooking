@@ -1,5 +1,6 @@
 // Imports ASP.NET Core MVC features.
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 // Imports Entity Framework Core features.
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +69,7 @@ public class FacilitySchedulesController : ControllerBase
 
     // Handles POST /api/facility-schedules.
     [HttpPost]
+    [Authorize(Roles = "Admin,Manager")]
 
     // Creates a new facility schedule.
     public async Task<IActionResult> CreateSchedule(FacilitySchedule schedule)
@@ -81,6 +83,12 @@ public class FacilitySchedulesController : ControllerBase
         {
             // Returns HTTP 404 when the facility does not exist.
             return NotFound("Facility not found.");
+        }
+
+        var validationError = await ValidateScheduleAsync(schedule);
+        if (validationError != null)
+        {
+            return BadRequest(validationError);
         }
 
         // Adds the new schedule to the database context.
@@ -98,6 +106,7 @@ public class FacilitySchedulesController : ControllerBase
 
     // Handles PUT /api/facility-schedules/{id}.
     [HttpPut("{id}")]
+    [Authorize(Roles = "Admin,Manager")]
 
     // Updates an existing facility schedule.
     public async Task<IActionResult> UpdateSchedule(
@@ -113,6 +122,18 @@ public class FacilitySchedulesController : ControllerBase
         {
             // Returns HTTP 404 when the schedule does not exist.
             return NotFound();
+        }
+
+        var facility = await _context.Facilities.FindAsync(schedule.FacilityId);
+        if (facility == null)
+        {
+            return NotFound("Facility not found.");
+        }
+
+        var validationError = await ValidateScheduleAsync(schedule, id);
+        if (validationError != null)
+        {
+            return BadRequest(validationError);
         }
 
         // Updates the facility ID.
@@ -136,6 +157,7 @@ public class FacilitySchedulesController : ControllerBase
 
     // Handles DELETE /api/facility-schedules/{id}.
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin,Manager")]
 
     // Deletes a facility schedule.
     public async Task<IActionResult> DeleteSchedule(int id)
@@ -159,5 +181,23 @@ public class FacilitySchedulesController : ControllerBase
 
         // Returns HTTP 204 after successful deletion.
         return NoContent();
+    }
+
+    private async Task<string?> ValidateScheduleAsync(FacilitySchedule schedule, int? excludedId = null)
+    {
+        if (schedule.StartTime < TimeSpan.Zero || schedule.EndTime > TimeSpan.FromHours(24) ||
+            schedule.StartTime >= schedule.EndTime)
+        {
+            return "Schedule start time must be before the end time and within the same day.";
+        }
+
+        var overlaps = await _context.FacilitySchedules.AnyAsync(existing =>
+            existing.Id != excludedId &&
+            existing.FacilityId == schedule.FacilityId &&
+            existing.DayOfWeek == schedule.DayOfWeek &&
+            existing.StartTime < schedule.EndTime &&
+            existing.EndTime > schedule.StartTime);
+
+        return overlaps ? "The schedule overlaps an existing schedule for this facility." : null;
     }
 }

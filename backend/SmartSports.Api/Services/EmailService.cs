@@ -30,7 +30,7 @@ public class EmailService
         var password = (Environment.GetEnvironmentVariable("SMTP_PASSWORD") ?? _config["Smtp:Password"])?.Trim();
         var fromName = (Environment.GetEnvironmentVariable("SMTP_FROM_NAME") ?? _config["Smtp:FromName"] ?? "MySpot Sports").Trim();
 
-        var ignoreCertStr = Environment.GetEnvironmentVariable("SMTP_IGNORE_CERT_ERRORS") ?? "true";
+        var ignoreCertStr = Environment.GetEnvironmentVariable("SMTP_IGNORE_CERT_ERRORS") ?? "false";
         var ignoreCert = !string.Equals(ignoreCertStr, "false", StringComparison.OrdinalIgnoreCase);
 
         // Remove whitespace from Google App Passwords if using Gmail
@@ -58,7 +58,10 @@ public class EmailService
         if (string.IsNullOrWhiteSpace(fromAddress) || string.IsNullOrWhiteSpace(password))
         {
             _logger.LogWarning("[SMTP] SMTP credentials (SMTP_FROM / SMTP_PASSWORD) are not configured. Real email skipped.");
+          if (string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.OrdinalIgnoreCase))
+          {
             _logger.LogInformation("[DEV OTP] Verification code for {Email}: {Otp}", toEmail, otp);
+          }
             return false;
         }
 

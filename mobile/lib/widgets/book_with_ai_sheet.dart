@@ -361,6 +361,8 @@ class _BookWithAiSheetState extends State<BookWithAiSheet> {
           final active = _savedCards.firstWhere((c) => c.id == _selectedSavedCardId, orElse: () => _savedCards.first);
           cardLastFour = active.lastFour;
           cvvToSend = _savedCvvController.text.trim();
+          expMonthToSend = int.tryParse(active.expiryMonth);
+          expYearToSend = int.tryParse(active.expiryYear);
         } else {
           final raw = _cardNumberController.text.replaceAll(RegExp(r'\s+|-'), '');
           cardNumberToSend = raw;

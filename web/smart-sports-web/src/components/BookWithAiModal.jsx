@@ -312,6 +312,9 @@ export default function BookWithAiModal({
           const activeCard = savedCards.find((c) => c.id === selectedCardId) || savedCards[0]
           formData.append('cardLastFour', activeCard.last4)
           formData.append('cvv', savedCardCvv.trim())
+          formData.append('expiryMonth', String(Number(activeCard.expMonth) || 1))
+          const savedExpiryYear = Number(activeCard.expYear) || new Date().getFullYear()
+          formData.append('expiryYear', String(savedExpiryYear < 100 ? 2000 + savedExpiryYear : savedExpiryYear))
         } else {
           const cleanNum = newCardNumber.replace(/\D/g, '')
           formData.append('cardNumber', cleanNum)

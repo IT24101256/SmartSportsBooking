@@ -105,11 +105,16 @@ public class AuthController : ControllerBase
 
             if (requireRealEmail || !isDevelopment)
             {
+                if (!isDevelopment)
+                {
+                    return StatusCode(503, "Unable to send verification email. Please try again later.");
+                }
+
                 var userFriendlyReason = ex switch
                 {
-                    MailKit.Security.AuthenticationException => "SMTP authentication failed. Verify your email address and 16-character Google App Password (not your regular Google password).",
-                    System.Net.Sockets.SocketException or TimeoutException => "SMTP connection timed out or port was blocked by your network/firewall. Try port 465 or check internet connection.",
-                    _ => $"SMTP error: {ex.Message}"
+                    MailKit.Security.AuthenticationException => "SMTP authentication failed. Verify the configured SMTP credentials.",
+                    System.Net.Sockets.SocketException or TimeoutException => "SMTP connection timed out or the configured port is unavailable.",
+                    _ => "The configured SMTP service returned an error."
                 };
 
                 return StatusCode(503, $"Unable to send verification email. {userFriendlyReason}");

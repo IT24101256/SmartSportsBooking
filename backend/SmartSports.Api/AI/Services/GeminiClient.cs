@@ -193,7 +193,6 @@ public class GeminiClient : IGeminiClient
 
     private static string FallbackGenerate(string systemPrompt, string userPrompt)
     {
-        // Extract context and question
-        return "I am the MySpot Knowledge Assistant. Based on our authoritative knowledge base, I can provide verified details regarding facilities, rates, operating rules, cancellations, and real-time bookings.";
+        return string.Empty;
     }
 }

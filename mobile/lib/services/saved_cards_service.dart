@@ -9,7 +9,6 @@ class SavedCard {
   final String expiryMonth;
   final String expiryYear;
   final bool isDefault;
-  final String? cvvHint;
 
   SavedCard({
     required this.id,
@@ -19,7 +18,6 @@ class SavedCard {
     required this.expiryMonth,
     required this.expiryYear,
     this.isDefault = false,
-    this.cvvHint = '123',
   });
 
   Map<String, dynamic> toJson() => {
@@ -30,7 +28,6 @@ class SavedCard {
         'expiryMonth': expiryMonth,
         'expiryYear': expiryYear,
         'isDefault': isDefault,
-        'cvvHint': cvvHint,
       };
 
   factory SavedCard.fromJson(Map<String, dynamic> json) => SavedCard(
@@ -41,7 +38,6 @@ class SavedCard {
         expiryMonth: json['expiryMonth']?.toString() ?? '12',
         expiryYear: json['expiryYear']?.toString() ?? '2028',
         isDefault: json['isDefault'] == true,
-        cvvHint: json['cvvHint']?.toString() ?? '123',
       );
 }
 
@@ -80,7 +76,6 @@ class SavedCardsService {
           expiryMonth: '12',
           expiryYear: '2028',
           isDefault: true,
-          cvvHint: '123',
         ),
         SavedCard(
           id: 'card_demo_2',
@@ -90,7 +85,6 @@ class SavedCardsService {
           expiryMonth: '06',
           expiryYear: '2029',
           isDefault: false,
-          cvvHint: '456',
         ),
       ];
       await _persist();
@@ -110,7 +104,6 @@ class SavedCardsService {
       expiryMonth: c.expiryMonth,
       expiryYear: c.expiryYear,
       isDefault: false,
-      cvvHint: c.cvvHint,
     ) : c).toList();
 
     newCards.add(card);
@@ -131,7 +124,6 @@ class SavedCardsService {
         expiryMonth: first.expiryMonth,
         expiryYear: first.expiryYear,
         isDefault: true,
-        cvvHint: first.cvvHint,
       );
     }
     await _persist();
@@ -147,7 +139,6 @@ class SavedCardsService {
       expiryMonth: c.expiryMonth,
       expiryYear: c.expiryYear,
       isDefault: c.id == id,
-      cvvHint: c.cvvHint,
     )).toList();
     await _persist();
   }

@@ -68,14 +68,31 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 //Add Authorization
 builder.Services.AddAuthorization();
 
-//CORS Policy
+// CORS policy
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("WebClient", policy => policy
-        .SetIsOriginAllowed(origin => true)
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials());
+    options.AddPolicy("WebClient", policy =>
+    {
+        var configuredOrigins = (Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")
+                ?? builder.Configuration["Cors:AllowedOrigins"]
+                ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (configuredOrigins.Length > 0)
+        {
+            policy.WithOrigins(configuredOrigins);
+        }
+        else if (builder.Environment.IsDevelopment())
+        {
+            policy.SetIsOriginAllowed(_ => true);
+        }
+        else
+        {
+            throw new InvalidOperationException("CORS_ALLOWED_ORIGINS must be configured outside Development.");
+        }
+
+        policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+    });
 });
 
 
@@ -97,8 +114,19 @@ builder.Services.AddControllers()
 // Register Entity Framework Core with the dependency injection container.
 var dbConnectionString = Environment.GetEnvironmentVariable("SMARTSPORTS_DB_CONNECTION")
     ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
-    ?? builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Port=5432;Database=SmartSportsBookingDb;Username=postgres;Password=postgres";
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (string.IsNullOrWhiteSpace(dbConnectionString))
+{
+    if (builder.Environment.IsDevelopment())
+    {
+        dbConnectionString = "Host=localhost;Port=5432;Database=SmartSportsBookingDb;Username=postgres;Password=your_password";
+    }
+    else
+    {
+        throw new InvalidOperationException("Database connection is not configured. Set SMARTSPORTS_DB_CONNECTION.");
+    }
+}
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(dbConnectionString)
@@ -159,7 +187,12 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        logger.LogWarning(ex, "Database migration/seed failed. The API can continue to start without a reachable PostgreSQL instance.");
+        if (!app.Environment.IsDevelopment())
+        {
+            throw;
+        }
+
+        logger.LogWarning(ex, "Database migration/seed failed during Development startup.");
     }
 }
 
@@ -195,6 +228,14 @@ public static class DotEnvLoader
 {
     public static void Load()
     {
+        if (string.Equals(
+                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                "Production",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         var candidateDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var currentDir = Directory.GetCurrentDirectory();
@@ -265,10 +306,7 @@ public static class DotEnvLoader
             Console.WriteLine("[MySpot Config] Notice: No .env file found. Using system environment variables or appsettings.json.");
         }
 
-        // Ensure ASPNETCORE_ENVIRONMENT defaults to Development for local development convenience
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")))
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
-        }
+        // ASP.NET Core defaults to Production when no environment is supplied.
+        // Local development should set ASPNETCORE_ENVIRONMENT explicitly.
     }
 }

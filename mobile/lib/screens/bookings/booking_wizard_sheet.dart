@@ -118,7 +118,8 @@ class _BookingWizardSheetState extends State<BookingWizardSheet> {
     _cardNumberController.text = '4242 •••• •••• ${c.lastFour}';
     _expiryMonthController.text = c.expiryMonth;
     _expiryYearController.text = c.expiryYear;
-    _cvvController.text = c.cvvHint ?? '123';
+    _cvvController.clear();
+    _cvvController.clear();
   }
 
   Future<void> _loadSlots() async {
@@ -271,7 +272,6 @@ class _BookingWizardSheetState extends State<BookingWizardSheet> {
           expiryMonth: _expiryMonthController.text.trim(),
           expiryYear: _expiryYearController.text.trim(),
           isDefault: true,
-          cvvHint: _cvvController.text.trim(),
         ));
       }
 

@@ -23,7 +23,7 @@ import EquipmentsPage from './pages/EquipmentsPage'
 import FloatingAiChat from './components/FloatingAiChat'
 import BookWithAiModal from './components/BookWithAiModal'
 
-const API_BASE_URL = 'http://localhost:5187/api'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5187/api'
 const localDateString = (date = new Date()) => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')

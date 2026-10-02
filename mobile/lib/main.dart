@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'services/api_service.dart';
 import 'theme/app_theme.dart';
@@ -300,7 +301,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       4 => _apiService.isAuthenticated
           ? ProfileScreen(
               onLogout: _logout,
-              onConfigureServer: _showServerSettingsDialog,
+              onConfigureServer: kDebugMode ? _showServerSettingsDialog : null,
             )
           : _GuestLockedTabPlaceholder(
               title: 'Athlete Profile',

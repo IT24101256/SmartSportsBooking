@@ -77,6 +77,9 @@ namespace SmartSports.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("IsMockPayment")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal?>("RefundAmount")
                         .HasColumnType("numeric");
 

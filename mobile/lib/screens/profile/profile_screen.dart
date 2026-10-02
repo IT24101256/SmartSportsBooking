@@ -8,9 +8,9 @@ import '../admin/members_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
-  final VoidCallback onConfigureServer;
+  final VoidCallback? onConfigureServer;
 
-  const ProfileScreen({super.key, required this.onLogout, required this.onConfigureServer});
+  const ProfileScreen({super.key, required this.onLogout, this.onConfigureServer});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -341,7 +341,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   expiryMonth: monthCtrl.text.trim(),
                   expiryYear: yearCtrl.text.trim(),
                   isDefault: isDefault,
-                  cvvHint: cvvCtrl.text.trim(),
                 );
 
                 Navigator.pop(ctx);
@@ -531,13 +530,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: _showChangePasswordDialog,
                 ),
                 const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.dns_rounded, color: AppTheme.primary),
-                  title: const Text('Configure Backend URL', style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text(_apiService.baseUrl, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                  onTap: widget.onConfigureServer,
-                ),
+                if (widget.onConfigureServer != null) ...[
+                  ListTile(
+                    leading: const Icon(Icons.dns_rounded, color: AppTheme.primary),
+                    title: const Text('Configure Backend URL', style: TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(_apiService.baseUrl, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                    onTap: widget.onConfigureServer,
+                  ),
+                ],
               ],
             ),
           ),
