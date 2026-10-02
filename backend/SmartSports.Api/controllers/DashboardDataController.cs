@@ -70,7 +70,7 @@ public class DashboardDataController : ControllerBase
     }
 
     [HttpGet("revenue")]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetRevenue([FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null)
     {
         var today = DateTime.UtcNow.Date;

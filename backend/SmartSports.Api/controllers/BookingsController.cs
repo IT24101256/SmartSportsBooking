@@ -404,15 +404,42 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet("{id:int}/bank-slip")]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize]
     public async Task<IActionResult> GetBankSlip(int id)
     {
         var booking = await _context.Bookings.FindAsync(id);
-        if (booking?.BankSlipFileName == null) return NotFound("Bank slip not found.");
+        if (booking == null) return NotFound("Booking not found.");
+        if (string.IsNullOrEmpty(booking.BankSlipFileName)) return NotFound("Bank slip not found.");
+
+        var userId = GetUserId();
+        var isStaff = User.IsInRole("Admin") || User.IsInRole("Manager");
+        if (!isStaff && booking.UserId != userId) return Forbid();
 
         var path = Path.Combine(AppContext.BaseDirectory, "uploads", "slips", booking.BankSlipFileName);
-        if (!System.IO.File.Exists(path)) return NotFound("Bank slip file is unavailable.");
-        return PhysicalFile(path, "application/octet-stream", booking.BankSlipFileName);
+        if (!System.IO.File.Exists(path))
+        {
+            var fallback = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "slips", booking.BankSlipFileName);
+            if (System.IO.File.Exists(fallback))
+            {
+                path = fallback;
+            }
+            else
+            {
+                return NotFound("Bank slip file is unavailable.");
+            }
+        }
+
+        var ext = Path.GetExtension(booking.BankSlipFileName).ToLowerInvariant();
+        var contentType = ext switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            ".pdf" => "application/pdf",
+            _ => "application/octet-stream"
+        };
+
+        return PhysicalFile(path, contentType, enableRangeProcessing: true);
     }
 
     [HttpPut("{id:int}/status")]

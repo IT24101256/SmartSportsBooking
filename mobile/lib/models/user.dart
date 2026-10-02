@@ -5,6 +5,7 @@ class UserProfile {
   final String contactNumber;
   final String nicNumber;
   final String role;
+  final String? profilePicture;
 
   UserProfile({
     required this.id,
@@ -13,6 +14,7 @@ class UserProfile {
     this.contactNumber = '',
     this.nicNumber = '',
     required this.role,
+    this.profilePicture,
   });
 
   bool get isAdmin => role.toLowerCase() == 'admin';
@@ -33,6 +35,24 @@ class UserProfile {
       contactNumber: json['contactNumber'] ?? '',
       nicNumber: json['nicNumber'] ?? '',
       role: json['role'] ?? 'Customer',
+      profilePicture: json['profilePicture'] as String?,
+    );
+  }
+
+  UserProfile copyWith({
+    String? fullName,
+    String? contactNumber,
+    String? nicNumber,
+    String? profilePicture,
+  }) {
+    return UserProfile(
+      id: id,
+      fullName: fullName ?? this.fullName,
+      email: email,
+      contactNumber: contactNumber ?? this.contactNumber,
+      nicNumber: nicNumber ?? this.nicNumber,
+      role: role,
+      profilePicture: profilePicture ?? this.profilePicture,
     );
   }
 
@@ -43,5 +63,6 @@ class UserProfile {
         'contactNumber': contactNumber,
         'nicNumber': nicNumber,
         'role': role,
+        'profilePicture': profilePicture,
       };
 }

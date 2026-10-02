@@ -154,20 +154,33 @@ export default function FloatingAiChat({ apiBaseUrl = 'http://localhost:5187/api
 
   return (
     <div className="floating-ai-chat-root">
-      {/* Trigger Button */}
-      {!isOpen && (
-        <button
-          type="button"
-          className="floating-ai-chat-btn"
-          onClick={() => setIsOpen(true)}
-          aria-label="Open MySpot AI Assistant"
-          title="Ask MySpot AI Assistant"
-        >
-          <span className="ai-btn-sparkle">✨</span>
-          <span className="ai-btn-text">MySpot AI</span>
-          <span className="ai-pulse-dot" />
-        </button>
-      )}
+      {/* Floating Round Action Button */}
+      <button
+        type="button"
+        className={`floating-ai-round-btn ${isOpen ? 'active-open' : ''}`}
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-label={isOpen ? "Close MySpot AI Assistant" : "Open MySpot AI Assistant"}
+        title={isOpen ? "Close AI Assistant" : "Ask MySpot AI Assistant"}
+      >
+        <div className="ai-round-btn-inner">
+          <img
+            src="/chatbot.png"
+            alt="MySpot AI"
+            className="ai-round-btn-img"
+          />
+          {isOpen ? (
+            <span className="ai-round-close-overlay" title="Close">✕</span>
+          ) : (
+            <span className="ai-round-status-dot" />
+          )}
+        </div>
+        {!isOpen && (
+          <span className="ai-hover-tooltip">
+            <span className="ai-tooltip-sparkle">✨</span>
+            <span>Ask MySpot AI</span>
+          </span>
+        )}
+      </button>
 
       {/* Chat Window */}
       {isOpen && (
@@ -176,12 +189,18 @@ export default function FloatingAiChat({ apiBaseUrl = 'http://localhost:5187/api
           <div className="ai-window-header">
             <div className="ai-header-left">
               <div className="ai-avatar-badge">
-                <span>🤖</span>
+                <img
+                  src="/chatbot.png"
+                  alt="MySpot AI"
+                  className="ai-header-avatar-img"
+                />
                 <span className="ai-status-indicator" />
               </div>
               <div className="ai-header-info">
                 <h4>MySpot AI Assistant</h4>
-                <p>Grounded Agentic Knowledge RAG</p>
+                <p>
+                  <span className="ai-header-live-dot" /> Grounded Smart Sports RAG
+                </p>
               </div>
             </div>
             <div className="ai-header-actions">
@@ -222,7 +241,15 @@ export default function FloatingAiChat({ apiBaseUrl = 'http://localhost:5187/api
           <div className="ai-messages-container">
             {messages.map((msg) => (
               <div key={msg.id} className={`ai-message-row ${msg.role === 'user' ? 'user' : 'assistant'}`}>
-                {msg.role === 'assistant' && <div className="ai-bubble-avatar">✨</div>}
+                {msg.role === 'assistant' && (
+                  <div className="ai-bubble-avatar">
+                    <img
+                      src="/chatbot.png"
+                      alt="AI"
+                      className="ai-bubble-avatar-img"
+                    />
+                  </div>
+                )}
                 <div className={`ai-bubble ${msg.role} ${msg.isError ? 'error-bubble' : ''}`}>
                   <div className="ai-bubble-content">{formatText(msg.content)}</div>
 
@@ -266,7 +293,13 @@ export default function FloatingAiChat({ apiBaseUrl = 'http://localhost:5187/api
 
             {loading && (
               <div className="ai-message-row assistant">
-                <div className="ai-bubble-avatar">✨</div>
+                <div className="ai-bubble-avatar">
+                  <img
+                    src="/chatbot.png"
+                    alt="AI"
+                    className="ai-bubble-avatar-img"
+                  />
+                </div>
                 <div className="ai-bubble assistant ai-loading-bubble">
                   <span className="ai-thinking-dot dot-1" />
                   <span className="ai-thinking-dot dot-2" />
@@ -290,6 +323,8 @@ export default function FloatingAiChat({ apiBaseUrl = 'http://localhost:5187/api
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 disabled={loading}
+                autoComplete="off"
+                style={{ color: '#ffffff', backgroundColor: 'transparent' }}
               />
               <button
                 type="button"
@@ -305,7 +340,7 @@ export default function FloatingAiChat({ apiBaseUrl = 'http://localhost:5187/api
               </button>
             </div>
             <div className="ai-footer-note">
-              <span>Grounded in MySpot policies • Verified backend tools</span>
+              <span>Grounded in MySpot real-time policies • Live slot verified</span>
             </div>
           </div>
         </div>

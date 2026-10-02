@@ -259,7 +259,8 @@ public class AuthController : ControllerBase
             email = user.Email,
             contactNumber = user.ContactNumber,
             nicNumber = user.NicNumber,
-            role = user.Role?.Name
+            role = user.Role?.Name,
+            profilePicture = user.ProfilePicture != null ? $"/api/auth/profile/picture/{user.Id}" : null
         });
     }
 
@@ -425,5 +426,108 @@ public class AuthController : ControllerBase
         {
             message = "Password updated successfully."
         });
+    }
+
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    [HttpGet("profile")]
+    public async Task<IActionResult> GetProfile()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Unauthorized();
+
+        var user = await _context.Users
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null) return NotFound("User not found.");
+
+        return Ok(new
+        {
+            userId = user.Id,
+            fullName = user.FullName,
+            email = user.Email,
+            contactNumber = user.ContactNumber,
+            nicNumber = user.NicNumber,
+            role = user.Role?.Name,
+            profilePicture = user.ProfilePicture != null ? $"/api/auth/profile/picture/{user.Id}" : null
+        });
+    }
+
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    [HttpPost("profile/picture")]
+    [RequestSizeLimit(5 * 1024 * 1024)]
+    public async Task<IActionResult> UploadProfilePicture([FromForm] IFormFile? file)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Unauthorized();
+
+        if (file == null || file.Length == 0)
+            return BadRequest("A picture file is required.");
+
+        if (file.Length > 5 * 1024 * 1024)
+            return BadRequest("Profile picture cannot exceed 5 MB.");
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+        if (!allowed.Contains(extension))
+            return BadRequest("Profile picture must be a JPG, PNG, or WEBP image.");
+
+        var user = await _context.Users
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null) return NotFound("User not found.");
+
+        var uploadDir = Path.Combine(AppContext.BaseDirectory, "uploads", "profiles");
+        Directory.CreateDirectory(uploadDir);
+
+        var storedName = $"avatar_{user.Id}_{Guid.NewGuid():N}{extension}";
+        var filePath = Path.Combine(uploadDir, storedName);
+
+        await using (var stream = System.IO.File.Create(filePath))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        user.ProfilePicture = storedName;
+        await _context.SaveChangesAsync();
+
+        var pictureUrl = $"/api/auth/profile/picture/{user.Id}?t={DateTime.UtcNow.Ticks}";
+
+        return Ok(new
+        {
+            message = "Profile picture updated successfully.",
+            userId = user.Id,
+            fullName = user.FullName,
+            email = user.Email,
+            contactNumber = user.ContactNumber,
+            nicNumber = user.NicNumber,
+            role = user.Role?.Name,
+            profilePicture = pictureUrl
+        });
+    }
+
+    [HttpGet("profile/picture/{id:int}")]
+    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+    public async Task<IActionResult> GetProfilePicture(int id)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (string.IsNullOrWhiteSpace(user?.ProfilePicture))
+            return NotFound("Profile picture not found.");
+
+        var filePath = Path.Combine(AppContext.BaseDirectory, "uploads", "profiles", user.ProfilePicture);
+        if (!System.IO.File.Exists(filePath))
+            return NotFound("Image file not found.");
+
+        var extension = Path.GetExtension(user.ProfilePicture).ToLowerInvariant();
+        var contentType = extension switch
+        {
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            _ => "image/jpeg"
+        };
+
+        return PhysicalFile(filePath, contentType);
     }
 }

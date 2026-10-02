@@ -113,9 +113,29 @@ public class ReviewsController : ControllerBase
         if (review == null || photoIndex < 0) return NotFound();
         var photos = JsonSerializer.Deserialize<List<string>>(review.PhotoPathsJson) ?? [];
         if (photoIndex >= photos.Count) return NotFound();
-        var path = Path.Combine(AppContext.BaseDirectory, photos[photoIndex]);
-        if (!System.IO.File.Exists(path)) return NotFound();
-        return PhysicalFile(path, "application/octet-stream");
+        var relPath = photos[photoIndex];
+        var path = Path.Combine(AppContext.BaseDirectory, relPath);
+        if (!System.IO.File.Exists(path))
+        {
+            var fallback = Path.Combine(Directory.GetCurrentDirectory(), relPath);
+            if (System.IO.File.Exists(fallback))
+            {
+                path = fallback;
+            }
+            else
+            {
+                return NotFound();
+            }
+        }
+        var ext = Path.GetExtension(relPath).ToLowerInvariant();
+        var contentType = ext switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            _ => "application/octet-stream"
+        };
+        return PhysicalFile(path, contentType, enableRangeProcessing: true);
     }
 
     private async Task<string> SavePhotos(IFormFileCollection? photos)

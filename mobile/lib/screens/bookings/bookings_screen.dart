@@ -50,62 +50,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
     {'id': 'expired', 'label': 'Expired'},
   ];
 
-  Future<void> _verifyBankTransfer(Booking b) async {
-    final currencyFmt = NumberFormat('#,##0', 'en_US');
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 24),
-            SizedBox(width: 8),
-            Text('Verify Bank Transfer', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
-          ],
-        ),
-        content: Text(
-          'Confirm bank transfer of LKR ${currencyFmt.format(b.totalAmount)} for Booking #${b.id} (${b.customerName})?\n\nThis will approve the payment and mark the booking as Confirmed.',
-          style: const TextStyle(fontSize: 13, color: AppTheme.deepHeading),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success),
-            child: const Text('Approve & Confirm'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      await _apiService.updateBookingStatus(b.id, 'Confirmed');
-      widget.onRefresh();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Payment verified! Booking #${b.id} is now Confirmed.'),
-            backgroundColor: AppTheme.successDark,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to verify: ${e.toString().replaceAll('Exception: ', '')}')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final currencyFmt = NumberFormat('#,##0', 'en_US');
     final dateFmt = DateFormat('yyyy-MM-dd');
     final user = _apiService.currentUser;
     final isStaff = user?.isStaffOrAdmin == true;
+    final isAdmin = user?.isAdmin == true;
 
     // Filter computation
     final filtered = widget.bookings.where((b) {
@@ -442,21 +393,22 @@ class _BookingsScreenState extends State<BookingsScreen> {
                             ),
 
                           // 6. Bank Slip Verification & Viewer
-                          if (b.bankSlipFileName != null && b.bankSlipFileName!.isNotEmpty)
-                            OutlinedButton.icon(
-                              onPressed: () => BankSlipModal.show(context, b, widget.onRefresh),
-                              icon: const Icon(Icons.receipt_long_rounded, size: 16, color: AppTheme.primary),
-                              label: const Text('View Slip', style: TextStyle(color: AppTheme.primary)),
-                              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                            ),
-
-                          if (isStaff && b.paymentMethod == 'BankTransfer' && !b.isConfirmed && !b.isCancelled)
-                            ElevatedButton.icon(
-                              onPressed: () => _verifyBankTransfer(b),
-                              icon: const Icon(Icons.check_circle_outline, size: 16),
-                              label: const Text('Verify Slip'),
-                              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                            ),
+                          if (b.paymentMethod == 'BankTransfer') ...[
+                            if (isStaff && !b.isConfirmed && !b.isCancelled)
+                              ElevatedButton.icon(
+                                onPressed: () => BankSlipModal.show(context, b, widget.onRefresh),
+                                icon: const Icon(Icons.verified_outlined, size: 16),
+                                label: const Text('Verify Slip'),
+                                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                              )
+                            else if (b.bankSlipFileName != null && b.bankSlipFileName!.isNotEmpty)
+                              OutlinedButton.icon(
+                                onPressed: () => BankSlipModal.show(context, b, widget.onRefresh),
+                                icon: const Icon(Icons.receipt_long_rounded, size: 16, color: AppTheme.primary),
+                                label: const Text('View Slip', style: TextStyle(color: AppTheme.primary)),
+                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                              ),
+                          ],
 
                           // 7. Member & Admin: Cancel with refund
                           if (!b.isCancelled && !b.isExpired)
@@ -467,14 +419,23 @@ class _BookingsScreenState extends State<BookingsScreen> {
                               style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                             ),
 
-                          // 8. Member: Review Modal (Only members/customers, hidden for Admin/Staff)
-                          if (!isStaff && !b.isCancelled)
-                            OutlinedButton.icon(
-                              onPressed: () => ReviewModal.show(context, b, onSaved: widget.onRefresh),
-                              icon: const Icon(Icons.star_outline_rounded, size: 16, color: Color(0xFFF59E0B)),
-                              label: Text(b.review != null ? 'Edit Review' : 'Rate & Review', style: const TextStyle(color: Color(0xFFB45309))),
-                              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                            ),
+                          // 8. Member & Admin: Review Modal
+                          if (!b.isCancelled) ...[
+                            if (!isStaff)
+                              OutlinedButton.icon(
+                                onPressed: () => ReviewModal.show(context, booking: b, existingReview: b.review, onSaved: widget.onRefresh),
+                                icon: const Icon(Icons.star_outline_rounded, size: 16, color: Color(0xFFF59E0B)),
+                                label: Text(b.review != null ? 'Edit Review' : 'Rate & Review', style: const TextStyle(color: Color(0xFFB45309))),
+                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                              )
+                            else if (isAdmin && b.review != null)
+                              OutlinedButton.icon(
+                                onPressed: () => ReviewModal.show(context, booking: b, existingReview: b.review, onSaved: widget.onRefresh),
+                                icon: const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF59E0B)),
+                                label: const Text('Manage Review', style: TextStyle(color: Color(0xFFB45309))),
+                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                              ),
+                          ],
                         ],
                       ),
                     ],

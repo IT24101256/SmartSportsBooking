@@ -16,6 +16,7 @@ public class User
     public string ContactNumber { get; set; } = string.Empty;
 
     public string NicNumber { get; set; } = string.Empty;
+    public string? ProfilePicture { get; set; }
 
     // This stores the hashed password.
     public string PasswordHash { get; set; } = string.Empty;

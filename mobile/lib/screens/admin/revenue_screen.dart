@@ -29,10 +29,14 @@ class _RevenueScreenState extends State<RevenueScreen> {
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _fromDate = DateTime(now.year, now.month, 1);
-    _toDate = DateTime(now.year, now.month + 1, 0); // End of current month
-    _loadRevenue();
+    if (_apiService.currentUser?.isAdmin == true) {
+      final now = DateTime.now();
+      _fromDate = DateTime(now.year, now.month, 1);
+      _toDate = DateTime(now.year, now.month + 1, 0); // End of current month
+      _loadRevenue();
+    } else {
+      _isLoading = false;
+    }
   }
 
   Future<void> _loadRevenue() async {
@@ -258,6 +262,51 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = _apiService.currentUser?.isAdmin == true;
+    if (!isAdmin) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Access Denied')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: const BoxDecoration(
+                    color: AppTheme.dangerBg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.lock_person_rounded, color: AppTheme.danger, size: 48),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Access Restricted',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppTheme.deepHeading),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Revenue analytics and financial reports are restricted to Administrator accounts only. Managers do not have permission to view revenue data.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.textMuted, fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                  label: const Text('Go Back'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final currencyFmt = NumberFormat('#,##0', 'en_US');
 
     final courtItems = _report?.items ?? [];

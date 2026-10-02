@@ -7,6 +7,7 @@ import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/facility_images.dart';
 import '../../widgets/ticket_qr_modal.dart';
+import '../../widgets/review_modal.dart';
 import '../admin/revenue_screen.dart';
 
 class OverviewScreen extends StatelessWidget {
@@ -51,7 +52,7 @@ class OverviewScreen extends StatelessWidget {
     final user = ApiService().currentUser;
     final currencyFmt = NumberFormat('#,##0', 'en_US');
     final nextSession = _nextGame;
-    final isStaff = user?.isManagerOrAdmin == true;
+    final isAdmin = user?.isAdmin == true;
 
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
@@ -158,8 +159,8 @@ class OverviewScreen extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          // Manager & Admin: Financial / Revenue Quick Access Banner
-          if (isStaff) ...[
+          // Admin Only: Financial / Revenue Quick Access Banner
+          if (isAdmin) ...[
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -681,6 +682,8 @@ class OverviewScreen extends StatelessWidget {
                         comment: r.review,
                         facility: r.facilityName ?? 'Sports Arena',
                         photoPaths: r.photoPaths,
+                        reviewItem: r,
+                        onRefresh: onRefresh,
                       ),
                     );
                   })
@@ -1009,6 +1012,8 @@ class OverviewScreen extends StatelessWidget {
     required String comment,
     required String facility,
     List<String> photoPaths = const [],
+    BookingReviewItem? reviewItem,
+    VoidCallback? onRefresh,
   }) {
     return Container(
       width: 270,
@@ -1113,10 +1118,86 @@ class OverviewScreen extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(color: AppTheme.scaffoldBg, borderRadius: BorderRadius.circular(6)),
-            child: Text('📍 $facility', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textMuted)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: AppTheme.scaffoldBg, borderRadius: BorderRadius.circular(6)),
+                child: Text('📍 $facility', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textMuted)),
+              ),
+              if (reviewItem != null)
+                Builder(
+                  builder: (ctx) {
+                    final user = ApiService().currentUser;
+                    final canEdit = user != null && user.id == reviewItem.userId;
+                    final canDelete = user?.isAdmin == true || canEdit;
+                    if (!canEdit && !canDelete) return const SizedBox.shrink();
+
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (canEdit)
+                          InkWell(
+                            onTap: () {
+                              ReviewModal.show(
+                                context,
+                                existingReview: reviewItem,
+                                onSaved: onRefresh ?? () {},
+                              );
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              child: Icon(Icons.edit_outlined, size: 14, color: AppTheme.primary),
+                            ),
+                          ),
+                        if (canDelete)
+                          InkWell(
+                            onTap: () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (dlgCtx) => AlertDialog(
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                                  title: const Text('Delete Review?', style: TextStyle(fontWeight: FontWeight.w900)),
+                                  content: const Text('Are you sure you want to permanently delete this player review?'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(dlgCtx, false), child: const Text('Cancel')),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(dlgCtx, true),
+                                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+                                      child: const Text('Delete'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) {
+                                try {
+                                  await ApiService().deleteReview(reviewItem.id);
+                                  onRefresh?.call();
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Review deleted successfully.'), backgroundColor: AppTheme.successDark),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Failed to delete: $e'), backgroundColor: AppTheme.danger),
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              child: Icon(Icons.delete_outline_rounded, size: 14, color: AppTheme.danger),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+            ],
           ),
         ],
       ),

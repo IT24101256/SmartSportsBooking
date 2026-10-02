@@ -8,13 +8,13 @@ import '../theme/app_theme.dart';
 import '../utils/facility_images.dart';
 
 class ReviewModal extends StatefulWidget {
-  final Booking booking;
+  final Booking? booking;
   final BookingReviewItem? existingReview;
   final VoidCallback onSaved;
 
-  const ReviewModal({super.key, required this.booking, this.existingReview, required this.onSaved});
+  const ReviewModal({super.key, this.booking, this.existingReview, required this.onSaved});
 
-  static Future<void> show(BuildContext context, Booking booking, {BookingReviewItem? existingReview, required VoidCallback onSaved}) {
+  static Future<void> show(BuildContext context, {Booking? booking, BookingReviewItem? existingReview, required VoidCallback onSaved}) {
     return showDialog(
       context: context,
       barrierDismissible: false,
@@ -36,7 +36,22 @@ class _ReviewModalState extends State<ReviewModal> {
   List<XFile> _selectedPhotos = [];
   List<String> _existingPhotoPaths = [];
   bool _isSubmitting = false;
+  bool _isDeleting = false;
   String? _error;
+
+  bool get _canDelete {
+    final rev = widget.existingReview ?? widget.booking?.review;
+    if (rev == null || rev.id <= 0) return false;
+    final user = _apiService.currentUser;
+    return user?.isAdmin == true || user?.id == rev.userId;
+  }
+
+  bool get _canEdit {
+    final rev = widget.existingReview ?? widget.booking?.review;
+    if (rev == null) return true;
+    final user = _apiService.currentUser;
+    return user?.id == rev.userId;
+  }
 
   static const Map<int, String> _ratingDescriptions = {
     1: '😞 Poor — Significant court or service issues',
@@ -49,7 +64,7 @@ class _ReviewModalState extends State<ReviewModal> {
   @override
   void initState() {
     super.initState();
-    final rev = widget.existingReview ?? widget.booking.review;
+    final rev = widget.existingReview ?? widget.booking?.review;
     _nameController = TextEditingController(
       text: rev?.name.isNotEmpty == true ? rev!.name : (_apiService.currentUser?.fullName ?? 'Member'),
     );
@@ -157,11 +172,20 @@ class _ReviewModalState extends State<ReviewModal> {
     });
 
     try {
-      final rev = widget.existingReview ?? widget.booking.review;
+      final rev = widget.existingReview ?? widget.booking?.review;
+      final bId = widget.booking?.id ?? rev?.bookingId ?? 0;
+      if (bId <= 0) {
+        setState(() {
+          _isSubmitting = false;
+          _error = 'Unable to identify booking for this review.';
+        });
+        return;
+      }
+
       if (rev != null && rev.id > 0) {
         await _apiService.updateReview(
           reviewId: rev.id,
-          bookingId: widget.booking.id,
+          bookingId: bId,
           name: name,
           rating: _rating,
           review: reviewText,
@@ -169,7 +193,7 @@ class _ReviewModalState extends State<ReviewModal> {
         );
       } else {
         await _apiService.createReview(
-          bookingId: widget.booking.id,
+          bookingId: bId,
           name: name,
           rating: _rating,
           review: reviewText,
@@ -197,9 +221,64 @@ class _ReviewModalState extends State<ReviewModal> {
     }
   }
 
+  Future<void> _handleDelete() async {
+    final rev = widget.existingReview ?? widget.booking?.review;
+    if (rev == null || rev.id <= 0) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_outline_rounded, color: AppTheme.danger, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Review?', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to permanently delete this player review? This action cannot be undone.',
+          style: TextStyle(fontSize: 13, color: AppTheme.deepHeading),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      await _apiService.deleteReview(rev.id);
+      if (mounted) {
+        Navigator.pop(context);
+        widget.onSaved();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: AppTheme.successDark,
+            content: Text('Review deleted successfully.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+          _error = 'Failed to delete review: ${e.toString().replaceAll('Exception: ', '')}';
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isEditing = (widget.existingReview ?? widget.booking.review) != null;
+    final isEditing = (widget.existingReview ?? widget.booking?.review) != null;
     final dateFmt = DateFormat('EEE, MMM d, yyyy');
 
     return Dialog(
@@ -272,11 +351,17 @@ class _ReviewModalState extends State<ReviewModal> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.booking.facilityName.isNotEmpty ? widget.booking.facilityName : 'Sports Arena',
+                            widget.booking != null && widget.booking!.facilityName.isNotEmpty
+                                ? widget.booking!.facilityName
+                                : (widget.existingReview?.facilityName ?? 'Sports Arena'),
                             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppTheme.deepHeading),
                           ),
                           Text(
-                            '${dateFmt.format(widget.booking.bookingDate)} • ${widget.booking.startTime.length >= 5 ? widget.booking.startTime.substring(0, 5) : widget.booking.startTime} - ${widget.booking.endTime.length >= 5 ? widget.booking.endTime.substring(0, 5) : widget.booking.endTime}',
+                            widget.booking != null
+                                ? '${dateFmt.format(widget.booking!.bookingDate)} • ${widget.booking!.startTime.length >= 5 ? widget.booking!.startTime.substring(0, 5) : widget.booking!.startTime} - ${widget.booking!.endTime.length >= 5 ? widget.booking!.endTime.substring(0, 5) : widget.booking!.endTime}'
+                                : (widget.existingReview?.updatedAt != null
+                                    ? 'Reviewed ${dateFmt.format(widget.existingReview!.updatedAt!)}'
+                                    : 'Verified Member Review'),
                             style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
                           ),
                         ],
@@ -458,16 +543,55 @@ class _ReviewModalState extends State<ReviewModal> {
               ],
 
               const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _isSubmitting ? null : _handleSubmit,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: _isSubmitting
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text(
-                        isEditing ? 'Update Review' : 'Submit Review',
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              if (_canDelete) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: (_isSubmitting || _isDeleting) ? null : _handleDelete,
+                        icon: _isDeleting
+                            ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.danger))
+                            : const Icon(Icons.delete_outline_rounded, size: 18, color: AppTheme.danger),
+                        label: const Text('Delete Review', style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w700)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: const BorderSide(color: AppTheme.danger),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
                       ),
-              ),
+                    ),
+                    if (_canEdit) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: (_isSubmitting || _isDeleting) ? null : _handleSubmit,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          child: _isSubmitting
+                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Text('Update Review', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ] else ...[
+                ElevatedButton(
+                  onPressed: _isSubmitting ? null : _handleSubmit,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text(
+                          isEditing ? 'Update Review' : 'Submit Review',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                        ),
+                ),
+              ],
             ],
           ),
         ),

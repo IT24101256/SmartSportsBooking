@@ -297,6 +297,7 @@ class _BookingWizardSheetState extends State<BookingWizardSheet> {
     final currencyFmt = NumberFormat('#,##0', 'en_US');
     final dateFmt = DateFormat('EEE, MMM d, yyyy');
     final maxConsecutive = _selectedStartTime != null ? _getMaxConsecutiveHours(_selectedStartTime!) : 16;
+    final isStaff = _apiService.currentUser?.isManagerOrAdmin == true;
 
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.90),
@@ -592,8 +593,7 @@ class _BookingWizardSheetState extends State<BookingWizardSheet> {
                   // STEP 3: Payment Method
                   else if (_step == 3) ...[
                     const Text('Select Payment Method:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.deepHeading)),
-                    const SizedBox(height: 8),
-
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
@@ -603,14 +603,24 @@ class _BookingWizardSheetState extends State<BookingWizardSheet> {
                             onSelected: (_) => setState(() => _paymentMethod = 'Card'),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: ChoiceChip(
-                            label: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.account_balance, size: 16), SizedBox(width: 4), Text('Bank Transfer')]),
+                            label: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.account_balance, size: 16), SizedBox(width: 4), Text('Bank')]),
                             selected: _paymentMethod == 'BankTransfer',
                             onSelected: (_) => setState(() => _paymentMethod = 'BankTransfer'),
                           ),
                         ),
+                        if (isStaff) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.payments_outlined, size: 16), SizedBox(width: 4), Text('Cash')]),
+                              selected: _paymentMethod == 'Cash',
+                              onSelected: (_) => setState(() => _paymentMethod = 'Cash'),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -709,6 +719,32 @@ class _BookingWizardSheetState extends State<BookingWizardSheet> {
                         dense: true,
                         title: const Text('Save this card in settings for instant checkout', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                         onChanged: (val) => setState(() => _saveCardDetails = val ?? true),
+                      ),
+                    ] else if (_paymentMethod == 'Cash') ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 20),
+                                SizedBox(width: 8),
+                                Text('Cash in Hand (Desk Collection)', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF065F46))),
+                              ],
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              'Authorized for Admin & Manager staff. Customer pays directly in cash at the counter. The booking will be marked as Paid and instantly Confirmed.',
+                              style: TextStyle(color: Color(0xFF047857), fontSize: 12, height: 1.3),
+                            ),
+                          ],
+                        ),
                       ),
                     ] else ...[
                       Container(

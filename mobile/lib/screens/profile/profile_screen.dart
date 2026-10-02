@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/api_service.dart';
 import '../../services/saved_cards_service.dart';
 import '../../theme/app_theme.dart';
@@ -18,6 +19,103 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ApiService _apiService = ApiService();
+  final ImagePicker _picker = ImagePicker();
+  bool _isUploadingPicture = false;
+
+  Future<void> _pickAndUploadProfilePicture() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Change Profile Photo',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppTheme.deepHeading),
+              ),
+              const SizedBox(height: 18),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppTheme.primaryBg, borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.photo_library_rounded, color: AppTheme.primary),
+                ),
+                title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w700)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _processImagePick(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: const Color(0xFFF3E8FF), borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.camera_alt_rounded, color: Color(0xFF7E22CE)),
+                ),
+                title: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.w700)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _processImagePick(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processImagePick(ImageSource source) async {
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (file == null) return;
+
+      setState(() => _isUploadingPicture = true);
+
+      await _apiService.uploadProfilePicture(file);
+
+      if (!mounted) return;
+      setState(() => _isUploadingPicture = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile picture updated successfully!'),
+          backgroundColor: AppTheme.successDark,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploadingPicture = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to upload image: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+    }
+  }
 
   void _showChangePasswordDialog() {
     final currentPassCtrl = TextEditingController();
@@ -383,13 +481,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.white24,
-                    child: Text(
-                      user?.fullName.isNotEmpty == true ? user!.fullName.substring(0, 1).toUpperCase() : 'M',
-                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white),
-                    ),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GestureDetector(
+                        onTap: _isUploadingPicture ? null : _pickAndUploadProfilePicture,
+                        child: CircleAvatar(
+                          radius: 34,
+                          backgroundColor: Colors.white24,
+                          backgroundImage: user?.profilePicture != null && user!.profilePicture!.isNotEmpty
+                              ? NetworkImage(_apiService.buildImageUrl(user.profilePicture)!)
+                              : null,
+                          child: _isUploadingPicture
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                                )
+                              : (user?.profilePicture == null || user!.profilePicture!.isEmpty)
+                                  ? Text(
+                                      user?.fullName.isNotEmpty == true ? user!.fullName.substring(0, 1).toUpperCase() : 'M',
+                                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white),
+                                    )
+                                  : null,
+                        ),
+                      ),
+                      Positioned(
+                        bottom: -2,
+                        right: -2,
+                        child: GestureDetector(
+                          onTap: _isUploadingPicture ? null : _pickAndUploadProfilePicture,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.camera_alt_rounded, size: 14, color: AppTheme.primary),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -459,18 +598,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               type: MaterialType.transparency,
               child: Column(
                 children: [
-                  ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppTheme.successBg, borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(Icons.attach_money_rounded, color: AppTheme.successDark),
+                  if (isAdmin) ...[
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: AppTheme.successBg, borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.attach_money_rounded, color: AppTheme.successDark),
+                      ),
+                      title: const Text('Revenue & Financials', style: TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: const Text('Gross revenue, court vs equipment income', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RevenueScreen())),
                     ),
-                    title: const Text('Revenue & Financials', style: TextStyle(fontWeight: FontWeight.w700)),
-                    subtitle: const Text('Gross revenue, court vs equipment income', style: TextStyle(fontSize: 12)),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RevenueScreen())),
-                  ),
-                  const Divider(height: 1),
+                    const Divider(height: 1),
+                  ],
                   ListTile(
                     leading: Container(
                       padding: const EdgeInsets.all(8),

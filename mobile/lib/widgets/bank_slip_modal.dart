@@ -1,6 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import '../models/booking.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -35,6 +36,13 @@ class _BankSlipModalState extends State<BankSlipModal> {
   String? _error;
   bool _isProcessing = false;
 
+  bool get _isPdf {
+    if (_slipBytes != null && _slipBytes!.length >= 4) {
+      return _slipBytes![0] == 0x25 && _slipBytes![1] == 0x50 && _slipBytes![2] == 0x44 && _slipBytes![3] == 0x46;
+    }
+    return widget.booking.bankSlipFileName?.toLowerCase().endsWith('.pdf') == true;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +54,16 @@ class _BankSlipModalState extends State<BankSlipModal> {
       _isLoading = true;
       _error = null;
     });
+
+    if (widget.booking.bankSlipFileName == null || widget.booking.bankSlipFileName!.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = 'No payment slip file was uploaded for this booking.';
+        });
+      }
+      return;
+    }
 
     try {
       final bytes = await _apiService.getBankSlipBytes(widget.booking.id);
@@ -304,22 +322,41 @@ class _BankSlipModalState extends State<BankSlipModal> {
                             ),
                           )
                         : _slipBytes != null
-                            ? InteractiveViewer(
-                                minScale: 0.5,
-                                maxScale: 4.0,
-                                child: Center(
-                                  child: Image.memory(
-                                    _slipBytes!,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (context, error, stackTrace) => const Center(
-                                      child: Text(
-                                        'Unable to display image preview (non-image format or corrupted).',
-                                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                            ? _isPdf
+                                ? Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent, size: 60),
+                                        const SizedBox(height: 12),
+                                        const Text('PDF Payment Slip Document', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                                        const SizedBox(height: 6),
+                                        Text(widget.booking.bankSlipFileName ?? 'bank-slip.pdf', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                        const SizedBox(height: 16),
+                                        ElevatedButton.icon(
+                                          onPressed: () => Printing.layoutPdf(onLayout: (_) => _slipBytes!),
+                                          icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                                          label: const Text('Open / Print PDF Slip'),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : InteractiveViewer(
+                                    minScale: 0.5,
+                                    maxScale: 4.0,
+                                    child: Center(
+                                      child: Image.memory(
+                                        _slipBytes!,
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (context, error, stackTrace) => const Center(
+                                          child: Text(
+                                            'Unable to display image preview (non-image format or corrupted).',
+                                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ),
-                              )
+                                  )
                             : const Center(
                                 child: Text('No slip file uploaded for this booking.', style: TextStyle(color: Colors.white70)),
                               ),

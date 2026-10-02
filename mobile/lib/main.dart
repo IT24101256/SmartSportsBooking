@@ -494,25 +494,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   foregroundColor: Colors.white,
                   child: const Icon(Icons.add_rounded),
                 ),
-                const SizedBox(height: 10),
-                FloatingActionButton.extended(
-                  heroTag: 'askAiFab',
-                  onPressed: () => AiChatSheet.show(context),
-                  icon: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
-                  label: const Text('Ask AI', style: TextStyle(fontWeight: FontWeight.w800)),
-                  backgroundColor: const Color(0xFF0284C7),
-                  foregroundColor: Colors.white,
-                ),
+                const SizedBox(height: 12),
+                _buildAiChatFab(),
               ],
             )
-          : FloatingActionButton.extended(
-              heroTag: 'askAiFab',
-              onPressed: () => AiChatSheet.show(context),
-              icon: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
-              label: const Text('Ask AI', style: TextStyle(fontWeight: FontWeight.w800)),
-              backgroundColor: const Color(0xFF0284C7),
-              foregroundColor: Colors.white,
-            ),
+          : _buildAiChatFab(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedTab,
         onTap: (index) {
@@ -529,6 +515,79 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           BottomNavigationBarItem(icon: Icon(Icons.support_agent_rounded), label: 'Support'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAiChatFab() {
+    return Tooltip(
+      message: 'Ask MySpot AI',
+      child: Container(
+        width: 58,
+        height: 58,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1D4ED8), Color(0xFF0284C7), Color(0xFF20D6C7)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1D4ED8).withValues(alpha: 0.5),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+            BoxShadow(
+              color: const Color(0xFF20D6C7).withValues(alpha: 0.3),
+              blurRadius: 10,
+            ),
+          ],
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.35),
+            width: 2,
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => AiChatSheet.show(context),
+            child: Stack(
+              children: [
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Image.asset(
+                      'assets/images/chatbot.png',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 3,
+                  right: 3,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF071A2B), width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.8),
+                          blurRadius: 5,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

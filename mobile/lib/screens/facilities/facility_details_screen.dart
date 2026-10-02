@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/facility_images.dart';
 import '../../widgets/edit_facility_modal.dart';
 import '../../widgets/ai_chat_sheet.dart';
+import '../../widgets/review_modal.dart';
 
 class FacilityDetailsScreen extends StatefulWidget {
   final Facility facility;
@@ -62,6 +63,58 @@ class _FacilityDetailsScreenState extends State<FacilityDetailsScreen> {
     }
   }
 
+  Future<void> _deleteReview(BookingReviewItem r) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_outline_rounded, color: AppTheme.danger, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Review?', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to permanently delete this player review? This action cannot be undone.',
+          style: TextStyle(fontSize: 13, color: AppTheme.deepHeading),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _apiService.deleteReview(r.id);
+      _loadReviews();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: AppTheme.successDark,
+            content: Text('Review deleted successfully.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppTheme.danger,
+            content: Text('Failed to delete review: ${e.toString().replaceAll('Exception: ', '')}'),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final f = widget.facility;
@@ -87,12 +140,23 @@ class _FacilityDetailsScreenState extends State<FacilityDetailsScreen> {
             actions: [
               IconButton(
                 icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF0284C7),
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1D4ED8), Color(0xFF20D6C7)],
+                    ),
                     shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF1D4ED8).withValues(alpha: 0.35),
+                        blurRadius: 8,
+                      ),
+                    ],
                   ),
-                  child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
+                  padding: const EdgeInsets.all(7),
+                  child: Image.asset('assets/images/chatbot.png', fit: BoxFit.contain),
                 ),
                 tooltip: 'Ask AI',
                 onPressed: () => AiChatSheet.show(context),
@@ -527,6 +591,64 @@ class _FacilityDetailsScreenState extends State<FacilityDetailsScreen> {
                                 ),
                               ),
                             ],
+                            Builder(
+                              builder: (context) {
+                                final user = _apiService.currentUser;
+                                final canEdit = user != null && user.id == r.userId;
+                                final canDelete = user?.isAdmin == true || canEdit;
+                                if (!canEdit && !canDelete) return const SizedBox.shrink();
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      if (canEdit) ...[
+                                        InkWell(
+                                          onTap: () {
+                                            ReviewModal.show(
+                                              context,
+                                              existingReview: r,
+                                              onSaved: _loadReviews,
+                                            );
+                                          },
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: const Padding(
+                                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.edit_outlined, size: 14, color: AppTheme.primary),
+                                                SizedBox(width: 4),
+                                                Text('Edit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.primary)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                      if (canDelete) ...[
+                                        InkWell(
+                                          onTap: () => _deleteReview(r),
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: const Padding(
+                                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.delete_outline_rounded, size: 14, color: AppTheme.danger),
+                                                SizedBox(width: 4),
+                                                Text('Delete', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.danger)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                           ],
                         ),
                       );

@@ -287,6 +287,66 @@ class ApiService {
     }
   }
 
+  String? buildImageUrl(String? path) {
+    if (path == null || path.isEmpty) return null;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    final clean = path.startsWith('/') ? path : '/$path';
+    return '$_baseUrl$clean';
+  }
+
+  Future<UserProfile> uploadProfilePicture(XFile imageFile) async {
+    final uri = Uri.parse('$_baseUrl/api/auth/profile/picture');
+    try {
+      final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(_authHeaderOnly);
+
+      final bytes = await imageFile.readAsBytes();
+      final ext = imageFile.name.toLowerCase().endsWith('.png')
+          ? 'png'
+          : imageFile.name.toLowerCase().endsWith('.webp')
+              ? 'webp'
+              : 'jpeg';
+
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: imageFile.name,
+          contentType: MediaType('image', ext),
+        ),
+      );
+
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 20));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        _currentUser = UserProfile.fromJson(data);
+        return _currentUser!;
+      } else {
+        throw Exception(_extractErrorMessage(response));
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<UserProfile?> fetchProfile() async {
+    if (!isAuthenticated) return null;
+    final uri = Uri.parse('$_baseUrl/api/auth/profile');
+    try {
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        _currentUser = UserProfile.fromJson(data);
+        return _currentUser;
+      }
+      return _currentUser;
+    } catch (_) {
+      return _currentUser;
+    }
+  }
+
   // ----------------------------------------------------
   // FACILITIES
   // ----------------------------------------------------
@@ -598,7 +658,10 @@ class ApiService {
 
   Future<Uint8List> getBankSlipBytes(int bookingId) async {
     final uri = Uri.parse('$_baseUrl/api/bookings/$bookingId/bank-slip');
-    final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
+    final response = await http.get(uri, headers: {
+      if (_token != null) 'Authorization': 'Bearer $_token',
+      'Accept': '*/*',
+    }).timeout(const Duration(seconds: 15));
     if (response.statusCode == 200) {
       return response.bodyBytes;
     }
