@@ -16,10 +16,13 @@ const toLocalDateStr = (d = new Date()) => {
 
 export default function RevenuePage({ apiBaseUrl, token }) {
   const today = toLocalDateStr()
+  const initialNow = new Date()
+  const lastDayOfMonth = new Date(initialNow.getFullYear(), initialNow.getMonth() + 1, 0).getDate()
+  const monthPrefix = `${initialNow.getFullYear()}-${String(initialNow.getMonth() + 1).padStart(2, '0')}`
 
-  // Default to 1st of current month to today
-  const [fromDate, setFromDate] = useState(`${today.slice(0, 8)}01`)
-  const [toDate, setToDate] = useState(today)
+  // Default to 1st of current month to end of current month
+  const [fromDate, setFromDate] = useState(`${monthPrefix}-01`)
+  const [toDate, setToDate] = useState(`${monthPrefix}-${String(lastDayOfMonth).padStart(2, '0')}`)
   const [activePreset, setActivePreset] = useState('month')
   const [report, setReport] = useState({ totalRevenue: 0, bookingCount: 0, items: [] })
   const [loading, setLoading] = useState(true)
@@ -42,16 +45,22 @@ export default function RevenuePage({ apiBaseUrl, token }) {
     } else if (preset === '7days') {
       const d = new Date()
       d.setDate(d.getDate() - 7)
+      const future7 = new Date()
+      future7.setDate(future7.getDate() + 7)
       setFromDate(toLocalDateStr(d))
-      setToDate(currentToday)
+      setToDate(toLocalDateStr(future7))
     } else if (preset === 'month') {
-      setFromDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`)
-      setToDate(currentToday)
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+      const mPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      setFromDate(`${mPrefix}-01`)
+      setToDate(`${mPrefix}-${String(lastDay).padStart(2, '0')}`)
     } else if (preset === '30days') {
       const d = new Date()
-      d.setDate(d.getDate() - 30)
+      d.setDate(d.getDate() - 15)
+      const future = new Date()
+      future.setDate(future.getDate() + 15)
       setFromDate(toLocalDateStr(d))
-      setToDate(currentToday)
+      setToDate(toLocalDateStr(future))
     } else if (preset === 'ytd') {
       const year = now.getFullYear()
       setFromDate(`${year}-01-01`)

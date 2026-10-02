@@ -17,9 +17,9 @@ import 'screens/profile/profile_screen.dart';
 import 'widgets/ai_chat_sheet.dart';
 import 'widgets/book_with_ai_sheet.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  ApiService().initialize();
+  await ApiService().initialize();
   runApp(const SmartSportsApp());
 }
 
@@ -65,7 +65,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     _loadAllData();
   }
 
-  Future<void> _loadAllData() async {
+  Future<void> _loadAllData({bool retryOnFailure = true}) async {
     setState(() => _isLoadingData = true);
     try {
       final futures = <Future<dynamic>>[
@@ -81,10 +81,19 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       }
 
       final results = await Future.wait(futures);
+      final facilities = results[0] as List<Facility>;
+
+      // If initial fetch got no facilities and debug mode is active, attempt auto-detecting the backend URL once
+      if (facilities.isEmpty && retryOnFailure && kDebugMode) {
+        final detected = await _apiService.autoDetectBackendUrl();
+        if (detected != null) {
+          return await _loadAllData(retryOnFailure: false);
+        }
+      }
 
       if (mounted) {
         setState(() {
-          _facilities = results[0] as List<Facility>;
+          _facilities = facilities;
           _scheduleEvents = results[1] as List<Map<String, dynamic>>;
           _dashboardStats = results[2] as Map<String, dynamic>;
           _reviews = results[3] as List<BookingReviewItem>;
@@ -110,75 +119,122 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   void _showServerSettingsDialog() {
     final controller = TextEditingController(text: _apiService.baseUrl);
+    bool isDetecting = false;
+    String? statusMsg;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Backend API URL'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Select a preset or enter the IP/domain of your SmartSports .NET backend:',
-              style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Base URL',
-                hintText: 'http://localhost:5187',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text('Backend API URL'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ActionChip(
-                  label: const Text('Localhost (USB / adb reverse)'),
-                  onPressed: () => controller.text = 'http://localhost:5187',
+                const Text(
+                  'Select a preset, auto-detect, or enter your backend URL:',
+                  style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
                 ),
-                ActionChip(
-                  label: const Text('Current Wi-Fi (172.28.6.251)'),
-                  onPressed: () => controller.text = 'http://172.28.6.251:5187',
+                const SizedBox(height: 14),
+                TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    labelText: 'Base URL',
+                    hintText: 'http://localhost:5187',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-                ActionChip(
-                  label: const Text('Home LAN (192.168.8.140)'),
-                  onPressed: () => controller.text = 'http://192.168.8.140:5187',
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: isDetecting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.radar_rounded, size: 18),
+                    label: Text(isDetecting ? 'Auto-Detecting...' : 'Auto-Detect Backend'),
+                    onPressed: isDetecting
+                        ? null
+                        : () async {
+                            setDialogState(() {
+                              isDetecting = true;
+                              statusMsg = null;
+                            });
+                            final detected = await _apiService.autoDetectBackendUrl();
+                            setDialogState(() {
+                              isDetecting = false;
+                              if (detected != null) {
+                                controller.text = detected;
+                                statusMsg = 'Connected to $detected!';
+                              } else {
+                                statusMsg = 'Could not find active backend automatically.';
+                              }
+                            });
+                          },
+                  ),
                 ),
-                ActionChip(
-                  label: const Text('10.0.2.2 (Android Emulator)'),
-                  onPressed: () => controller.text = 'http://10.0.2.2:5187',
+                if (statusMsg != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    statusMsg!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: statusMsg!.startsWith('Connected') ? AppTheme.primary : AppTheme.danger,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                const Text('Presets:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ActionChip(
+                      label: const Text('Localhost (USB / adb reverse)'),
+                      onPressed: () => setDialogState(() => controller.text = 'http://localhost:5187'),
+                    ),
+                    ActionChip(
+                      label: const Text('Wi-Fi LAN (192.168.8.140)'),
+                      onPressed: () => setDialogState(() => controller.text = 'http://192.168.8.140:5187'),
+                    ),
+                    ActionChip(
+                      label: const Text('Android Emulator (10.0.2.2)'),
+                      onPressed: () => setDialogState(() => controller.text = 'http://10.0.2.2:5187'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Tip for USB: Run "connect-mobile.bat" on your PC to link localhost:5187 to phone.',
+                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppTheme.textMuted),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'For USB: Run "adb reverse tcp:5187 tcp:5187" on PC and use Localhost.',
-              style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppTheme.textMuted),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _apiService.baseUrl = controller.text.trim();
+                });
+                Navigator.pop(ctx);
+                _loadAllData();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('API URL updated to ${_apiService.baseUrl}')),
+                );
+              },
+              child: const Text('Save URL'),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _apiService.baseUrl = controller.text.trim();
-              });
-              Navigator.pop(ctx);
-              _loadAllData();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('API URL updated to ${_apiService.baseUrl}')),
-              );
-            },
-            child: const Text('Save URL'),
-          ),
-        ],
       ),
     );
   }

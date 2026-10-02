@@ -31,7 +31,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
     super.initState();
     final now = DateTime.now();
     _fromDate = DateTime(now.year, now.month, 1);
-    _toDate = now;
+    _toDate = DateTime(now.year, now.month + 1, 0); // End of current month
     _loadRevenue();
   }
 
@@ -64,13 +64,13 @@ class _RevenueScreenState extends State<RevenueScreen> {
         _toDate = DateTime(now.year, now.month, now.day);
       } else if (preset == '7days') {
         _fromDate = now.subtract(const Duration(days: 7));
-        _toDate = now;
+        _toDate = now.add(const Duration(days: 7));
       } else if (preset == 'month') {
         _fromDate = DateTime(now.year, now.month, 1);
-        _toDate = now;
+        _toDate = DateTime(now.year, now.month + 1, 0);
       } else if (preset == '30days') {
-        _fromDate = now.subtract(const Duration(days: 30));
-        _toDate = now;
+        _fromDate = now.subtract(const Duration(days: 15));
+        _toDate = now.add(const Duration(days: 15));
       } else if (preset == 'ytd') {
         _fromDate = DateTime(now.year, 1, 1);
         _toDate = DateTime(now.year, 12, 31);

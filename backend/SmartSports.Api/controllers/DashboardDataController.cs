@@ -74,16 +74,21 @@ public class DashboardDataController : ControllerBase
     public async Task<IActionResult> GetRevenue([FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null)
     {
         var today = DateTime.UtcNow.Date;
+        var endOfMonth = new DateTime(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
         var start = DateTime.SpecifyKind((fromDate ?? new DateTime(today.Year, today.Month, 1)).Date, DateTimeKind.Utc);
-        var end = DateTime.SpecifyKind((toDate ?? today).Date.AddDays(1), DateTimeKind.Utc);
+        var end = DateTime.SpecifyKind((toDate ?? endOfMonth).Date.AddDays(1), DateTimeKind.Utc);
         if (end <= start) return BadRequest("The to date must be on or after the from date.");
 
         var bookings = await _context.Bookings
-            .Where(booking => booking.BookingDate >= start && booking.BookingDate < end &&
-                booking.Status != "Cancelled" && (booking.PaymentStatus == "Paid" || booking.PaymentStatus == "Approved" || booking.Status == "Confirmed"))
+            .Where(booking =>
+                booking.Status != "Cancelled" &&
+                (booking.PaymentStatus == "Paid" || booking.PaymentStatus == "Approved" || booking.PaymentStatus == "MockPaid" || booking.Status == "Confirmed") &&
+                ((booking.BookingDate >= start && booking.BookingDate < end) ||
+                 (booking.CreatedAt >= start && booking.CreatedAt < end)))
             .Include(booking => booking.Facility)
             .Include(booking => booking.EquipmentPayments)
-            .OrderByDescending(booking => booking.BookingDate)
+            .OrderByDescending(booking => booking.CreatedAt)
+            .ThenByDescending(booking => booking.BookingDate)
             .ThenByDescending(booking => booking.StartTime)
             .ToListAsync();
 
@@ -119,6 +124,7 @@ public class DashboardDataController : ControllerBase
             {
                 booking.Id,
                 booking.BookingDate,
+                createdAt = booking.CreatedAt,
                 facility = booking.Facility!.Name,
                 customer = booking.CustomerName,
                 booking.TotalAmount,

@@ -30,9 +30,34 @@ class ApiService {
     defaultValue: 'http://localhost:5187',
   );
 
+  File get _storageFile {
+    final tempDir = Directory.systemTemp.path;
+    return File('$tempDir/smartsports_base_url.txt');
+  }
+
+  Future<void> _loadPersistedUrl() async {
+    try {
+      final file = _storageFile;
+      if (await file.exists()) {
+        final content = (await file.readAsString()).trim();
+        if (content.isNotEmpty && Uri.tryParse(content)?.hasScheme == true) {
+          _baseUrl = content.replaceAll(RegExp(r'/+$'), '');
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _savePersistedUrl(String url) async {
+    try {
+      final file = _storageFile;
+      await file.writeAsString(url.trim());
+    } catch (_) {}
+  }
+
   String get baseUrl => _baseUrl;
   set baseUrl(String url) {
     _baseUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
+    _savePersistedUrl(_baseUrl);
   }
 
   String? _token;
@@ -53,9 +78,51 @@ class ApiService {
         if (_token != null) 'Authorization': 'Bearer $_token',
       };
 
-  void initialize() {
+  Future<bool> testConnection([String? url]) async {
+    final target = (url ?? _baseUrl).trim().replaceAll(RegExp(r'/+$'), '');
+    try {
+      final res = await http.get(
+        Uri.parse('$target/api/Facilities?pageSize=1'),
+      ).timeout(const Duration(milliseconds: 1600));
+      return res.statusCode >= 200 && res.statusCode < 400;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String?> autoDetectBackendUrl() async {
+    if (await testConnection(_baseUrl)) {
+      debugPrint('[ApiService] Connected to backend at $_baseUrl');
+      return _baseUrl;
+    }
+
+    final candidates = [
+      'http://localhost:5187',
+      'http://10.0.2.2:5187',
+      'http://192.168.8.140:5187',
+    ];
+
+    for (final candidate in candidates) {
+      if (candidate == _baseUrl) continue;
+      if (await testConnection(candidate)) {
+        debugPrint('[ApiService] Auto-detected reachable backend at $candidate');
+        _baseUrl = candidate;
+        await _savePersistedUrl(candidate);
+        return candidate;
+      }
+    }
+
+    debugPrint('[ApiService] Backend auto-detection did not find an active server.');
+    return null;
+  }
+
+  Future<void> initialize() async {
     if (!kIsWeb && kDebugMode) {
       HttpOverrides.global = DevHttpOverrides();
+    }
+    await _loadPersistedUrl();
+    if (!kIsWeb && kDebugMode) {
+      await autoDetectBackendUrl();
     }
   }
 

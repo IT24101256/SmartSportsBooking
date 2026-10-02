@@ -76,6 +76,9 @@ public class Booking
 
     public DateTime? RescheduleRequestedAt { get; set; }
 
+    // Creation timestamp for revenue tracking and analytics
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
     // Additional equipment payments collected by admin or manager
     public ICollection<BookingEquipmentPayment> EquipmentPayments { get; set; } = new List<BookingEquipmentPayment>();
-} 
+}
