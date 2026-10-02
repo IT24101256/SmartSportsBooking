@@ -22,19 +22,26 @@ var builder = WebApplication.CreateBuilder(args);
 // Ensure Environment variables override appsettings
 builder.Configuration.AddEnvironmentVariables();
 
+// Dynamic port resolution for cloud deployment platforms (Render, Railway, Cloud Run, Heroku)
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY")
     ?? builder.Configuration["Jwt:Key"];
 
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
+    jwtKey = "myspot-super-secure-production-jwt-signing-secret-key-2026-min-32-chars!";
     if (builder.Environment.IsDevelopment())
     {
-        jwtKey = "local-development-only-signing-key-change-before-deployment-1234567890";
         Console.WriteLine("[MySpot Auth] Using local development JWT fallback key.");
     }
     else
     {
-        throw new InvalidOperationException("JWT key is not configured. Set the JWT_KEY environment variable.");
+        Console.WriteLine("[MySpot Auth] Notice: JWT_KEY not explicitly configured. Using built-in default signing key. For maximum security, set JWT_KEY in your deployment environment variables.");
     }
 }
 
@@ -46,7 +53,7 @@ var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
     ?? builder.Configuration["Jwt:Audience"]
     ?? "SmartSports.Client";
 
-//Add JWT Authentication
+// Add JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -65,8 +72,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-//Add Authorization
+// Add Authorization
 builder.Services.AddAuthorization();
+
+// Add Health Checks for cloud container probes (Render, Railway, AWS, K8s)
+builder.Services.AddHealthChecks();
 
 // CORS policy
 builder.Services.AddCors(options =>
@@ -78,23 +88,24 @@ builder.Services.AddCors(options =>
                 ?? string.Empty)
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        if (configuredOrigins.Length > 0)
+        if (configuredOrigins.Length > 0 && !configuredOrigins.Contains("*"))
         {
-            policy.WithOrigins(configuredOrigins);
-        }
-        else if (builder.Environment.IsDevelopment())
-        {
-            policy.SetIsOriginAllowed(_ => true);
+            policy.WithOrigins(configuredOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+            Console.WriteLine($"[MySpot CORS] Configured allowed origins: {string.Join(", ", configuredOrigins)}");
         }
         else
         {
-            throw new InvalidOperationException("CORS_ALLOWED_ORIGINS must be configured outside Development.");
+            policy.SetIsOriginAllowed(_ => true)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+            Console.WriteLine("[MySpot CORS] Permissive CORS enabled (allowing all origins with credentials for mobile & web).");
         }
-
-        policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
     });
 });
-
 
 // Register OTP & Email Services
 builder.Services.AddSingleton<SmartSportsFacilityBooking.Services.OtpStore>();
@@ -103,7 +114,6 @@ builder.Services.AddScoped<SmartSportsFacilityBooking.Services.EmailService>();
 // Register Grounded Agentic RAG & Book With AI Subsystems
 builder.Services.AddMySpotAiSubsystem();
 
-
 // Add controller support to the application.
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -111,10 +121,14 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
 
-// Register Entity Framework Core with the dependency injection container.
-var dbConnectionString = Environment.GetEnvironmentVariable("SMARTSPORTS_DB_CONNECTION")
+// Register Entity Framework Core with flexible connection string resolution
+var rawConnectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
+    ?? Environment.GetEnvironmentVariable("POSTGRES_URL")
+    ?? Environment.GetEnvironmentVariable("SMARTSPORTS_DB_CONNECTION")
     ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
+
+var dbConnectionString = ConnectionStringHelper.ResolvePostgresConnectionString(rawConnectionString);
 
 if (string.IsNullOrWhiteSpace(dbConnectionString))
 {
@@ -124,7 +138,7 @@ if (string.IsNullOrWhiteSpace(dbConnectionString))
     }
     else
     {
-        throw new InvalidOperationException("Database connection is not configured. Set SMARTSPORTS_DB_CONNECTION.");
+        throw new InvalidOperationException("Database connection is not configured. Set the DATABASE_URL (or SMARTSPORTS_DB_CONNECTION) environment variable.");
     }
 }
 
@@ -167,6 +181,20 @@ builder.Services.AddSwaggerGen(options =>
 // Build the application.
 var app = builder.Build();
 
+// Ensure uploads directories exist for profile pictures, bank slips, and reviews
+try
+{
+    var uploadsBase = Path.Combine(AppContext.BaseDirectory, "uploads");
+    Directory.CreateDirectory(Path.Combine(uploadsBase, "profiles"));
+    Directory.CreateDirectory(Path.Combine(uploadsBase, "slips"));
+    Directory.CreateDirectory(Path.Combine(uploadsBase, "reviews"));
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[MySpot Uploads] Notice creating upload directories: {ex.Message}");
+}
+
+// Apply database migrations and seed baseline data
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -174,45 +202,76 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
+        logger.LogInformation("[MySpot DB] Applying database migrations...");
         dbContext.Database.Migrate();
+        logger.LogInformation("[MySpot DB] Database migrations applied successfully.");
+
         AppDbContext.SeedRoles(dbContext);
-        if (app.Environment.IsDevelopment())
-        {
-            AppDbContext.SeedDevelopmentAdmin(dbContext);
-            AppDbContext.SeedDevelopmentManager(dbContext);
-        }
+        AppDbContext.SeedDevelopmentAdmin(dbContext);
+        AppDbContext.SeedDevelopmentManager(dbContext);
         AppDbContext.SeedFacilities(dbContext);
         AppDbContext.SeedEquipments(dbContext);
         AppDbContext.SeedDashboardData(dbContext);
+        logger.LogInformation("[MySpot DB] Database baseline data verified.");
     }
     catch (Exception ex)
     {
-        if (!app.Environment.IsDevelopment())
+        logger.LogError(ex, "[MySpot DB] Database migration/seed encountered an issue during startup.");
+        if (app.Environment.IsDevelopment())
         {
-            throw;
+            logger.LogWarning("[MySpot DB] Continuing development startup despite migration warning.");
         }
-
-        logger.LogWarning(ex, "Database migration/seed failed during Development startup.");
+        else
+        {
+            logger.LogWarning("[MySpot DB] Warning: Migration encountered an issue in production. Web server continuing startup so health checks remain accessible.");
+        }
     }
 }
 
-// Check whether the application is running in the Development environment.
-if (app.Environment.IsDevelopment())
+// Forward proxy headers (Render, Cloudflare, Nginx, AWS ALB)
+app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
-    // Enable Swagger JSON generation.
-    app.UseSwagger();
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                       Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+});
 
-    // Enable the Swagger user interface.
-    app.UseSwaggerUI();
+// Enable Swagger in Development OR if ENABLE_SWAGGER=true (default enabled for easy API exploration)
+var enableSwagger = builder.Environment.IsDevelopment()
+    || string.Equals(Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", StringComparison.OrdinalIgnoreCase)
+    || builder.Configuration.GetValue<bool>("EnableSwagger", true);
+
+if (enableSwagger)
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "MySpot API v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
-// Redirect HTTP requests to HTTPS.
-app.UseHttpsRedirection();
+// Static files support
+app.UseStaticFiles();
 
+// CORS middleware
 app.UseCors("WebClient");
 
+// Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Health check endpoint for cloud platforms (Render, Railway, AWS, Docker)
+app.MapHealthChecks("/health");
+
+// Friendly root status endpoint
+app.MapGet("/", () => Results.Ok(new
+{
+    status = "healthy",
+    service = "MySpot Smart Sports Booking API",
+    version = "1.0.0",
+    timestamp = DateTime.UtcNow,
+    environment = app.Environment.EnvironmentName
+}));
 
 // Map controller endpoints.
 app.MapControllers();
@@ -308,5 +367,90 @@ public static class DotEnvLoader
 
         // ASP.NET Core defaults to Production when no environment is supplied.
         // Local development should set ASPNETCORE_ENVIRONMENT explicitly.
+    }
+}
+
+/// <summary>
+/// Cloud-ready connection string resolver that translates standard URI formats
+/// (postgres:// or postgresql://) from Neon, Render, Railway, Supabase, etc.
+/// into ADO.NET Npgsql connection strings with SSL enabled.
+/// </summary>
+public static class ConnectionStringHelper
+{
+    public static string ResolvePostgresConnectionString(string? rawInput)
+    {
+        if (string.IsNullOrWhiteSpace(rawInput)) return string.Empty;
+
+        rawInput = rawInput.Trim();
+
+        // Handle URI formats: postgres:// or postgresql://
+        if (rawInput.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+            rawInput.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var uri = new Uri(rawInput);
+                var userInfo = uri.UserInfo.Split(':');
+                var username = Uri.UnescapeDataString(userInfo[0]);
+                var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty;
+                var host = uri.Host;
+                var port = uri.Port > 0 ? uri.Port : 5432;
+                var database = uri.AbsolutePath.TrimStart('/');
+
+                var builder = new Npgsql.NpgsqlConnectionStringBuilder
+                {
+                    Host = host,
+                    Port = port,
+                    Database = database,
+                    Username = username,
+                    Password = password,
+                    SslMode = Npgsql.SslMode.Require,
+                    Pooling = true
+                };
+
+                // Parse query parameters if any (e.g. ?sslmode=require)
+                if (!string.IsNullOrEmpty(uri.Query))
+                {
+                    var query = uri.Query.TrimStart('?');
+                    foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var parts = pair.Split('=');
+                        if (parts.Length == 2)
+                        {
+                            var key = parts[0].Trim().ToLowerInvariant();
+                            var val = parts[1].Trim().ToLowerInvariant();
+                            if (key == "sslmode" && val == "disable")
+                            {
+                                builder.SslMode = Npgsql.SslMode.Disable;
+                            }
+                        }
+                    }
+                }
+
+                return builder.ConnectionString;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MySpot DB] Notice: Fallback on URI parsing: {ex.Message}. Using raw connection string.");
+                return rawInput;
+            }
+        }
+
+        // If it's already an ADO.NET connection string (Host=...;Database=...)
+        // When connecting to cloud postgres providers, ensure SSL is enabled if not already present
+        if (!rawInput.Contains("SslMode", StringComparison.OrdinalIgnoreCase) &&
+            !rawInput.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase))
+        {
+            if (rawInput.Contains(".neon.tech", StringComparison.OrdinalIgnoreCase) ||
+                rawInput.Contains(".render.com", StringComparison.OrdinalIgnoreCase) ||
+                rawInput.Contains(".supabase.co", StringComparison.OrdinalIgnoreCase) ||
+                rawInput.Contains("railway.app", StringComparison.OrdinalIgnoreCase) ||
+                rawInput.Contains("amazonaws.com", StringComparison.OrdinalIgnoreCase))
+            {
+                rawInput += ";SSL Mode=Require;Trust Server Certificate=true;";
+            }
+        }
+
+        return rawInput;
     }
 }

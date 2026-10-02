@@ -1,0 +1,12 @@
+**/.git/
+**/.vs/
+**/.vscode/
+**/bin/
+**/obj/
+**/uploads/
+**/.env
+**/.env.*
+node_modules/
+mobile/
+web/
+docs/
