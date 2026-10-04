@@ -44,40 +44,40 @@ public class EmailService
     public EmailConfig GetConfig()
     {
         var resendApiKey = (Environment.GetEnvironmentVariable("RESEND_API_KEY")
-            ?? _config["Resend:ApiKey"])?.Trim();
+            ?? _config["Resend:ApiKey"])?.Trim().Trim('"', '\'');
 
         var brevoApiKey = (Environment.GetEnvironmentVariable("BREVO_API_KEY")
-            ?? _config["Brevo:ApiKey"])?.Trim();
+            ?? _config["Brevo:ApiKey"])?.Trim().Trim('"', '\'');
 
         var host = (Environment.GetEnvironmentVariable("SMTP_HOST")
             ?? _config["Smtp:Host"]
-            ?? "smtp.gmail.com").Trim();
+            ?? "smtp.gmail.com").Trim().Trim('"', '\'');
 
         var portStr = (Environment.GetEnvironmentVariable("SMTP_PORT")
             ?? _config["Smtp:Port"]
-            ?? "587").Trim();
+            ?? "587").Trim().Trim('"', '\'');
         int.TryParse(portStr, out var port);
         if (port <= 0) port = 587;
 
         var from = (Environment.GetEnvironmentVariable("SMTP_FROM")
-            ?? _config["Smtp:From"])?.Trim();
+            ?? _config["Smtp:From"])?.Trim().Trim('"', '\'');
 
         var user = (Environment.GetEnvironmentVariable("SMTP_USER")
             ?? Environment.GetEnvironmentVariable("SMTP_USERNAME")
             ?? _config["Smtp:User"]
             ?? _config["Smtp:Username"]
-            ?? from)?.Trim();
+            ?? from)?.Trim().Trim('"', '\'');
 
         var password = (Environment.GetEnvironmentVariable("SMTP_PASSWORD")
-            ?? _config["Smtp:Password"])?.Trim();
+            ?? _config["Smtp:Password"])?.Trim().Trim('"', '\'');
 
         var fromName = (Environment.GetEnvironmentVariable("SMTP_FROM_NAME")
             ?? _config["Smtp:FromName"]
-            ?? "MySpot Sports").Trim();
+            ?? "MySpot Sports").Trim().Trim('"', '\'');
 
-        var ignoreCertStr = Environment.GetEnvironmentVariable("SMTP_IGNORE_CERT_ERRORS")
+        var ignoreCertStr = (Environment.GetEnvironmentVariable("SMTP_IGNORE_CERT_ERRORS")
             ?? _config["Smtp:IgnoreCertErrors"]
-            ?? "false";
+            ?? "false").Trim().Trim('"', '\'');
         var ignoreCert = !string.Equals(ignoreCertStr, "false", StringComparison.OrdinalIgnoreCase);
 
         // Remove whitespace from Google App Passwords if using Gmail
@@ -164,8 +164,11 @@ public class EmailService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[RESEND ERROR] Failed to send via Resend API: {Message}. Trying SMTP fallback if available.", ex.Message);
-                if (!IsSmtpConfigured) throw;
+                _logger.LogError(ex, "[RESEND ERROR] Failed to send via Resend API: {Message}", ex.Message);
+                // When an API key is explicitly configured, throw the actual Resend error directly
+                // so the user/developer sees the exact issue (e.g. unverified domain or sandbox restriction)
+                // instead of masking it with a 15-second blocked SMTP timeout.
+                throw;
             }
         }
 
@@ -178,8 +181,8 @@ public class EmailService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[BREVO ERROR] Failed to send via Brevo API: {Message}. Trying SMTP fallback if available.", ex.Message);
-                if (!IsSmtpConfigured) throw;
+                _logger.LogError(ex, "[BREVO ERROR] Failed to send via Brevo API: {Message}", ex.Message);
+                throw;
             }
         }
 
@@ -194,8 +197,18 @@ public class EmailService
         using var client = CreateHttpClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", config.ResendApiKey);
 
-        // Resend requires a verified domain sender or onboarding sender
-        var sender = config.FromAddress ?? "onboarding@resend.dev";
+        // Resend requires a verified domain sender or 'onboarding@resend.dev'.
+        // Public mail domains (@gmail.com, @yahoo.com, etc.) cannot be used as Resend senders.
+        var sender = config.FromAddress?.Trim();
+        if (string.IsNullOrWhiteSpace(sender) ||
+            sender.EndsWith("@gmail.com", StringComparison.OrdinalIgnoreCase) ||
+            sender.EndsWith("@yahoo.com", StringComparison.OrdinalIgnoreCase) ||
+            sender.EndsWith("@outlook.com", StringComparison.OrdinalIgnoreCase) ||
+            sender.EndsWith("@hotmail.com", StringComparison.OrdinalIgnoreCase))
+        {
+            sender = "onboarding@resend.dev";
+        }
+
         var formattedFrom = $"{config.FromName} <{sender}>";
 
         var payload = new
@@ -216,7 +229,25 @@ public class EmailService
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogError("[RESEND ERROR] HTTP {Status}: {Body}", response.StatusCode, responseBody);
-            throw new InvalidOperationException($"Resend API rejected email (HTTP {response.StatusCode}): {responseBody}");
+
+            var userExplanation = responseBody;
+            try
+            {
+                using var doc = JsonDocument.Parse(responseBody);
+                if (doc.RootElement.TryGetProperty("message", out var msgProp))
+                {
+                    userExplanation = msgProp.GetString() ?? responseBody;
+                }
+            }
+            catch { }
+
+            if (userExplanation.Contains("only send testing emails to your own email", StringComparison.OrdinalIgnoreCase) ||
+                userExplanation.Contains("testing emails", StringComparison.OrdinalIgnoreCase))
+            {
+                userExplanation += " (Resend Free Sandbox restriction: with 'onboarding@resend.dev', you can only send verification codes to the email address registered with your Resend account. To send to any user, verify a custom domain at resend.com/domains).";
+            }
+
+            throw new InvalidOperationException($"Resend rejected email (HTTP {response.StatusCode}): {userExplanation}");
         }
 
         _logger.LogInformation("[RESEND] Successfully sent email to {ToEmail}. Response: {Body}", toEmail, responseBody);
