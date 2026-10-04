@@ -27,7 +27,7 @@ class ApiService {
 
   String _baseUrl = const String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:5187',
+    defaultValue: 'https://smartsportsbooking.onrender.com',
   );
 
   File get _storageFile {
@@ -40,6 +40,12 @@ class ApiService {
       final file = _storageFile;
       if (await file.exists()) {
         final content = (await file.readAsString()).trim();
+        // Discard stale localhost in release mode so standalone APK works immediately
+        if (kReleaseMode && (content.contains('localhost') || content.contains('10.0.2.2'))) {
+          _baseUrl = 'https://smartsportsbooking.onrender.com';
+          await _savePersistedUrl(_baseUrl);
+          return;
+        }
         if (content.isNotEmpty && Uri.tryParse(content)?.hasScheme == true) {
           _baseUrl = content.replaceAll(RegExp(r'/+$'), '');
         }
@@ -83,7 +89,7 @@ class ApiService {
     try {
       final res = await http.get(
         Uri.parse('$target/api/Facilities?pageSize=1'),
-      ).timeout(const Duration(milliseconds: 1600));
+      ).timeout(const Duration(milliseconds: 2500));
       return res.statusCode >= 200 && res.statusCode < 400;
     } catch (_) {
       return false;
@@ -97,6 +103,7 @@ class ApiService {
     }
 
     final candidates = [
+      'https://smartsportsbooking.onrender.com',
       'http://localhost:5187',
       'http://10.0.2.2:5187',
       'http://192.168.8.140:5187',

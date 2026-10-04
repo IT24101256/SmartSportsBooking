@@ -25,3 +25,24 @@ services:
         value: "*"
       - key: ENABLE_SWAGGER
         value: "true"
+      # --- Email Delivery Configuration ---
+      # Option 1: Resend HTTP API (RECOMMENDED for Render Free tier - Render blocks outbound SMTP ports 25, 465, and 587)
+      - key: RESEND_API_KEY
+        sync: false # Get a free API key from https://resend.com
+      # Option 2: Direct SMTP (Works on Render Paid plans or custom mail servers)
+      - key: SMTP_HOST
+        value: "smtp.gmail.com"
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_FROM
+        sync: false # e.g. youraccount@gmail.com
+      - key: SMTP_USER
+        sync: false # e.g. youraccount@gmail.com
+      - key: SMTP_PASSWORD
+        sync: false # 16-character Google App Password (not standard account password)
+      - key: SMTP_FROM_NAME
+        value: "MySpot Sports"
+      - key: REQUIRE_REAL_EMAIL
+        value: "true"
+      - key: ALLOW_DEV_OTP_FALLBACK
+        value: "false"

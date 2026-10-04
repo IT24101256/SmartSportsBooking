@@ -75,7 +75,9 @@ public class AuthController : ControllerBase
         var otp = _otpStore.GenerateAndStore(cleanEmail, request.FullName.Trim(), request.ContactNumber.Trim(), request.NicNumber.Trim(), passwordHash);
 
         var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
+        var allowDevOtpFallback = string.Equals(Environment.GetEnvironmentVariable("ALLOW_DEV_OTP_FALLBACK"), "true", StringComparison.OrdinalIgnoreCase);
         var isDevelopment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment();
+        var enforceRealEmail = requireRealEmail || (!isDevelopment && !allowDevOtpFallback);
 
         try
         {
@@ -86,14 +88,14 @@ public class AuthController : ControllerBase
 
             if (!emailSent)
             {
-                if (requireRealEmail || !isDevelopment)
+                if (enforceRealEmail)
                 {
-                    return StatusCode(503, "Email delivery is not configured. Configure SMTP_FROM and SMTP_PASSWORD in .env.");
+                    return StatusCode(503, "Email delivery is not configured on the server. Please configure SMTP credentials (SMTP_FROM, SMTP_PASSWORD) or RESEND_API_KEY.");
                 }
 
                 return Ok(new
                 {
-                    message = "SMTP is not configured. For local development, use the OTP shown below or in the API console.",
+                    message = "Email service is not configured. For development or testing, use the verification code shown below or in the API console.",
                     devOtp = otp,
                     smtpConfigured = false
                 });
@@ -101,30 +103,25 @@ public class AuthController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[SMTP ERROR] Failed to send registration OTP to {Email}: {Message}", request.Email, ex.Message);
+            _logger.LogError(ex, "[EMAIL ERROR] Failed to send registration OTP to {Email}: {Message}", request.Email, ex.Message);
 
-            if (requireRealEmail || !isDevelopment)
+            if (enforceRealEmail)
             {
-                if (!isDevelopment)
-                {
-                    return StatusCode(503, "Unable to send verification email. Please try again later.");
-                }
-
                 var userFriendlyReason = ex switch
                 {
-                    MailKit.Security.AuthenticationException => "SMTP authentication failed. Verify the configured SMTP credentials.",
-                    System.Net.Sockets.SocketException or TimeoutException => "SMTP connection timed out or the configured port is unavailable.",
-                    _ => "The configured SMTP service returned an error."
+                    MailKit.Security.AuthenticationException => "SMTP authentication failed. Verify your email credentials or Google App Password.",
+                    System.Net.Sockets.SocketException or TimeoutException => "Email server connection timed out. If hosted on Render Free tier, outbound SMTP ports (25, 465, 587) are blocked by Render. Configure RESEND_API_KEY in Render environment variables or upgrade to a paid instance.",
+                    _ => ex.Message
                 };
 
                 return StatusCode(503, $"Unable to send verification email. {userFriendlyReason}");
             }
 
-            // In local development without REQUIRE_REAL_EMAIL=true, allow fallback so developers on Mac/Windows/Linux are never blocked
-            _logger.LogWarning("[SMTP FALLBACK] Using dev OTP for {Email} because SMTP failed: {Message}", request.Email, ex.Message);
+            // In local development or when ALLOW_DEV_OTP_FALLBACK is enabled, fall back to dev OTP so developers & testers are never blocked
+            _logger.LogWarning("[EMAIL FALLBACK] Using dev OTP for {Email} because sending failed: {Message}", request.Email, ex.Message);
             return Ok(new
             {
-                message = $"SMTP failed ({ex.Message}). For local development, use the OTP shown below or in the API console.",
+                message = $"Email delivery failed ({ex.Message}). Using verification code fallback for development.",
                 devOtp = otp,
                 smtpConfigured = false,
                 smtpError = ex.Message
@@ -133,7 +130,71 @@ public class AuthController : ControllerBase
 
         return Ok(new
         {
-            message = "OTP sent to your email. Please verify to complete registration.",
+            message = "Verification code sent to your email. Please verify to complete registration.",
+            smtpConfigured = true
+        });
+    }
+
+    /// <summary>
+    /// Resends a verification OTP for a pending registration.
+    /// </summary>
+    [HttpPost("resend-otp")]
+    public async Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request?.Email))
+            return BadRequest("Email address is required.");
+
+        var cleanEmail = request.Email.Trim().TrimEnd('.').ToLower();
+        var (found, newOtp, fullName) = _otpStore.ResendRegistrationOtp(cleanEmail);
+
+        if (!found || string.IsNullOrWhiteSpace(newOtp))
+        {
+            return BadRequest("No pending registration found for this email, or the previous code has expired. Please register again.");
+        }
+
+        var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
+        var allowDevOtpFallback = string.Equals(Environment.GetEnvironmentVariable("ALLOW_DEV_OTP_FALLBACK"), "true", StringComparison.OrdinalIgnoreCase);
+        var isDevelopment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment();
+        var enforceRealEmail = requireRealEmail || (!isDevelopment && !allowDevOtpFallback);
+
+        try
+        {
+            var sent = await _emailService.SendOtpEmailAsync(cleanEmail, fullName ?? "Member", newOtp);
+            if (!sent)
+            {
+                if (enforceRealEmail)
+                {
+                    return StatusCode(503, "Email delivery is not configured on the server.");
+                }
+
+                return Ok(new
+                {
+                    message = "Verification code regenerated (dev fallback).",
+                    devOtp = newOtp,
+                    smtpConfigured = false
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[EMAIL ERROR] Failed to resend OTP to {Email}: {Message}", cleanEmail, ex.Message);
+            if (enforceRealEmail)
+            {
+                return StatusCode(503, $"Unable to resend email: {ex.Message}");
+            }
+
+            return Ok(new
+            {
+                message = $"Email failed ({ex.Message}). Dev OTP generated.",
+                devOtp = newOtp,
+                smtpConfigured = false,
+                smtpError = ex.Message
+            });
+        }
+
+        return Ok(new
+        {
+            message = "A fresh verification code has been sent to your email.",
             smtpConfigured = true
         });
     }
@@ -284,21 +345,23 @@ public class AuthController : ControllerBase
         var otp = _otpStore.GenerateAndStoreResetOtp(cleanEmail);
 
         var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
+        var allowDevOtpFallback = string.Equals(Environment.GetEnvironmentVariable("ALLOW_DEV_OTP_FALLBACK"), "true", StringComparison.OrdinalIgnoreCase);
         var isDevelopment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment();
+        var enforceRealEmail = requireRealEmail || (!isDevelopment && !allowDevOtpFallback);
 
         try
         {
             var emailSent = await _emailService.SendPasswordResetEmailAsync(user.Email, user.FullName, otp);
             if (!emailSent)
             {
-                if (requireRealEmail || !isDevelopment)
+                if (enforceRealEmail)
                 {
-                    return StatusCode(503, "Email delivery is not configured. Configure SMTP in .env to enable password resets.");
+                    return StatusCode(503, "Email delivery is not configured on the server. Configure SMTP or RESEND_API_KEY in environment variables.");
                 }
 
                 return Ok(new
                 {
-                    message = "Verification code generated. (SMTP dev fallback).",
+                    message = "Verification code generated. (dev fallback).",
                     devOtp = otp,
                     smtpConfigured = false,
                     emailSent = true
@@ -307,16 +370,22 @@ public class AuthController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[SMTP ERROR] Failed to send reset email to {Email}: {Message}", user.Email, ex.Message);
+            _logger.LogError(ex, "[EMAIL ERROR] Failed to send reset email to {Email}: {Message}", user.Email, ex.Message);
 
-            if (requireRealEmail || !isDevelopment)
+            if (enforceRealEmail)
             {
-                return StatusCode(503, $"Unable to send password reset email. Check SMTP configuration: {ex.Message}");
+                var reason = ex switch
+                {
+                    MailKit.Security.AuthenticationException => "SMTP authentication failed. Check configured email credentials.",
+                    System.Net.Sockets.SocketException or TimeoutException => "SMTP connection timed out. If hosted on Render Free tier, SMTP ports are blocked; configure RESEND_API_KEY.",
+                    _ => ex.Message
+                };
+                return StatusCode(503, $"Unable to send password reset email. {reason}");
             }
 
             return Ok(new
             {
-                message = $"SMTP error ({ex.Message}). (SMTP dev fallback).",
+                message = $"Email delivery error ({ex.Message}). (dev fallback).",
                 devOtp = otp,
                 smtpConfigured = false,
                 emailSent = true,
@@ -333,30 +402,77 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Checks the current SMTP configuration status (never reveals passwords).
-    /// Useful for cross-platform debugging on Windows, macOS, and Linux.
+    /// Checks the current Email / SMTP configuration status (never reveals passwords).
+    /// Useful for cross-platform debugging on Windows, macOS, Linux, and Cloud (Render, Docker).
     /// </summary>
     [HttpGet("smtp-status")]
     public IActionResult GetSmtpStatus()
     {
-        var (host, port, fromAddress, password, fromName, ignoreCertErrors) = _emailService.GetSmtpConfig();
-        var isConfigured = !string.IsNullOrWhiteSpace(fromAddress) && !string.IsNullOrWhiteSpace(password);
+        var cfg = _emailService.GetConfig();
         var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
+        var allowDevOtpFallback = string.Equals(Environment.GetEnvironmentVariable("ALLOW_DEV_OTP_FALLBACK"), "true", StringComparison.OrdinalIgnoreCase);
 
         return Ok(new
         {
-            isConfigured,
-            host,
-            port,
-            fromAddress = string.IsNullOrWhiteSpace(fromAddress) ? "Not set" : fromAddress,
-            fromName,
-            ignoreCertErrors,
+            isConfigured = _emailService.IsConfigured,
+            isSmtpConfigured = _emailService.IsSmtpConfigured,
+            activeProvider = _emailService.ActiveProviderName,
+            host = cfg.Host,
+            port = cfg.Port,
+            fromAddress = string.IsNullOrWhiteSpace(cfg.FromAddress) ? "Not set" : cfg.FromAddress,
+            authUser = string.IsNullOrWhiteSpace(cfg.User) ? (cfg.FromAddress ?? "Not set") : cfg.User,
+            fromName = cfg.FromName,
+            ignoreCertErrors = cfg.IgnoreCertErrors,
+            hasResendApiKey = !string.IsNullOrWhiteSpace(cfg.ResendApiKey),
+            hasBrevoApiKey = !string.IsNullOrWhiteSpace(cfg.BrevoApiKey),
             requireRealEmail,
+            allowDevOtpFallback,
             environment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().EnvironmentName,
-            status = isConfigured
-                ? "SMTP is configured for real email delivery."
-                : "SMTP is not configured. Running in local development mode (devOtp enabled)."
+            status = _emailService.IsConfigured
+                ? $"Email delivery configured via {_emailService.ActiveProviderName}."
+                : "Email delivery is not configured. Running in local development / fallback mode (devOtp enabled)."
         });
+    }
+
+    public record TestEmailRequest(string? ToEmail);
+
+    /// <summary>
+    /// Diagnostic endpoint to test transactional email sending directly.
+    /// </summary>
+    [HttpPost("test-email")]
+    public async Task<IActionResult> TestEmail([FromBody] TestEmailRequest? request)
+    {
+        var cfg = _emailService.GetConfig();
+        var to = !string.IsNullOrWhiteSpace(request?.ToEmail) ? request.ToEmail.Trim() : cfg.FromAddress;
+
+        if (string.IsNullOrWhiteSpace(to))
+        {
+            return BadRequest("Please provide 'toEmail' in request body or configure SMTP_FROM in environment.");
+        }
+
+        try
+        {
+            var sent = await _emailService.SendOtpEmailAsync(to, "Test User", "123456");
+            return Ok(new
+            {
+                success = sent,
+                recipient = to,
+                provider = _emailService.ActiveProviderName,
+                message = sent ? "Test verification email dispatched successfully!" : "Email skipped because no provider is configured."
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[TEST EMAIL ERROR] {Message}", ex.Message);
+            return StatusCode(500, new
+            {
+                success = false,
+                recipient = to,
+                provider = _emailService.ActiveProviderName,
+                error = ex.Message,
+                inner = ex.InnerException?.Message
+            });
+        }
     }
 
     [HttpPost("reset-password")]

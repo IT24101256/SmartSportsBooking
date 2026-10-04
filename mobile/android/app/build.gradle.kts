@@ -38,6 +38,8 @@ android {
                     keyAlias = System.getenv("MYSPOT_KEY_ALIAS")
                     keyPassword = System.getenv("MYSPOT_KEY_PASSWORD")
                 }
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
     }

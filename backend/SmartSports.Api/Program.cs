@@ -107,6 +107,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Register HTTP Client Factory
+builder.Services.AddHttpClient();
+
 // Register OTP & Email Services
 builder.Services.AddSingleton<SmartSportsFacilityBooking.Services.OtpStore>();
 builder.Services.AddScoped<SmartSportsFacilityBooking.Services.EmailService>();

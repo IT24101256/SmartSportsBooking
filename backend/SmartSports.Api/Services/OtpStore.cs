@@ -72,4 +72,27 @@ public class OtpStore
         _resetStore.TryRemove(email, out _);
         return true;
     }
+
+    public (bool Found, string? Otp, string? FullName) ResendRegistrationOtp(string email)
+    {
+        if (!_store.TryGetValue(email, out var record))
+            return (false, null, null);
+
+        var newOtp = new Random().Next(100000, 999999).ToString();
+        var updated = record with { Otp = newOtp, ExpiresAtUtc = DateTime.UtcNow.AddMinutes(10) };
+        _store[email] = updated;
+        return (true, newOtp, updated.FullName);
+    }
+
+    public (bool Found, string? Otp) ResendResetOtp(string email)
+    {
+        if (!_resetStore.TryGetValue(email, out var record))
+            return (false, null);
+
+        var newOtp = new Random().Next(100000, 999999).ToString();
+        var updated = record with { Otp = newOtp, ExpiresAtUtc = DateTime.UtcNow.AddMinutes(10) };
+        _resetStore[email] = updated;
+        return (true, newOtp);
+    }
 }
+
