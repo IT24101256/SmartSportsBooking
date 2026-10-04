@@ -77,7 +77,7 @@ public class AuthController : ControllerBase
         var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
         var allowDevOtpFallback = string.Equals(Environment.GetEnvironmentVariable("ALLOW_DEV_OTP_FALLBACK"), "true", StringComparison.OrdinalIgnoreCase);
         var isDevelopment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment();
-        var enforceRealEmail = requireRealEmail || (!isDevelopment && !allowDevOtpFallback);
+        var enforceRealEmail = (requireRealEmail || !isDevelopment) && !allowDevOtpFallback;
 
         try
         {
@@ -155,7 +155,7 @@ public class AuthController : ControllerBase
         var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
         var allowDevOtpFallback = string.Equals(Environment.GetEnvironmentVariable("ALLOW_DEV_OTP_FALLBACK"), "true", StringComparison.OrdinalIgnoreCase);
         var isDevelopment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment();
-        var enforceRealEmail = requireRealEmail || (!isDevelopment && !allowDevOtpFallback);
+        var enforceRealEmail = (requireRealEmail || !isDevelopment) && !allowDevOtpFallback;
 
         try
         {
@@ -347,7 +347,7 @@ public class AuthController : ControllerBase
         var requireRealEmail = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_REAL_EMAIL"), "true", StringComparison.OrdinalIgnoreCase);
         var allowDevOtpFallback = string.Equals(Environment.GetEnvironmentVariable("ALLOW_DEV_OTP_FALLBACK"), "true", StringComparison.OrdinalIgnoreCase);
         var isDevelopment = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment();
-        var enforceRealEmail = requireRealEmail || (!isDevelopment && !allowDevOtpFallback);
+        var enforceRealEmail = (requireRealEmail || !isDevelopment) && !allowDevOtpFallback;
 
         try
         {
