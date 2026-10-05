@@ -35,24 +35,6 @@ class ApiService {
     return File('$tempDir/smartsports_base_url.txt');
   }
 
-  Future<void> _loadPersistedUrl() async {
-    try {
-      final file = _storageFile;
-      if (await file.exists()) {
-        final content = (await file.readAsString()).trim();
-        // Discard stale localhost in release mode so standalone APK works immediately
-        if (kReleaseMode && (content.contains('localhost') || content.contains('10.0.2.2'))) {
-          _baseUrl = 'https://smartsportsbooking.onrender.com';
-          await _savePersistedUrl(_baseUrl);
-          return;
-        }
-        if (content.isNotEmpty && Uri.tryParse(content)?.hasScheme == true) {
-          _baseUrl = content.replaceAll(RegExp(r'/+$'), '');
-        }
-      }
-    } catch (_) {}
-  }
-
   Future<void> _savePersistedUrl(String url) async {
     try {
       final file = _storageFile;
@@ -127,13 +109,10 @@ class ApiService {
     if (!kIsWeb && kDebugMode) {
       HttpOverrides.global = DevHttpOverrides();
     }
-    await _loadPersistedUrl();
-    if (kIsWeb && kDebugMode) {
-      _baseUrl = 'http://localhost:5187';
-    }
-    if (!kIsWeb && kDebugMode) {
-      await autoDetectBackendUrl();
-    }
+    _baseUrl = const String.fromEnvironment(
+      'API_BASE_URL',
+      defaultValue: 'https://smartsportsbooking.onrender.com',
+    ).replaceAll(RegExp(r'/+$'), '');
   }
 
   void logout() {

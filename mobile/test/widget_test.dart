@@ -26,9 +26,9 @@ void main() {
     // Verify AuthModal elements
     expect(find.text('Secure Member Access'), findsOneWidget);
     expect(find.text('Welcome Back'), findsOneWidget);
-    expect(find.text('Admin'), findsOneWidget);
-    expect(find.text('Manager'), findsOneWidget);
-    expect(find.text('Member'), findsOneWidget);
+    expect(find.text('Admin'), findsNothing);
+    expect(find.text('Manager'), findsNothing);
+    expect(find.text('Member'), findsNothing);
     expect(find.text('Continue as Guest (Explore Facilities Without Signing In)'), findsOneWidget);
 
     // Tap "Continue as Guest" to dismiss modal
@@ -38,6 +38,7 @@ void main() {
     // Modal is dismissed, user remains on Overview
     expect(find.text('Secure Member Access'), findsNothing);
     expect(find.text('GUEST'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 13));
   });
 
   testWidgets('ProfileScreen renders without any Material shape/borderRadius assertion errors', (WidgetTester tester) async {
@@ -79,7 +80,6 @@ void main() {
 
     expect(find.text('Athlete Profile'), findsOneWidget);
     expect(find.text('Sign In or Register'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 13));
   });
 }
-
-

@@ -71,7 +71,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     }
   }
 
-  Future<void> _loadAllData({bool retryOnFailure = true}) async {
+  Future<void> _loadAllData() async {
     setState(() => _isLoadingData = true);
     try {
       final futures = <Future<dynamic>>[
@@ -88,14 +88,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
       final results = await Future.wait(futures);
       final facilities = results[0] as List<Facility>;
-
-      // If initial fetch got no facilities and debug mode is active, attempt auto-detecting the backend URL once
-      if (facilities.isEmpty && retryOnFailure && kDebugMode && !kIsWeb) {
-        final detected = await _apiService.autoDetectBackendUrl();
-        if (detected != null) {
-          return await _loadAllData(retryOnFailure: false);
-        }
-      }
 
       if (mounted) {
         setState(() {

@@ -42,7 +42,7 @@ class _AuthModalState extends State<AuthModal> {
   bool _loading = false;
 
   // Login form controllers
-  final _emailController = TextEditingController(text: 'member@smartsports.com');
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _showPassword = false;
 
@@ -125,12 +125,6 @@ class _AuthModalState extends State<AuthModal> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  void _quickFill(String email, String password) {
-    _emailController.text = email;
-    _passwordController.text = password;
-    _handleLoginSubmit();
   }
 
   // ----------------------------------------------------
@@ -665,37 +659,6 @@ class _AuthModalState extends State<AuthModal> {
         ),
         const SizedBox(height: 16),
 
-        // Quick Demo Accounts
-        const Text(
-          'Quick Demo Accounts:',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: _buildDemoChip(
-                label: 'Admin',
-                onTap: () => _quickFill('admin@smartsports.com', 'admin123'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildDemoChip(
-                label: 'Manager',
-                onTap: () => _quickFill('manager@smartsports.com', 'manager123'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildDemoChip(
-                label: 'Member',
-                onTap: () => _quickFill('member@smartsports.com', 'member123'),
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
@@ -1217,23 +1180,4 @@ class _AuthModalState extends State<AuthModal> {
     );
   }
 
-  Widget _buildDemoChip({required String label, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 7),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-        ),
-      ),
-    );
-  }
 }

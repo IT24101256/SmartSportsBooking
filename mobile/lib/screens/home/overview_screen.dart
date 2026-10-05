@@ -1112,10 +1112,17 @@ class OverviewScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: AppTheme.scaffoldBg, borderRadius: BorderRadius.circular(6)),
-                child: Text('📍 $facility', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textMuted)),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: AppTheme.scaffoldBg, borderRadius: BorderRadius.circular(6)),
+                  child: Text(
+                    '📍 $facility',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textMuted),
+                  ),
+                ),
               ),
               if (reviewItem != null)
                 Builder(

@@ -20,8 +20,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final ApiService _apiService = ApiService();
-  final _emailController = TextEditingController(text: 'admin@smartsports.com');
-  final _passwordController = TextEditingController(text: 'admin123');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -60,12 +60,6 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
-  }
-
-  void _quickFill(String email, String password) {
-    _emailController.text = email;
-    _passwordController.text = password;
-    _handleLogin();
   }
 
   void _showForgotPasswordDialog() {
@@ -342,36 +336,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 18),
 
-                        // Quick demo buttons
-                        const Text('Quick Demo Accounts:', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => _quickFill('admin@smartsports.com', 'admin123'),
-                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)),
-                                child: const Text('Admin', style: TextStyle(fontSize: 12)),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => _quickFill('manager@smartsports.com', 'manager123'),
-                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)),
-                                child: const Text('Manager', style: TextStyle(fontSize: 12)),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => _quickFill('member@smartsports.com', 'member123'),
-                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)),
-                                child: const Text('Member', style: TextStyle(fontSize: 12)),
-                              ),
-                            ),
-                          ],
-                        ),
                         const SizedBox(height: 18),
 
                         TextButton(
