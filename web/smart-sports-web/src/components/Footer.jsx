@@ -1,4 +1,4 @@
-export default function Footer({ onNavSelect, navItems = [], _currentUser }) {
+export default function Footer({ onNavSelect, navItems = [], currentUser }) {
   const currentYear = new Date().getFullYear()
 
   return (

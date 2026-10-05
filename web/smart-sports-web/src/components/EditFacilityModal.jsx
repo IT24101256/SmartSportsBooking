@@ -1,4 +1,3 @@
-/* oxlint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect, useMemo } from 'react'
 
 export default function EditFacilityModal({
@@ -11,7 +10,7 @@ export default function EditFacilityModal({
   apiBaseUrl = 'http://localhost:5187/api',
 }) {
   const defaultSportCategories = ['Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball']
-  const [availableSportCategories, _setAvailableSportCategories] = useState(() => (
+  const [availableSportCategories, setAvailableSportCategories] = useState(() => (
     [...defaultSportCategories, ...sportCategories]
       .filter((category, index, categories) => categories.indexOf(category) === index)
       .filter((category) => category !== 'Indoor' && category !== 'Outdoor')

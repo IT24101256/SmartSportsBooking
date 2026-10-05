@@ -16,7 +16,7 @@ export default function AdminConfirmRefundModal({ booking, onClose, onConfirm })
 
   const refundAmt = Number(booking.refundAmount || 0).toLocaleString()
   const isFullRefund = booking.refundPercentage === 100 || (Number(booking.refundAmount || 0) >= Number(booking.totalAmount || 0) && Number(booking.totalAmount || 0) > 0)
-  const _isHalfRefund = !isFullRefund
+  const isHalfRefund = !isFullRefund
 
   return (
     <div className="booking-modal-backdrop" onClick={onClose} id="admin-refund-modal-backdrop">

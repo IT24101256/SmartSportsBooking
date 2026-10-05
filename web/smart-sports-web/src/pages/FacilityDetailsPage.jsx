@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { getFacilityImage } from '../utils/facilityImages'
 
 const DEFAULT_SPORT_EQUIPMENTS = {

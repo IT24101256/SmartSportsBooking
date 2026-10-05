@@ -1,4 +1,3 @@
-/* oxlint-disable react/set-state-in-effect */
 import { useEffect, useState, useRef } from 'react'
 
 export default function SupportConversationPage({

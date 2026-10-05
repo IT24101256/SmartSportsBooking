@@ -1,4 +1,3 @@
-/* oxlint-disable react/set-state-in-effect */
 import { useEffect, useState } from 'react'
 
 const today = () => {

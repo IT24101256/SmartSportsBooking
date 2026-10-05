@@ -1,5 +1,3 @@
-/* oxlint-disable react/set-state-in-effect */
-/* oxlint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect } from 'react'
 import './App.css'
 import './admin.css'
@@ -46,7 +44,7 @@ const initialBookingForm = {
   status: 'Pending',
 }
 
-const _facilities = [
+const facilities = [
   { name: 'Championship Turf', type: 'Football', price: 'LKR 4,500 / hour', status: 'Available now', accent: 'green', icon: '🏟️' },
   { name: 'Skyline Court', type: 'Badminton', price: 'LKR 1,200 / hour', status: 'Next slot 5:30 PM', accent: 'blue', icon: '🏸' },
   { name: 'Aqua Arena', type: 'Swimming', price: 'LKR 2,000 / session', status: 'Open today', accent: 'purple', icon: '🏊' },
@@ -55,19 +53,19 @@ const _facilities = [
   { name: 'Indoor Basketball Arena', type: 'Basketball', price: 'LKR 3,000 / hour', status: 'Next slot 7:00 PM', accent: 'purple', icon: '🏀' },
 ]
 
-const _bookings = [
+const bookings = [
   { name: 'Court 4 • Tennis', date: 'Mon, 11:00 AM', status: 'Confirmed' },
   { name: 'Pool lane • Swim', date: 'Tue, 06:15 PM', status: 'Pending' },
   { name: 'Field 2 • Soccer', date: 'Thu, 07:30 PM', status: 'Confirmed' },
 ]
 
-const _support = [
+const support = [
   { title: 'Booking issue', detail: 'Need to change the time for Friday match', priority: 'Medium' },
   { title: 'Membership query', detail: 'Checking membership details', priority: 'Low' },
   { title: 'Facility request', detail: 'Request for extra lighting on court 5', priority: 'High' },
 ]
 
-const _schedule = [
+const schedule = [
   { time: '09:00 AM', title: 'Basketball training', coach: 'Coach Liam' , eventDate: '2026-09-10'},
   { time: '11:30 AM', title: 'Tennis clinic', coach: 'Coach Maya' , eventDate: '2026-09-10'},
   { time: '07:00 PM', title: 'Community match', coach: 'Captain team' , eventDate: '2026-09-10'},
@@ -105,19 +103,19 @@ function App() {
       return false
     }
   })
-  const [_authMode, setAuthMode] = useState('login')
-  const [_showForgotPassword, setShowForgotPassword] = useState(false)
-  const [_email, _setEmail] = useState('member@smartsports.com')
-  const [_password, setPassword] = useState('')
-  const [_registerName, _setRegisterName] = useState('')
-  const [_registerEmail, _setRegisterEmail] = useState('')
-  const [_registerContactNumber, _setRegisterContactNumber] = useState('')
-  const [_registerNicNumber, _setRegisterNicNumber] = useState('')
-  const [_registerPassword, _setRegisterPassword] = useState('')
-  const [_registerConfirmPassword, _setRegisterConfirmPassword] = useState('')
-  const [_authFeedback, setAuthFeedback] = useState('')
-  const [_otpPendingEmail, _setOtpPendingEmail] = useState('')
-  const [_otpValue, _setOtpValue] = useState('')
+  const [authMode, setAuthMode] = useState('login')
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [email, setEmail] = useState('member@smartsports.com')
+  const [password, setPassword] = useState('')
+  const [registerName, setRegisterName] = useState('')
+  const [registerEmail, setRegisterEmail] = useState('')
+  const [registerContactNumber, setRegisterContactNumber] = useState('')
+  const [registerNicNumber, setRegisterNicNumber] = useState('')
+  const [registerPassword, setRegisterPassword] = useState('')
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('')
+  const [authFeedback, setAuthFeedback] = useState('')
+  const [otpPendingEmail, setOtpPendingEmail] = useState('')
+  const [otpValue, setOtpValue] = useState('')
   const [registeredMembers, setRegisteredMembers] = useState([])
   const [bookingsList, setBookingsList] = useState([])
   const [reviewsList, setReviewsList] = useState([])
@@ -139,7 +137,7 @@ function App() {
   const [isTimetableOpen, setIsTimetableOpen] = useState(false)
   const [selectedScheduleItem, setSelectedScheduleItem] = useState(null)
   const [selectedFacility, setSelectedFacility] = useState(null)
-  const [_ticketForm, _setTicketForm] = useState({ subject: '', detail: '', priority: 'Medium' })
+  const [ticketForm, setTicketForm] = useState({ subject: '', detail: '', priority: 'Medium' })
   const [notifications, setNotifications] = useState(() => {
     try {
       const stored = localStorage.getItem('smartsports_role_notifications')
@@ -160,7 +158,7 @@ function App() {
               role: 'user',
               type: 'reschedule_requested',
               title: 'Weather Policy Info',
-              message: 'Outdoor _bookings impacted by adverse weather are eligible for 100% free rain-check rescheduling.',
+              message: 'Outdoor bookings impacted by adverse weather are eligible for 100% free rain-check rescheduling.',
               timestamp: new Date().toISOString(),
               read: false,
             },
@@ -335,7 +333,7 @@ function App() {
   })
 
   const loadBookings = async (token) => {
-    const response = await fetch(`${API_BASE_URL}/_bookings?pageSize=200`, {
+    const response = await fetch(`${API_BASE_URL}/bookings?pageSize=200`, {
       headers: { Authorization: `Bearer ${token}` },
     })
 
@@ -384,7 +382,7 @@ function App() {
   }
 
   const loadSupportRequests = async (token = authToken) => {
-    const response = await fetch(`${API_BASE_URL}/dashboard/_support-requests`, {
+    const response = await fetch(`${API_BASE_URL}/dashboard/support-requests`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     if (response.ok) setSupportList(await response.json())
@@ -444,7 +442,7 @@ function App() {
   }, [authToken])
 
   const updateBookingStatus = async (booking, status, reason = null) => {
-    const response = await fetch(`${API_BASE_URL}/_bookings/${booking.id}/status`, {
+    const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
       body: JSON.stringify({ status, reason }),
@@ -464,7 +462,7 @@ function App() {
       return
     }
     try {
-      const response = await fetch(`${API_BASE_URL}/_bookings/${booking.id}/cancel`, {
+      const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ reason }),
@@ -528,7 +526,7 @@ function App() {
       return
     }
     try {
-      const response = await fetch(`${API_BASE_URL}/_bookings/${booking.id}/confirm-refund`, {
+      const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/confirm-refund`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ notes }),
@@ -570,7 +568,7 @@ function App() {
       return
     }
     try {
-      const response = await fetch(`${API_BASE_URL}/_bookings/${booking.id}/request-reschedule`, {
+      const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/request-reschedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ reason }),
@@ -612,7 +610,7 @@ function App() {
       return
     }
     try {
-      const response = await fetch(`${API_BASE_URL}/_bookings/${booking.id}/reschedule`, {
+      const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/reschedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({
@@ -696,7 +694,7 @@ function App() {
 
 
   const viewBankSlip = async (booking) => {
-    const response = await fetch(`${API_BASE_URL}/_bookings/${booking.id}/bank-slip`, { headers: { Authorization: `Bearer ${authToken}` } })
+    const response = await fetch(`${API_BASE_URL}/bookings/${booking.id}/bank-slip`, { headers: { Authorization: `Bearer ${authToken}` } })
     if (!response.ok) {
       setBookingNotice('The bank slip could not be loaded.')
       return
@@ -711,7 +709,7 @@ function App() {
       return
     }
     try {
-      const response = await fetch(`${API_BASE_URL}/_bookings/${bookingId}/additional-equipment`, {
+      const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/additional-equipment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -795,7 +793,7 @@ function App() {
     openBooking(facility)
   }
 
-  const _createSportCategory = async (name) => {
+  const createSportCategory = async (name) => {
     const response = await fetch(`${API_BASE_URL}/sport-categories`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
@@ -817,7 +815,7 @@ function App() {
       equipmentsJson = JSON.stringify(equipmentsJson)
     }
 
-    const _createSportCategory = async (name) => {
+    const createSportCategory = async (name) => {
       const response = await fetch(`${API_BASE_URL}/sport-categories`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
@@ -876,14 +874,14 @@ function App() {
   }
 
   const openTicket = () => {
-    if (requireLogin('Please log in before creating a _support ticket.')) {
+    if (requireLogin('Please log in before creating a support ticket.')) {
       setIsTicketOpen(true)
     }
   }
 
   const handleTicketSubmit = async (ticketData) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/_support-requests`, {
+      const response = await fetch(`${API_BASE_URL}/dashboard/support-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({
@@ -907,7 +905,7 @@ function App() {
   }
 
   const updateSupportStatus = async (request, status) => {
-    const response = await fetch(`${API_BASE_URL}/dashboard/_support-requests/${request.id}/status`, {
+    const response = await fetch(`${API_BASE_URL}/dashboard/support-requests/${request.id}/status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
       body: JSON.stringify({ status }),
@@ -982,8 +980,8 @@ function App() {
 
       return (
         <BookingsPage
-          _bookings={bookingsList}
-          _facilities={facilitiesList}
+          bookings={bookingsList}
+          facilities={facilitiesList}
           isAdmin={true}
           token={authToken}
           apiBaseUrl={API_BASE_URL}
@@ -1003,7 +1001,7 @@ function App() {
     const dynamicStats = [
       { label: 'Facilities', value: String(dashStats.facilitiesCount || facilitiesList.length), tone: 'green' },
       { label: 'Bookings today', value: String(dashStats.bookingsToday), tone: 'blue' },
-      { label: 'Confirmed _bookings', value: String(dashStats.confirmedBookings || 0), tone: 'purple' },
+      { label: 'Confirmed bookings', value: String(dashStats.confirmedBookings || 0), tone: 'purple' },
       { label: 'Member satisfaction', value: dashStats.memberSatisfaction, tone: 'orange' },
     ]
 
@@ -1014,7 +1012,7 @@ function App() {
         apiBaseUrl={API_BASE_URL}
         token={authToken}
         sportCategories={sportCategories}
-        _facilities={facilitiesList}
+        facilities={facilitiesList}
         currentUser={currentUser}
       />
     )
@@ -1041,15 +1039,15 @@ function App() {
       />
     ) : (
       <FacilitiesPage
-        _facilities={facilitiesList}
-        _bookings={bookingsList}
+        facilities={facilitiesList}
+        bookings={bookingsList}
         reviews={reviewsList}
         isAdmin={userRole === 'admin'}
         onDetails={setSelectedFacility}
         onBook={openFacilityBooking}
         onSave={saveFacility}
         onDelete={deleteFacility}
-        onCreateSportCategory={_createSportCategory}
+        onCreateSportCategory={createSportCategory}
         sportCategories={sportCategories}
         apiBaseUrl={API_BASE_URL}
         token={authToken}
@@ -1057,8 +1055,8 @@ function App() {
     )
     if (activeTab === 'Bookings') return (
       <BookingsPage
-        _bookings={bookingsList}
-        _facilities={facilitiesList}
+        bookings={bookingsList}
+        facilities={facilitiesList}
         isAdmin={isAdminOrManager}
         token={authToken}
         apiBaseUrl={API_BASE_URL}
@@ -1096,10 +1094,10 @@ function App() {
     if (userRole === 'admin') {
       return (
         <AdminOverviewPage
-          _facilities={facilitiesList}
-          _bookings={bookingsList}
+          facilities={facilitiesList}
+          bookings={bookingsList}
           members={registeredMembers}
-          _support={supportList}
+          support={supportList}
           reviews={reviewsList}
           dashStats={dashStats}
           currentUser={currentUser}
@@ -1126,10 +1124,10 @@ function App() {
       <OverviewPage
         heroMessage={heroMessage}
         stats={dynamicStats}
-        _facilities={facilitiesList}
-        _bookings={bookingsList}
-        _support={supportList}
-        _schedule={scheduleList}
+        facilities={facilitiesList}
+        bookings={bookingsList}
+        support={supportList}
+        schedule={scheduleList}
         analytics={dashStats.bookingsByFacility}
         averageRating={averageRating}
         reviews={reviewsList}
@@ -1160,7 +1158,7 @@ function App() {
   const heroMessage = (() => {
     if (activeTab === 'Facilities') return 'Book a premium facility that fits your training plan.'
     if (activeTab === 'Bookings') return 'Manage your upcoming games and reservation updates in one place.'
-    if (activeTab === 'Support') return 'Track _support requests and get help from the _facilities team.'
+    if (activeTab === 'Support') return 'Track support requests and get help from the facilities team.'
     if (activeTab === 'Members') return 'Review member activity, access and facility usage in one place.'
     return 'Play harder. Book smarter.'
   })()
@@ -1169,7 +1167,7 @@ function App() {
     const user = {
       id: result.userId,
       name: result.fullName,
-      _email: result._email,
+      email: result.email,
       contactNumber: result.contactNumber,
       nicNumber: result.nicNumber,
       role: result.role?.toLowerCase(),
@@ -1198,11 +1196,11 @@ function App() {
     }
   }
 
-  const _handleBookingChange = (field, value) => {
+  const handleBookingChange = (field, value) => {
     setBookingForm((current) => ({ ...current, [field]: value }))
   }
 
-  const _handleBookingSubmit = async (event) => {
+  const handleBookingSubmit = async (event) => {
     event.preventDefault()
 
     const facility = bookingForm.facility
@@ -1228,7 +1226,7 @@ function App() {
 
       const [hours, minutes] = time.split(':').map(Number)
       const endTime = `${String((hours + 1) % 24).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`
-      const response = await fetch(`${API_BASE_URL}/_bookings`, {
+      const response = await fetch(`${API_BASE_URL}/bookings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1307,7 +1305,7 @@ function App() {
             onSignOutClick={handleSignOut}
             mobileOpen={adminMobileOpen}
             setMobileOpen={setAdminMobileOpen}
-            _bookings={bookingsList}
+            bookings={bookingsList}
             supportRequests={supportList}
           />
           <div className="admin-main-viewport">
@@ -1360,7 +1358,7 @@ function App() {
         </>
       )}
 
-      {isBookingOpen && <BookingWizard _facilities={facilitiesList} initialFacilityName={bookingForm.facility} initialDate={bookingForm.date} initialStartTime={bookingForm.time} initialHoursNeeded={bookingForm.hoursNeeded} customer={currentUser} token={authToken} apiBaseUrl={API_BASE_URL} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsBookingOpen(false)} onCreated={handleWizardCreated} />}
+      {isBookingOpen && <BookingWizard facilities={facilitiesList} initialFacilityName={bookingForm.facility} initialDate={bookingForm.date} initialStartTime={bookingForm.time} initialHoursNeeded={bookingForm.hoursNeeded} customer={currentUser} token={authToken} apiBaseUrl={API_BASE_URL} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsBookingOpen(false)} onCreated={handleWizardCreated} />}
 
       {reviewBooking && <ReviewModal booking={reviewBooking} existingReview={reviewBooking.review} onSubmit={saveReview} onClose={() => setReviewBooking(null)} />}
 
@@ -1418,12 +1416,12 @@ function App() {
           <div className="booking-modal" onClick={(event) => event.stopPropagation()}>
             <div className="booking-modal-header">
               <div>
-                <p className="eyebrow subtle">Today’s _schedule</p>
+                <p className="eyebrow subtle">Today’s schedule</p>
                 <h3>{selectedScheduleItem.title}</h3>
               </div>
               <button type="button" className="close-btn" onClick={() => setSelectedScheduleItem(null)}>×</button>
             </div>
-            <div className="_schedule-detail">
+            <div className="schedule-detail">
               <div>
                 <div>
                 <span>Title: </span>

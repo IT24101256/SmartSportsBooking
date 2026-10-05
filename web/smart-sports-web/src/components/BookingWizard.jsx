@@ -1,5 +1,3 @@
-/* oxlint-disable react/only-export-components */
-/* oxlint-disable react/set-state-in-effect */
 import { useEffect, useState } from 'react'
 
 const today = () => {

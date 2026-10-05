@@ -5,9 +5,8 @@ import UserRescheduleModal from '../components/UserRescheduleModal'
 import AdminRescheduleModal from '../components/AdminRescheduleModal'
 import AdminConfirmRefundModal from '../components/AdminConfirmRefundModal'
 import AddEquipmentPaymentModal from '../components/AddEquipmentPaymentModal'
+import { getFacilityIcon } from '../utils/facilityImages'
 import TicketQRCode from '../components/TicketQRCode'
-
-const renderNow = Date.now()
 
 function getGateForVenue(name = '') {
   const lower = (name || '').toLowerCase()
@@ -260,7 +259,7 @@ export default function BookingsPage({
     return tabs
   }, [activeBookings, isAdmin, toRefundCount, rescheduleCount, expiredCount])
 
-  const _getFacilityIcon = (facilityName) => {
+  const getFacilityIcon = (facilityName) => {
     const name = (facilityName || '').toLowerCase()
     if (name.includes('badminton')) return '🏸'
     if (name.includes('cricket')) return '🏏'
@@ -506,7 +505,7 @@ export default function BookingsPage({
                   <div className="ticket-venue-row">
                     <div className="ticket-venue-left">
                       <div className="ticket-sport-icon" aria-hidden="true">
-                        {_getFacilityIcon(booking.name)}
+                        {getFacilityIcon(booking.name)}
                       </div>
                       <div className="ticket-venue-texts">
                         <span className="ticket-court-category">CHAMPIONSHIP SPORTING COMPLEX</span>

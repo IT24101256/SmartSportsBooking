@@ -1,12 +1,10 @@
-/* oxlint-disable react/set-state-in-effect */
-/* oxlint-disable react-hooks/exhaustive-deps */
 import { useState, useMemo, useEffect } from 'react'
 
 export default function EquipmentsPage({
   apiBaseUrl,
   token,
-  _facilities = [],
-  _currentUser,
+  facilities = [],
+  currentUser,
   sportCategories = [],
 }) {
   const [equipments, setEquipments] = useState([])
@@ -181,7 +179,7 @@ export default function EquipmentsPage({
         throw new Error(txt || 'Failed to save equipment.')
       }
 
-      const _savedItem = await res.json().catch(() => null)
+      const savedItem = await res.json().catch(() => null)
       await fetchEquipments()
       setIsModalOpen(false)
     } catch (err) {
@@ -191,7 +189,7 @@ export default function EquipmentsPage({
     }
   }
 
-  const getSportIcon = (_sport = '') => {
+  const getSportIcon = (sport = '') => {
     return '🏅'
   }
 
@@ -271,13 +269,13 @@ export default function EquipmentsPage({
 
       {/* 3. CONTROLS & FILTER BAR */}
       <section className="equip-filter-section">
-        {/* _sport Pills */}
+        {/* Sport Pills */}
         <div className="equip-sports-pills-bar">
           {sportCategoryOptions.map((category) => (
             <button
               key={category}
               type="button"
-              className={`_sport-pill-btn ${selectedSport === category ? 'active' : ''}`}
+              className={`sport-pill-btn ${selectedSport === category ? 'active' : ''}`}
               onClick={() => setSelectedSport(category)}
             >
               <span className="pill-icon">{category === 'All' ? '⚡' : '🏅'}</span>
@@ -302,7 +300,7 @@ export default function EquipmentsPage({
             </svg>
             <input
               type="text"
-              placeholder="Search by equipment name, _sport category, description..."
+              placeholder="Search by equipment name, sport category, description..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="equip-search-input"
@@ -357,8 +355,8 @@ export default function EquipmentsPage({
               <div key={eq.id} className="equip-item-card">
                 {/* Top strip */}
                 <div className="card-top-strip">
-                  <span className="_sport-tag-badge">
-                    <span className="_sport-emoji">{getSportIcon(eq.sportCategory)}</span>
+                  <span className="sport-tag-badge">
+                    <span className="sport-emoji">{getSportIcon(eq.sportCategory)}</span>
                     <span>{eq.sportCategory}</span>
                   </span>
 
@@ -442,7 +440,7 @@ export default function EquipmentsPage({
                   {editingEquipment ? `Edit: ${editingEquipment.name}` : 'Add New Sports Equipment'}
                 </h2>
                 <p className="facility-modal-sub">
-                  Define equipment item, assign its _sport discipline, and set its hourly rental price.
+                  Define equipment item, assign its sport discipline, and set its hourly rental price.
                 </p>
               </div>
 
@@ -480,10 +478,10 @@ export default function EquipmentsPage({
                 />
               </label>
 
-              {/* _sport Category & Linked Venue */}
+              {/* Sport Category & Linked Venue */}
               <div className="form-double-col">
                 <label className="facility-field">
-                  <span className="field-label">_sport Category *</span>
+                  <span className="field-label">Sport Category *</span>
                   <select
                     className="facility-select"
                     value={form.sportCategory}

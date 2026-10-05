@@ -77,12 +77,12 @@ export default function AdminOverviewPage({
   reviews = [],
   dashStats = {},
   currentUser,
-  _authToken,
-  _apiBaseUrl,
+  authToken,
+  apiBaseUrl,
   setActiveTab,
   onOpenBooking,
   onFacilityDetails,
-  _onSelectSupport,
+  onSelectSupport,
 }) {
   // Live ticking clock for mission-control realism
   const [liveTime, setLiveTime] = useState(() =>
@@ -107,7 +107,7 @@ export default function AdminOverviewPage({
   // Derived Bookings Statistics
   const {
     totalBookingsCount,
-    _todayBookings,
+    todayBookings,
     todayBookingsCount,
     confirmedBookingsCount,
     pendingBookingsCount,
@@ -185,7 +185,7 @@ export default function AdminOverviewPage({
 
     return {
       totalBookingsCount: bookings.length,
-      _todayBookings: todayList,
+      todayBookings: todayList,
       todayBookingsCount: todayList.length,
       confirmedBookingsCount: confirmed,
       pendingBookingsCount: pending,
