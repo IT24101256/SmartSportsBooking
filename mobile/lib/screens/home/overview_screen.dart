@@ -143,15 +143,6 @@ class OverviewScreen extends StatelessWidget {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                     ),
-                    OutlinedButton(
-                      onPressed: () => onNavigateTab(2), // Facilities
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: const Text('Venues'),
-                    ),
                   ],
                 ),
               ],

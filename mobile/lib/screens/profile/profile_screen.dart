@@ -4,6 +4,7 @@ import '../../services/api_service.dart';
 import '../../services/saved_cards_service.dart';
 import '../../theme/app_theme.dart';
 import '../admin/revenue_screen.dart';
+import '../admin/sport_categories_screen.dart';
 import '../admin/equipments_screen.dart';
 import '../admin/members_screen.dart';
 
@@ -458,7 +459,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = _apiService.currentUser;
-    final isStaff = user?.isStaffOrAdmin == true;
     final isAdmin = user?.isAdmin == true;
 
     return ListView(
@@ -584,7 +584,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 16),
 
         // Admin Management Tools Section
-        if (isStaff) ...[
+        if (user?.isStaffOrAdmin == true) ...[
           const Text('Management Tools', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppTheme.deepHeading)),
           const SizedBox(height: 10),
           Container(
@@ -611,6 +611,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RevenueScreen())),
                     ),
                     const Divider(height: 1),
+                  ],
+                  if (isAdmin) ...[
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: const Color(0xFFEDE9FE), borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.category_rounded, color: Color(0xFF6D28D9)),
+                      ),
+                      title: const Text('Sport Categories', style: TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: const Text('Manage the shared sports catalog', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SportCategoriesScreen())),
+                    ),
                   ],
                   ListTile(
                     leading: Container(

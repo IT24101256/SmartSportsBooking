@@ -31,7 +31,10 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
     try {
       const defaults = ['Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball'];
       final categories = await _apiService.getSportCategories();
-      if (mounted) setState(() => _sports = ['All', ...{...defaults, ...categories}]);
+      if (mounted) {
+        final names = categories.map((item) => (item['name'] ?? '').toString()).where((name) => name.isNotEmpty);
+        setState(() => _sports = ['All', ...{...defaults, ...names}]);
+      }
     } catch (_) {
       if (mounted) setState(() => _sports = ['All', 'Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball']);
     }

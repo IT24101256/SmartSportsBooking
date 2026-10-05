@@ -435,18 +435,14 @@ class ApiService {
     }
   }
 
-  Future<List<String>> getSportCategories() async {
+  Future<List<Map<String, dynamic>>> getSportCategories() async {
     final response = await http.get(
       Uri.parse('$_baseUrl/api/sport-categories'),
       headers: _authHeaderOnly,
     ).timeout(const Duration(seconds: 12));
     if (response.statusCode != 200) throw Exception(_extractErrorMessage(response));
     final values = jsonDecode(response.body) as List<dynamic>;
-    return values
-        .whereType<Map<String, dynamic>>()
-        .map((item) => (item['name'] ?? '').toString().trim())
-        .where((name) => name.isNotEmpty)
-        .toList();
+    return values.whereType<Map<String, dynamic>>().where((item) => (item['name'] ?? '').toString().trim().isNotEmpty).toList();
   }
 
   Future<String> createSportCategory(String name) async {
@@ -459,6 +455,26 @@ class ApiService {
       throw Exception(_extractErrorMessage(response));
     }
     return ((jsonDecode(response.body) as Map<String, dynamic>)['name'] ?? name).toString();
+  }
+
+  Future<String> updateSportCategory(int id, String name) async {
+    final response = await http.put(
+      Uri.parse('$_baseUrl/api/sport-categories/$id'),
+      headers: _headers,
+      body: jsonEncode({'name': name.trim()}),
+    ).timeout(const Duration(seconds: 12));
+    if (response.statusCode != 200) throw Exception(_extractErrorMessage(response));
+    return ((jsonDecode(response.body) as Map<String, dynamic>)['name'] ?? name).toString();
+  }
+
+  Future<void> deleteSportCategory(int id) async {
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/api/sport-categories/$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 12));
+    if (response.statusCode != 204 && response.statusCode != 200) {
+      throw Exception(_extractErrorMessage(response));
+    }
   }
 
   // ----------------------------------------------------

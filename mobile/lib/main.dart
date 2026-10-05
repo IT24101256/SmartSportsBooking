@@ -90,7 +90,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       final facilities = results[0] as List<Facility>;
 
       // If initial fetch got no facilities and debug mode is active, attempt auto-detecting the backend URL once
-      if (facilities.isEmpty && retryOnFailure && kDebugMode) {
+      if (facilities.isEmpty && retryOnFailure && kDebugMode && !kIsWeb) {
         final detected = await _apiService.autoDetectBackendUrl();
         if (detected != null) {
           return await _loadAllData(retryOnFailure: false);
@@ -568,25 +568,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     child: Image.asset(
                       'assets/images/chatbot.png',
                       fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 3,
-                  right: 3,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF071A2B), width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.8),
-                          blurRadius: 5,
-                        ),
-                      ],
                     ),
                   ),
                 ),

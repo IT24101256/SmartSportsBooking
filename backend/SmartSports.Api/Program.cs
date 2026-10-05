@@ -90,11 +90,17 @@ builder.Services.AddCors(options =>
 
         if (configuredOrigins.Length > 0 && !configuredOrigins.Contains("*"))
         {
-            policy.WithOrigins(configuredOrigins)
+            policy.SetIsOriginAllowed(origin =>
+                  configuredOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)
+                  || (builder.Environment.IsDevelopment()
+                      && Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+                      && (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                          || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+                          || uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase))))
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
-            Console.WriteLine($"[MySpot CORS] Configured allowed origins: {string.Join(", ", configuredOrigins)}");
+            Console.WriteLine($"[MySpot CORS] Configured origins plus local development origins: {string.Join(", ", configuredOrigins)}");
         }
         else
         {

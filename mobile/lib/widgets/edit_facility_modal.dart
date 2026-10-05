@@ -74,7 +74,8 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
       final categories = await _apiService.getSportCategories();
       if (mounted) {
         setState(() {
-          _sportCategories = {...defaults, ...categories, _sportCategory}
+          final names = categories.map((item) => (item['name'] ?? '').toString()).where((name) => name.isNotEmpty);
+          _sportCategories = {...defaults, ...names, _sportCategory}
               .where((category) => category != 'Indoor' && category != 'Outdoor')
               .toList();
         });
