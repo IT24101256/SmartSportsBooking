@@ -6,7 +6,7 @@ export default function ProfilePage({
   apiBaseUrl,
   onSignOut,
   onBack,
-  theme = 'light',
+  _theme = 'light',
 }) {
   const [activeSection, setActiveSection] = useState('profile') // 'profile' | 'security' | 'payments'
 

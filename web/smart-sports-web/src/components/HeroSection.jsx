@@ -1,15 +1,15 @@
 export default function HeroSection({
-  heroMessage = 'PLAY HARDER. BOOK SMARTER.',
+  _heroMessage = 'PLAY HARDER. BOOK SMARTER.',
   facilities = [],
   bookings = [],
   reviews = [],
   averageRating,
   onBooking,
   onBookWithAi,
-  onExploreFacilities,
+  _onExploreFacilities,
 }) {
   const facilityCount = facilities?.length || 6
-  const activeBookingsCount = bookings?.filter((b) => b.status === 'Confirmed' || b.status === 'Pending').length || bookings?.length || 0
+  const _activeBookingsCount = bookings?.filter((b) => b.status === 'Confirmed' || b.status === 'Pending').length || bookings?.length || 0
   const ratingDisplay = averageRating || (reviews?.length ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : '4.9')
 
   return (

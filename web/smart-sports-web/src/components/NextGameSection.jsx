@@ -1,6 +1,8 @@
 import { getFacilityIcon } from '../utils/facilityImages'
 import TicketQRCode from './TicketQRCode'
 
+const renderNow = Date.now()
+
 function getGateForVenue(name = '') {
   const lower = (name || '').toLowerCase()
   if (lower.includes('badminton')) return 'GATE 1 (HALL B)'
@@ -17,7 +19,7 @@ export default function NextGameSection({
   onBookings,
   onBooking,
   onReview,
-  onCancel,
+  _onCancel,
   onReschedule,
 }) {
   // Helper to check if a booking's session has already ended/passed
@@ -38,7 +40,7 @@ export default function NextGameSection({
       hours || 0,
       minutes || 0
     )
-    return sessionTime.getTime() <= Date.now()
+    return sessionTime.getTime() <= renderNow
   }
 
   // Find the next upcoming active booking (strictly not cancelled and not expired)

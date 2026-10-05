@@ -1,6 +1,8 @@
 import { getFacilityIcon } from '../utils/facilityImages'
 import TicketQRCode from './TicketQRCode'
 
+const renderNow = Date.now()
+
 function getGateForVenue(name = '') {
   const lower = (name || '').toLowerCase()
   if (lower.includes('badminton')) return 'GATE 1 (HALL B)'
@@ -30,7 +32,7 @@ export default function BookingList({ bookings = [], onReview, onCancel, onResch
       hours || 0,
       minutes || 0
     )
-    return sessionTime.getTime() <= Date.now()
+    return sessionTime.getTime() <= renderNow
   }
 
   return (

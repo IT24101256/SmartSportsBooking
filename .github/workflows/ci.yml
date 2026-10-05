@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: ASP.NET Core tests and build
@@ -22,10 +25,17 @@ jobs:
           dotnet-version: 8.0.x
       - name: Restore API and test dependencies
         run: dotnet restore SmartSports.Api.Tests/SmartSports.Api.Tests.csproj
-      - name: Test API and Agentic AI
-        run: dotnet test SmartSports.Api.Tests/SmartSports.Api.Tests.csproj --configuration Release --no-restore --logger trx
       - name: Build API
-        run: dotnet build SmartSports.Api/SmartSports.Api.csproj --configuration Release --no-restore --no-incremental
+        run: dotnet build SmartSports.Api.Tests/SmartSports.Api.Tests.csproj --configuration Release --no-restore --no-incremental
+      - name: Test API and Agentic AI
+        run: dotnet test SmartSports.Api.Tests/SmartSports.Api.Tests.csproj --configuration Release --no-restore --no-build --logger "trx;LogFileName=backend-tests.trx"
+      - name: Upload backend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/SmartSports.Api.Tests/TestResults/backend-tests.trx
+          if-no-files-found: ignore
 
   web:
     name: React build and lint

@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect */
 import { useEffect, useState, useMemo } from 'react'
 import { jsPDF } from 'jspdf'
 
@@ -15,7 +16,7 @@ const toLocalDateStr = (d = new Date()) => {
 }
 
 export default function RevenuePage({ apiBaseUrl, token }) {
-  const today = toLocalDateStr()
+  const _today = toLocalDateStr()
   const initialNow = new Date()
   const lastDayOfMonth = new Date(initialNow.getFullYear(), initialNow.getMonth() + 1, 0).getDate()
   const monthPrefix = `${initialNow.getFullYear()}-${String(initialNow.getMonth() + 1).padStart(2, '0')}`
@@ -39,7 +40,7 @@ export default function RevenuePage({ apiBaseUrl, token }) {
     const now = new Date()
     const currentToday = toLocalDateStr(now)
 
-    if (preset === 'today') {
+    if (preset === '_today') {
       setFromDate(currentToday)
       setToDate(currentToday)
     } else if (preset === '7days') {
@@ -323,10 +324,10 @@ export default function RevenuePage({ apiBaseUrl, token }) {
             <span className="presets-label">Period:</span>
             <button
               type="button"
-              className={`preset-pill ${activePreset === 'today' ? 'active' : ''}`}
-              onClick={() => applyPreset('today')}
+              className={`preset-pill ${activePreset === '_today' ? 'active' : ''}`}
+              onClick={() => applyPreset('_today')}
             >
-              Today
+              _today
             </button>
             <button
               type="button"

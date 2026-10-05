@@ -1,7 +1,7 @@
 export default function ScheduleTimeline({
   schedule = [],
   onDetails,
-  onBookSlot,
+  _onBookSlot,
 }) {
   const isSlotExpired = (item) => {
     if (!item) return true

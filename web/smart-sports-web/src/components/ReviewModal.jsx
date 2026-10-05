@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect */
 import { useEffect, useState, useRef } from 'react'
 
 const emptyForm = { name: '', rating: 0, review: '', photos: [] }

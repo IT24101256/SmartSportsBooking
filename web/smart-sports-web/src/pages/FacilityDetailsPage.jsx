@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { getFacilityImage } from '../utils/facilityImages'
 
 const DEFAULT_SPORT_EQUIPMENTS = {
@@ -146,7 +146,8 @@ export default function FacilityDetailsPage({
     return []
   }
 
-  const equipmentsList = useMemo(() => {
+  const equipmentsList = (() => {
+    if (!facility) return []
     const rawProvided = parseEquipments(facility.equipmentsProvided)
     const sportKey = (facility.sportCategory || facility.type || '').toLowerCase()
 
@@ -196,7 +197,7 @@ export default function FacilityDetailsPage({
       { name: 'Training Cones & Markers', hourlyRate: 150, icon: '📐' },
       { name: 'Team Scrimmage Bibs', hourlyRate: 250, icon: '🎽' },
     ]
-  }, [facility, catalogEquipments])
+  })()
 
   return (
     <div className="facility-details-page">

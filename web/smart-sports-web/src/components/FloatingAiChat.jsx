@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import './FloatingAiChat.css'
 
+const renderNow = Date.now()
+
 export default function FloatingAiChat({ apiBaseUrl = 'http://localhost:5187/api', token = '' }) {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState(() => {
@@ -50,7 +52,7 @@ export default function FloatingAiChat({ apiBaseUrl = 'http://localhost:5187/api
 
     setInput('')
     const userMsg = {
-      id: Date.now().toString(),
+      id: renderNow.toString(),
       role: 'user',
       content: text,
       timestamp: new Date().toISOString(),
@@ -88,7 +90,7 @@ export default function FloatingAiChat({ apiBaseUrl = 'http://localhost:5187/api
       }
 
       const assistantMsg = {
-        id: (Date.now() + 1).toString(),
+        id: (renderNow + 1).toString(),
         role: 'assistant',
         content: data.answer,
         sources: data.sources || [],
@@ -99,11 +101,11 @@ export default function FloatingAiChat({ apiBaseUrl = 'http://localhost:5187/api
       }
 
       setMessages((prev) => [...prev, assistantMsg])
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
-          id: (Date.now() + 1).toString(),
+          id: (renderNow + 1).toString(),
           role: 'assistant',
           content: 'I had trouble connecting to the MySpot AI service. Please make sure the backend is running or try again shortly.',
           isError: true,

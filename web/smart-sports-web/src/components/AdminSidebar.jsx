@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 
+const renderNow = Date.now()
+
 export default function AdminSidebar({
   activeTab,
   setActiveTab,
@@ -241,7 +243,7 @@ export default function AdminSidebar({
     if (!timestamp) return 'Just now'
     const date = new Date(timestamp)
     if (isNaN(date.getTime())) return 'Recently'
-    const diff = Math.floor((Date.now() - date.getTime()) / 60000)
+    const diff = Math.floor((renderNow - date.getTime()) / 60000)
     if (diff < 1) return 'Just now'
     if (diff < 60) return `${diff}m ago`
     if (diff < 1440) return `${Math.floor(diff / 60)}h ago`

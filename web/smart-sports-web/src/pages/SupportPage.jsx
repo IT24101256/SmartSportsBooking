@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 
 export default function SupportPage({
   requests = [],
-  currentUser,
+  _currentUser,
   onAddTicket,
   isAdmin,
   onStatusChange,

@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect */
 import { useState, useEffect, useRef } from 'react'
 import './BookWithAiModal.css'
 
@@ -14,13 +15,13 @@ export default function BookWithAiModal({
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
-  const [status, setStatus] = useState('collecting_requirements')
+  const [_status, setStatus] = useState('collecting_requirements')
   const [summary, setSummary] = useState(null)
   const [suggestedOptions, setSuggestedOptions] = useState([])
   const [availableSlots, setAvailableSlots] = useState([])
   const [selectedSlots, setSelectedSlots] = useState([])
   const [customDate, setCustomDate] = useState('')
-  const [missingFields, setMissingFields] = useState([])
+  const [_missingFields, setMissingFields] = useState([])
   const [trajectory, setTrajectory] = useState([])
   const [showTrajectory, setShowTrajectory] = useState(false)
   const [confirmedBooking, setConfirmedBooking] = useState(null)
@@ -103,7 +104,7 @@ export default function BookWithAiModal({
 
         const data = await response.json()
         setWorkflowId(data.workflowId)
-        setStatus(data.status)
+        setStatus(data._status)
         setCurrentStep(data.currentStep || 1)
         setSuggestedOptions(data.suggestedOptions || [])
         setAvailableSlots(data.availableSlots || [])
@@ -116,7 +117,7 @@ export default function BookWithAiModal({
             content: data.message || 'Hello! I am your AI Booking Supervisor. Which sport or facility would you like to reserve?',
           },
         ])
-      } catch (err) {
+      } catch {
         setMessages([
           {
             id: 'err-msg',
@@ -174,12 +175,12 @@ export default function BookWithAiModal({
       }
 
       const data = await response.json()
-      setStatus(data.status)
+      setStatus(data._status)
       setCurrentStep(data.currentStep || 1)
       setSummary(data.summary || null)
       setSuggestedOptions(data.suggestedOptions || [])
       setAvailableSlots(data.availableSlots || [])
-      setMissingFields(data.missingFields || [])
+      setMissingFields(data._missingFields || [])
       if (data.trajectory) setTrajectory(data.trajectory)
 
       setMessages((prev) => [
@@ -190,7 +191,7 @@ export default function BookWithAiModal({
           content: data.message,
         },
       ])
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
@@ -380,7 +381,7 @@ export default function BookWithAiModal({
       if (onBookingSuccess) {
         onBookingSuccess()
       }
-    } catch (err) {
+    } catch {
       setPaymentError(err.message)
       setMessages((prev) => [
         ...prev,

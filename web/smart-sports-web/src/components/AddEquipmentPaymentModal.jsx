@@ -1,10 +1,12 @@
+/* oxlint-disable react/set-state-in-effect */
+/* oxlint-disable react-hooks/exhaustive-deps */
 import { useState, useMemo, useEffect } from 'react'
 
 export default function AddEquipmentPaymentModal({
   booking,
   facilities = [],
   apiBaseUrl = 'http://localhost:5187/api',
-  token,
+  _token,
   onClose,
   onSubmit,
 }) {

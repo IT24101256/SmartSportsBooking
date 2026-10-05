@@ -11,7 +11,7 @@ export default function FacilitiesPage({ facilities = [], bookings = [], reviews
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyFacility)
-  const [feedback, setFeedback] = useState('')
+  const [_feedback, setFeedback] = useState('')
 
   // Derive categories from facilities
   const categories = useMemo(() => {
@@ -39,10 +39,10 @@ export default function FacilitiesPage({ facilities = [], bookings = [], reviews
     setFeedback('')
   }
 
-  const addFaq = () => setForm((current) => ({ ...current, faq: [...current.faq, { question: '', answer: '' }] }))
-  const updateFaq = (index, field, value) => setForm((current) => ({ ...current, faq: current.faq.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }))
-  const removeFaq = (index) => setForm((current) => ({ ...current, faq: current.faq.filter((_, itemIndex) => itemIndex !== index) }))
-  const addImages = (event) => {
+  const _addFaq = () => setForm((current) => ({ ...current, faq: [...current.faq, { question: '', answer: '' }] }))
+  const _updateFaq = (index, field, value) => setForm((current) => ({ ...current, faq: current.faq.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }))
+  const _removeFaq = (index) => setForm((current) => ({ ...current, faq: current.faq.filter((_, itemIndex) => itemIndex !== index) }))
+  const _addImages = (event) => {
     const files = Array.from(event.target.files ?? [])
     files.forEach((file) => {
       const reader = new FileReader()

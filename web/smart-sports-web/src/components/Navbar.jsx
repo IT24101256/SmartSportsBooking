@@ -15,8 +15,8 @@ export default function Navbar({
   setTheme,
   notifications,
   setNotifications,
-  goBack,
-  hasHistory,
+  _goBack,
+  _hasHistory,
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)

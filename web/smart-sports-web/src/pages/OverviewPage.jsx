@@ -13,7 +13,7 @@ export default function OverviewPage({
   stats = [],
   facilities = [],
   bookings = [],
-  support = [],
+  _support = [],
   schedule = [],
   analytics = [],
   averageRating,
@@ -25,7 +25,7 @@ export default function OverviewPage({
   onTicket,
   onSupport,
   onFacilities,
-  onSchedule,
+  _onSchedule,
   onBookings,
   onFacilityDetails,
   onScheduleDetails,
@@ -104,7 +104,7 @@ export default function OverviewPage({
         onDelete={onDeleteReview}
       />
 
-      {/* 9. Support Teaser */}
+      {/* 9. _support Teaser */}
       <SupportTeaser
         onContactSupport={onTicket}
         onOpenSupportPage={onSupport || onTicket}
