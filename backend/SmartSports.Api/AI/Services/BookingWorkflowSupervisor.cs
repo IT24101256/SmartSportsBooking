@@ -147,7 +147,7 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
         const int maxIterations = 5;
 
         // Step 1: Supervisor extracts entities from message
-        ExtractEntities(message, state);
+        await ExtractEntitiesAsync(message, state);
         iterations++;
 
         // Step 2: Facility Agent resolution
@@ -543,18 +543,37 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
         return BuildWorkflowResponse(state);
     }
 
-    private static void ExtractEntities(string message, BookingWorkflowState state)
+    private async Task ExtractEntitiesAsync(string message, BookingWorkflowState state)
     {
         var lower = message.ToLowerInvariant();
 
-        // 1. Sport extraction
-        if (lower.Contains("badminton")) state.Sport = "Badminton";
-        else if (lower.Contains("cricket")) state.Sport = "Cricket";
-        else if (lower.Contains("football") || lower.Contains("soccer")) state.Sport = "Football";
-        else if (lower.Contains("basketball")) state.Sport = "Basketball";
-        else if (lower.Contains("swim") || lower.Contains("pool")) state.Sport = "Swimming";
-        else if (lower.Contains("table tennis") || lower.Contains("ping pong")) state.Sport = "Table Tennis";
-        else if (lower.Contains("volleyball")) state.Sport = "Volleyball";
+        // 1. Sport and facility extraction from the current database catalog.
+        var categories = await _context.SportCategories
+            .AsNoTracking()
+            .OrderByDescending(c => c.Name.Length)
+            .ToListAsync();
+        var facilities = await _context.Facilities
+            .AsNoTracking()
+            .Include(f => f.SportCategoryNavigation)
+            .Where(f => f.IsAvailable)
+            .OrderByDescending(f => f.Name.Length)
+            .ToListAsync();
+
+        var facilityMatch = facilities.FirstOrDefault(f =>
+            lower.Contains(f.Name.Trim().ToLowerInvariant()));
+        if (facilityMatch != null)
+        {
+            state.Sport = facilityMatch.SportCategoryNavigation?.Name ?? facilityMatch.SportCategory;
+        }
+        else
+        {
+            var categoryMatch = categories.FirstOrDefault(c =>
+                lower.Contains(c.Name.Trim().ToLowerInvariant()));
+            if (categoryMatch != null)
+            {
+                state.Sport = categoryMatch.Name;
+            }
+        }
 
         // 2. Date extraction
         var slNow = CancellationRefundService.GetCurrentLocalTime();
@@ -667,10 +686,18 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
 
     private async Task ResolveFacilityAgentAsync(BookingWorkflowState state)
     {
-        var facilities = await _context.Facilities.Where(f => f.IsAvailable).ToListAsync();
+        if (string.IsNullOrWhiteSpace(state.Sport)) return;
+
+        var normalizedSport = state.Sport.Trim().ToLowerInvariant();
+        var facilities = await _context.Facilities
+            .Include(f => f.SportCategoryNavigation)
+            .Where(f => f.IsAvailable)
+            .ToListAsync();
         var match = facilities.FirstOrDefault(f =>
-            f.Name.Contains(state.Sport, StringComparison.OrdinalIgnoreCase) ||
-            state.Sport.Contains(f.Name, StringComparison.OrdinalIgnoreCase));
+            (f.SportCategoryNavigation != null &&
+             f.SportCategoryNavigation.Name.Trim().ToLower() == normalizedSport) ||
+            f.SportCategory.Trim().ToLower() == normalizedSport ||
+            f.Name.Contains(state.Sport, StringComparison.OrdinalIgnoreCase));
 
         if (match != null)
         {
@@ -678,6 +705,11 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             state.FacilityName = match.Name;
             state.HourlyRate = match.HourlyRate;
             state.Trajectory.Add($"Facility Agent matched '{state.Sport}' to '{match.Name}' (ID {match.Id}, LKR {match.HourlyRate:N0}/hr).");
+        }
+        else
+        {
+            state.Trajectory.Add($"Facility Agent found no available facility for sport category '{state.Sport}'.");
+            state.ErrorMessage = $"I couldn't find an available facility for {state.Sport}. Please choose another sport category.";
         }
     }
 
@@ -800,6 +832,14 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
 
         if (state.CurrentStep == 1)
         {
+            if (!string.IsNullOrWhiteSpace(state.ErrorMessage))
+            {
+                message = state.ErrorMessage;
+                state.ErrorMessage = null;
+                suggestedOptions.Add("Choose another sport");
+            }
+            else
+            {
             if (string.IsNullOrWhiteSpace(state.FacilityName))
             {
                 message = "Which sport or court facility would you like to book?";
@@ -826,6 +866,7 @@ public class BookingWorkflowSupervisor : IBookingWorkflowSupervisor
             else
             {
                 message = $"Got it! {state.FacilityName} on {state.BookingDate} at {state.StartTime} for {state.HoursNeeded} hr(s).";
+            }
             }
         }
         else if (state.CurrentStep == 2)

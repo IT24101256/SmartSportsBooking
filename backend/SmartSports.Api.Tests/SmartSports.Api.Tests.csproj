@@ -20,4 +20,8 @@
   <ItemGroup>
     <ProjectReference Include="..\SmartSports.Api\SmartSports.Api.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="AI\ai-evaluation-cases.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

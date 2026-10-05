@@ -1,7 +1,10 @@
-using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using SmartSportsFacilityBooking.AI.Models;
+using SmartSportsFacilityBooking.Data;
+using SmartSportsFacilityBooking.Models;
 
 namespace SmartSportsFacilityBooking.AI.Services;
 
@@ -11,21 +14,21 @@ public class AgenticRagService : IAgenticRagService
     private readonly IGeminiClient _geminiClient;
     private readonly IAiToolsService _toolsService;
     private readonly ILogger<AgenticRagService> _logger;
-
-    // In-memory conversation state store
-    private static readonly ConcurrentDictionary<string, AiChatSession> _sessions = new();
+    private readonly AppDbContext _context;
     private const int MaxRetrievalRetries = 2;
 
     public AgenticRagService(
         IKnowledgeBaseRetriever retriever,
         IGeminiClient geminiClient,
         IAiToolsService toolsService,
-        ILogger<AgenticRagService> logger)
+        ILogger<AgenticRagService> logger,
+        AppDbContext context)
     {
         _retriever = retriever;
         _geminiClient = geminiClient;
         _toolsService = toolsService;
         _logger = logger;
+        _context = context;
     }
 
     public async Task<AiChatResponse> ProcessChatAsync(AiChatRequest request, int? userId, bool isPrivileged)
@@ -34,37 +37,18 @@ public class AgenticRagService : IAgenticRagService
             ? Guid.NewGuid().ToString("N")[..12]
             : request.ConversationId.Trim();
 
-        var session = _sessions.GetOrAdd(conversationId, id => new AiChatSession
-        {
-            ConversationId = id,
-            UserId = userId
-        });
-
-        // A conversation cannot be reused across users. Start a fresh session for the
-        // current request so stale client-side conversation IDs do not block chat.
-        if (session.UserId.HasValue && (!userId.HasValue || session.UserId.Value != userId.Value))
-        {
-            conversationId = Guid.NewGuid().ToString("N")[..12];
-            session = new AiChatSession
-            {
-                ConversationId = conversationId,
-                UserId = userId
-            };
-            _sessions[conversationId] = session;
-        }
-
-        if (!session.UserId.HasValue && userId.HasValue)
-        {
-            session.UserId = userId;
-        }
+        var session = await LoadOrCreateSessionAsync(conversationId, userId);
+        conversationId = session.ConversationId;
 
         var userMessage = request.Message.Trim();
-        session.Messages.Add(new AiChatMessage
+        var userChatMessage = new AiChatMessage
         {
             Role = "user",
             Content = userMessage,
             Timestamp = DateTime.UtcNow
-        });
+        };
+        session.Messages.Add(userChatMessage);
+        await PersistMessageAsync(session, userChatMessage);
 
         var response = new AiChatResponse
         {
@@ -75,6 +59,14 @@ public class AgenticRagService : IAgenticRagService
         var toolInvocations = new List<string>();
         var citations = new HashSet<string>();
         string liveToolContext = string.Empty;
+
+        if (IsLiveCatalogQuery(lowerQuery))
+        {
+            toolInvocations.Add("get_live_sports_facilities_equipment");
+            liveToolContext = await _toolsService.GetLiveKnowledgeContextJsonAsync();
+            citations.Add("Live Sports Catalog");
+            response.HandledByLiveTool = true;
+        }
 
         // 0. Question Classification: Capability inquiries and greetings
         if (IsCapabilityOrGreetingQuery(lowerQuery))
@@ -107,7 +99,7 @@ What would you like to know or book today? [MySpot Overview]";
                 "How do I book with AI?"
             };
             response.HandledByRag = true;
-            RecordAssistantResponse(session, response);
+            await RecordAssistantResponseAsync(session, response);
             return response;
         }
 
@@ -117,7 +109,7 @@ What would you like to know or book today? [MySpot Overview]";
             response.Answer = "I don't have any information on that topic. I can only assist with MySpot sports facilities, court rates, operating hours, booking rules, and reservations.";
             response.Sources = new List<string>();
             response.SuggestedFollowUps = new List<string> { "What sports are available?", "What is the cancellation policy?", "How does Book With AI work?" };
-            RecordAssistantResponse(session, response);
+            await RecordAssistantResponseAsync(session, response);
             return response;
         }
 
@@ -128,7 +120,7 @@ What would you like to know or book today? [MySpot Overview]";
             {
                 response.Answer = "To check your personal bookings, please sign in to your MySpot account first. [Account Security]";
                 response.Sources.Add("Account Security");
-                RecordAssistantResponse(session, response);
+                await RecordAssistantResponseAsync(session, response);
                 return response;
             }
 
@@ -207,7 +199,7 @@ What would you like to know or book today? [MySpot Overview]";
         {
             response.Answer = "I don't have any information on that topic. I can only assist with MySpot sports facilities, court rates, operating hours, booking rules, and reservations.";
             response.Sources = citations.ToList();
-            RecordAssistantResponse(session, response);
+            await RecordAssistantResponseAsync(session, response);
             return response;
         }
 
@@ -258,39 +250,149 @@ Follow these strict instructions:
             answerText = SynthesizeOfflineAnswer(userMessage, bestRetrievals, liveToolContext);
         }
 
+        if (response.HandledByLiveTool && !string.IsNullOrWhiteSpace(liveToolContext))
+        {
+            answerText = ValidateLiveCatalogAnswer(answerText, liveToolContext);
+        }
+
         response.Answer = answerText;
         response.Sources = citations.ToList();
         response.ToolInvocations = toolInvocations;
         response.HandledByRag = bestRetrievals.Count > 0;
         response.SuggestedFollowUps = GenerateFollowUps(userMessage);
 
-        RecordAssistantResponse(session, response);
+        await RecordAssistantResponseAsync(session, response);
         return response;
     }
 
-    public Task<AiChatSession?> GetSessionHistoryAsync(string conversationId, int? userId)
+    private static bool IsLiveCatalogQuery(string lower)
     {
-        if (_sessions.TryGetValue(conversationId, out var session))
-        {
-            if (session.UserId.HasValue && (!userId.HasValue || session.UserId.Value != userId.Value))
-            {
-                return Task.FromResult<AiChatSession?>(null);
-            }
-            return Task.FromResult<AiChatSession?>(session);
-        }
-        return Task.FromResult<AiChatSession?>(null);
+        return lower.Contains("facility") ||
+               lower.Contains("facilities") ||
+               lower.Contains("sport") ||
+               lower.Contains("equipment") ||
+               lower.Contains("gear") ||
+               lower.Contains("court") ||
+               lower.Contains("ground") ||
+               lower.Contains("field") ||
+               lower.Contains("arena") ||
+               lower.Contains("price") ||
+               lower.Contains("rate") ||
+               lower.Contains("cost") ||
+               lower.Contains("available");
     }
 
-    private static void RecordAssistantResponse(AiChatSession session, AiChatResponse response)
+    private static string ValidateLiveCatalogAnswer(string answer, string liveToolContext)
     {
-        session.Messages.Add(new AiChatMessage
+        var liveRates = Regex.Matches(liveToolContext, "\"(?:HourlyRate|hourlyRate)\"\\s*:\\s*(?<rate>[0-9]+(?:\\.[0-9]+)?)")
+            .Select(m => decimal.TryParse(m.Groups["rate"].Value, out var rate) ? rate : -1)
+            .Where(rate => rate >= 0)
+            .ToHashSet();
+
+        var answerRates = Regex.Matches(answer, @"(?:LKR|Rs\.?)\s*[\d,]+(?:\.\d+)?", RegexOptions.IgnoreCase)
+            .Select(m => decimal.TryParse(Regex.Replace(m.Value, @"[^\d.]", string.Empty), out var rate) ? rate : -1)
+            .Where(rate => rate >= 0);
+
+        if (answerRates.Any(rate => !liveRates.Contains(rate)))
+        {
+            return "I couldn't verify that live catalog detail safely. Please ask again, and I will use the current sports, facilities, and equipment catalog. [Live Sports Catalog]";
+        }
+
+        if (!answer.Contains("[Live Sports Catalog]", StringComparison.OrdinalIgnoreCase))
+        {
+            answer = $"{answer.Trim()} [Live Sports Catalog]";
+        }
+
+        return answer;
+    }
+
+    public async Task<AiChatSession?> GetSessionHistoryAsync(string conversationId, int? userId)
+    {
+        var entity = await _context.AiChatConversations
+            .AsNoTracking()
+            .Include(c => c.Messages)
+            .FirstOrDefaultAsync(c => c.ConversationId == conversationId);
+        if (entity == null || (entity.UserId.HasValue && entity.UserId != userId))
+            return null;
+        return ToSession(entity);
+    }
+
+    private async Task<AiChatSession> LoadOrCreateSessionAsync(string requestedId, int? userId)
+    {
+        var entity = await _context.AiChatConversations
+            .Include(c => c.Messages)
+            .FirstOrDefaultAsync(c => c.ConversationId == requestedId);
+
+        if (entity != null && (!entity.UserId.HasValue || entity.UserId == userId))
+            return ToSession(entity);
+
+        var session = new AiChatSession
+        {
+            ConversationId = entity == null ? requestedId : Guid.NewGuid().ToString("N")[..12],
+            UserId = userId
+        };
+        _context.AiChatConversations.Add(new AiChatConversation
+        {
+            ConversationId = session.ConversationId,
+            UserId = userId,
+            CreatedAtUtc = session.CreatedAt,
+            UpdatedAtUtc = session.UpdatedAt
+        });
+        await _context.SaveChangesAsync();
+        return session;
+    }
+
+    private async Task RecordAssistantResponseAsync(AiChatSession session, AiChatResponse response)
+    {
+        var message = new AiChatMessage
         {
             Role = "assistant",
             Content = response.Answer,
             Timestamp = DateTime.UtcNow,
             Sources = response.Sources
-        });
+        };
+        session.Messages.Add(message);
         session.UpdatedAt = DateTime.UtcNow;
+        await PersistMessageAsync(session, message);
+    }
+
+    private async Task PersistMessageAsync(AiChatSession session, AiChatMessage message)
+    {
+        var conversation = await _context.AiChatConversations
+            .FirstAsync(c => c.ConversationId == session.ConversationId);
+        _context.AiChatConversationMessages.Add(new AiChatConversationMessage
+        {
+            AiChatConversationId = conversation.Id,
+            MessageId = message.Id,
+            Role = message.Role,
+            Content = message.Content,
+            SourcesJson = JsonSerializer.Serialize(message.Sources ?? new List<string>()),
+            TimestampUtc = message.Timestamp
+        });
+        conversation.UpdatedAtUtc = session.UpdatedAt;
+        await _context.SaveChangesAsync();
+    }
+
+    private static AiChatSession ToSession(AiChatConversation entity)
+    {
+        return new AiChatSession
+        {
+            ConversationId = entity.ConversationId,
+            UserId = entity.UserId,
+            CreatedAt = entity.CreatedAtUtc,
+            UpdatedAt = entity.UpdatedAtUtc,
+            Messages = entity.Messages
+                .OrderBy(m => m.TimestampUtc)
+                .Select(m => new AiChatMessage
+                {
+                    Id = m.MessageId,
+                    Role = m.Role,
+                    Content = m.Content,
+                    Timestamp = m.TimestampUtc,
+                    Sources = JsonSerializer.Deserialize<List<string>>(m.SourcesJson) ?? new List<string>()
+                })
+                .ToList()
+        };
     }
 
     private static bool IsCapabilityOrGreetingQuery(string lower)
@@ -333,6 +435,13 @@ Follow these strict instructions:
 
     private static string SynthesizeOfflineAnswer(string question, List<RetrievalResult> retrievals, string liveToolData)
     {
+        if (IsLiveCatalogQuery(question.ToLowerInvariant()))
+        {
+            return string.IsNullOrWhiteSpace(liveToolData)
+                ? "I cannot verify the current sports, facility, or equipment catalog right now. Please try again shortly."
+                : SynthesizeLiveCatalogAnswer(question, liveToolData);
+        }
+
         var lower = question.ToLowerInvariant();
         var sb = new StringBuilder();
 
@@ -442,6 +551,51 @@ Follow these strict instructions:
         }
 
         return "I don't have any information on that. I am dedicated to MySpot sports facility bookings, court schedules, rates, and policies. Feel free to ask about our facilities, rates, or booking with AI!";
+    }
+
+    private static string SynthesizeLiveCatalogAnswer(string question, string liveToolData)
+    {
+        using var document = JsonDocument.Parse(liveToolData);
+        var categories = document.RootElement.GetProperty("SportCategories");
+        var lower = question.ToLowerInvariant();
+        var lines = new List<string>();
+
+        foreach (var category in categories.EnumerateArray())
+        {
+            var categoryName = category.GetProperty("Name").GetString() ?? "Sport";
+            var facilities = category.GetProperty("Facilities").EnumerateArray().ToList();
+            var matching = facilities.Where(f =>
+                lower.Contains(categoryName.ToLowerInvariant()) ||
+                lower.Contains((f.GetProperty("Name").GetString() ?? string.Empty).ToLowerInvariant()) ||
+                lower.Contains("facility") ||
+                lower.Contains("sport") ||
+                lower.Contains("available") ||
+                lower.Contains("equipment") ||
+                lower.Contains("gear")).ToList();
+
+            if (matching.Count == 0) continue;
+            lines.Add($"{categoryName}:");
+            foreach (var facility in matching)
+            {
+                var name = facility.GetProperty("Name").GetString() ?? "Facility";
+                var rate = facility.GetProperty("HourlyRate").GetDecimal();
+                lines.Add($"• {name} — LKR {rate:N0}/hour");
+                var equipment = facility.GetProperty("Equipment").EnumerateArray()
+                    .Select(e => new
+                    {
+                        Name = e.GetProperty("Name").GetString(),
+                        Rate = e.GetProperty("HourlyRate").GetDecimal()
+                    })
+                    .Where(e => !string.IsNullOrWhiteSpace(e.Name))
+                    .ToList();
+                if (equipment.Count > 0)
+                    lines.Add($"  Equipment: {string.Join(", ", equipment.Select(e => $"{e.Name} (LKR {e.Rate:N0}/hour)"))}");
+            }
+        }
+
+        return lines.Count > 0
+            ? string.Join(Environment.NewLine, lines) + Environment.NewLine + "[Live Sports Catalog]"
+            : "I couldn't find a matching sport, facility, or equipment item in the current catalog. [Live Sports Catalog]";
     }
 
     private static List<string> GenerateFollowUps(string question)

@@ -1,0 +1,12 @@
+[
+  { "Name": "custom hockey booking", "Prompt": "Book Hockey tomorrow", "ExpectedEvidence": "database sport category and facility match" },
+  { "Name": "custom pickleball booking", "Prompt": "Book the new Pickleball court", "ExpectedEvidence": "database facility match" },
+  { "Name": "archery equipment", "Prompt": "What equipment is available for Archery?", "ExpectedEvidence": "live equipment assignment" },
+  { "Name": "new facility price", "Prompt": "What is the price of the newly added facility?", "ExpectedEvidence": "live facility hourly rate" },
+  { "Name": "assigned equipment", "Prompt": "What equipment is assigned to the new facility?", "ExpectedEvidence": "live facility-equipment relationship" },
+  { "Name": "hockey clarification", "Prompt": "I meant hockey, not hooky", "ExpectedEvidence": "database category clarification" },
+  { "Name": "unknown sport", "Prompt": "Tell me about a sport that does not exist", "ExpectedEvidence": "unknown category clarification" },
+  { "Name": "booking follow-up", "Prompt": "What about the same facility tomorrow?", "ExpectedEvidence": "persisted conversation context" },
+  { "Name": "badminton equipment", "Prompt": "Show me available equipment for Badminton", "ExpectedEvidence": "live category and equipment data" },
+  { "Name": "freshness guard", "Prompt": "What is the current facility and equipment price?", "ExpectedEvidence": "live citation and current database values" }
+]

@@ -45,6 +45,8 @@ public class AppDbContext : DbContext
     public DbSet<Equipment> Equipments => Set<Equipment>();
     public DbSet<SportCategory> SportCategories => Set<SportCategory>();
     public DbSet<FacilityEquipment> FacilityEquipments => Set<FacilityEquipment>();
+    public DbSet<AiChatConversation> AiChatConversations => Set<AiChatConversation>();
+    public DbSet<AiChatConversationMessage> AiChatConversationMessages => Set<AiChatConversationMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -124,6 +126,16 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(w => w.CustomerId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AiChatConversation>()
+            .HasIndex(c => c.ConversationId)
+            .IsUnique();
+
+        modelBuilder.Entity<AiChatConversationMessage>()
+            .HasOne(m => m.Conversation)
+            .WithMany(c => c.Messages)
+            .HasForeignKey(m => m.AiChatConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<BookingWorkflowStep>()
             .HasOne(s => s.BookingWorkflow)

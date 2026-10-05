@@ -14,6 +14,63 @@ public class AiToolsService : IAiToolsService
         _context = context;
     }
 
+    public async Task<string> GetLiveKnowledgeContextJsonAsync()
+    {
+        var categories = await _context.SportCategories
+            .AsNoTracking()
+            .OrderBy(c => c.Name)
+            .Select(c => new
+            {
+                c.Id,
+                c.Name,
+                Facilities = c.Facilities
+                    .Where(f => f.IsAvailable)
+                    .OrderBy(f => f.Name)
+                    .Select(f => new
+                    {
+                        f.Id,
+                        f.Name,
+                        f.Description,
+                        f.CourtType,
+                        f.HourlyRate,
+                        Equipment = f.FacilityEquipments
+                            .Where(link => link.Equipment.IsAvailable)
+                            .OrderBy(link => link.Equipment.Name)
+                            .Select(link => new
+                            {
+                                link.Equipment.Id,
+                                link.Equipment.Name,
+                                link.Equipment.Description,
+                                link.Equipment.HourlyRate,
+                                link.Equipment.TotalStock
+                            })
+                    })
+            })
+            .ToListAsync();
+
+        var uncategorizedEquipment = await _context.Equipments
+            .AsNoTracking()
+            .Where(e => e.IsAvailable && e.SportCategoryNavigation == null)
+            .OrderBy(e => e.Name)
+            .Select(e => new
+            {
+                e.Id,
+                e.Name,
+                e.Description,
+                e.HourlyRate,
+                e.TotalStock,
+                SportCategory = e.SportCategory
+            })
+            .ToListAsync();
+
+        return JsonSerializer.Serialize(new
+        {
+            GeneratedAtUtc = DateTime.UtcNow,
+            SportCategories = categories,
+            UncategorizedEquipment = uncategorizedEquipment
+        });
+    }
+
     public async Task<string> GetFacilitiesJsonAsync()
     {
         var slNow = CancellationRefundService.GetCurrentLocalTime();
