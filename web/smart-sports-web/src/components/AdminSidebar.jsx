@@ -285,6 +285,16 @@ export default function AdminSidebar({
           ),
         },
         {
+          id: 'Sport Categories',
+          label: 'Sport Categories',
+          icon: (
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M8 12h8M12 8v8" />
+            </svg>
+          ),
+        },
+        {
           id: 'Bookings',
           label: 'Bookings & Refunds',
           icon: (
@@ -650,4 +660,3 @@ export default function AdminSidebar({
     </>
   )
 }
-

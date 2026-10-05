@@ -379,7 +379,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                             OutlinedButton.icon(
                               onPressed: () => AddEquipmentModal.show(context, b, facility: fac, onAdded: widget.onRefresh),
                               icon: const Icon(Icons.sports_tennis, size: 16, color: Color(0xFFB45309)),
-                              label: const Text('+ Gear Rental', style: TextStyle(color: Color(0xFFB45309))),
+                              label: const Text('+ Equipment Rental', style: TextStyle(color: Color(0xFFB45309))),
                               style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                             ),
 

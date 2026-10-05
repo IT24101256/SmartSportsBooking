@@ -20,6 +20,7 @@ import AdminTopBar from './components/AdminTopBar'
 import ProfilePage from './pages/ProfilePage'
 import AuthModal from './components/AuthModal'
 import EquipmentsPage from './pages/EquipmentsPage'
+import SportCategoriesPage from './pages/SportCategoriesPage'
 import FloatingAiChat from './components/FloatingAiChat'
 import BookWithAiModal from './components/BookWithAiModal'
 
@@ -32,7 +33,7 @@ const localDateString = (date = new Date()) => {
 }
 
 const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support']
-const adminNavItems = [...baseNavItems, 'Equipments', 'Revenue', 'Members']
+const adminNavItems = [...baseNavItems, 'Equipments', 'Sport Categories', 'Revenue', 'Members']
 const managerNavItems = ['Bookings', 'Support']
 
 const initialBookingForm = {
@@ -123,6 +124,7 @@ function App() {
   const [supportList, setSupportList] = useState([])
   const [selectedSupportRequest, setSelectedSupportRequest] = useState(null)
   const [facilitiesList, setFacilitiesList] = useState([])
+  const [sportCategories, setSportCategories] = useState([])
   const [isBookingOpen, setIsBookingOpen] = useState(false)
   const [isBookWithAiOpen, setIsBookWithAiOpen] = useState(false)
   const [bookingForm, setBookingForm] = useState(initialBookingForm)
@@ -405,14 +407,28 @@ function App() {
             facility: formatted.some((f) => f.name === prev.facility) ? prev.facility : formatted[0].name
           }))
         }
+
       }
     } catch {
       // Keep static defaults on network failure
     }
   }
 
+  const loadSportCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/sport-categories`)
+      if (response.ok) {
+        const categories = await response.json()
+        if (Array.isArray(categories)) setSportCategories(categories)
+      }
+    } catch {
+      // Facility forms retain their built-in categories when this is unavailable.
+    }
+  }
+
   useEffect(() => {
     loadFacilities()
+    loadSportCategories()
     loadReviews()
     if (authToken) {
       loadBookings(authToken)
@@ -777,10 +793,36 @@ function App() {
     openBooking(facility)
   }
 
+  const createSportCategory = async (name) => {
+    const response = await fetch(`${API_BASE_URL}/sport-categories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ name }),
+    })
+    if (!response.ok) throw new Error(await response.text() || 'Sport category could not be created.')
+    const created = await response.json()
+    setSportCategories((current) => (
+      current.some((category) => category.id === created.id)
+        ? current
+        : [...current, created]
+    ))
+    return created
+  }
+
   const saveFacility = async (facility, id) => {
     let equipmentsJson = facility.equipmentsProvided
     if (typeof equipmentsJson === 'object' && Array.isArray(equipmentsJson)) {
       equipmentsJson = JSON.stringify(equipmentsJson)
+    }
+
+    const createSportCategory = async (name) => {
+      const response = await fetch(`${API_BASE_URL}/sport-categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ name }),
+      })
+      if (!response.ok) throw new Error(await response.text() || 'Sport category could not be created.')
+      return response.json()
     }
     const response = await fetch(`${API_BASE_URL}/Facilities${id ? `/${id}` : ''}`, {
       method: id ? 'PUT' : 'POST',
@@ -797,6 +839,26 @@ function App() {
     })
     if (!response.ok) throw new Error(await response.text() || 'Facility could not be saved.')
     const saved = id ? { ...facility, id } : await response.json()
+    const savedId = saved.id || id
+    let selectedEquipments = facility.equipmentsProvided
+    if (typeof selectedEquipments === 'string') {
+      try {
+        selectedEquipments = JSON.parse(selectedEquipments)
+      } catch {
+        selectedEquipments = []
+      }
+    }
+    const equipmentIds = Array.isArray(selectedEquipments)
+      ? selectedEquipments.map((item) => typeof item === 'object' ? item.id : null).filter(Boolean)
+      : []
+    if (savedId) {
+      const assignmentResponse = await fetch(`${API_BASE_URL}/Facilities/${savedId}/equipment`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ equipmentIds }),
+      })
+      if (!assignmentResponse.ok) throw new Error(await assignmentResponse.text() || 'Equipment assignments could not be saved.')
+    }
     setFacilitiesList((current) => id
       ? current.map((item) => item.id === id ? formatFacility(saved) : item)
       : [...current, formatFacility(saved)])
@@ -949,8 +1011,16 @@ function App() {
       <EquipmentsPage
         apiBaseUrl={API_BASE_URL}
         token={authToken}
+        sportCategories={sportCategories}
         facilities={facilitiesList}
         currentUser={currentUser}
+      />
+    )
+    if (activeTab === 'Sport Categories' && userRole === 'admin') return (
+      <SportCategoriesPage
+        apiBaseUrl={API_BASE_URL}
+        token={authToken}
+        onCategoriesChanged={loadSportCategories}
       />
     )
     if (activeTab === 'Facilities') return selectedFacility ? (
@@ -977,6 +1047,10 @@ function App() {
         onBook={openFacilityBooking}
         onSave={saveFacility}
         onDelete={deleteFacility}
+        onCreateSportCategory={createSportCategory}
+        sportCategories={sportCategories}
+        apiBaseUrl={API_BASE_URL}
+        token={authToken}
       />
     )
     if (activeTab === 'Bookings') return (

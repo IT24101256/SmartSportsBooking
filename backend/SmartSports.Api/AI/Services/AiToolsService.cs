@@ -94,7 +94,8 @@ public class AiToolsService : IAiToolsService
         double? avgRating = reviews.Count > 0 ? Math.Round(reviews.Average(), 1) : null;
 
         var equipments = await _context.Equipments
-            .Where(e => e.FacilityId == facilityId || (e.FacilityId == null && e.SportCategory.ToLower().Contains(facility.Name.ToLower())))
+            .Where(e => e.FacilityEquipments.Any(link => link.FacilityId == facilityId) ||
+                e.SportCategory.ToLower() == facility.SportCategory.ToLower())
             .Select(e => new
             {
                 e.Id,

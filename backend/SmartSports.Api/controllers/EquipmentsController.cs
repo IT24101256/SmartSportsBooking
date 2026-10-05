@@ -26,13 +26,15 @@ public class EquipmentsController : ControllerBase
         [FromQuery] bool? isAvailable)
     {
         var query = _context.Equipments
-            .Include(e => e.Facility)
+            .Include(e => e.SportCategoryNavigation)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(sportCategory) && sportCategory != "All")
         {
             var cat = sportCategory.Trim().ToLower();
-            query = query.Where(e => e.SportCategory.ToLower() == cat);
+            query = query.Where(e => e.SportCategory.Trim().ToLower() == cat ||
+                (e.SportCategoryNavigation != null &&
+                 e.SportCategoryNavigation.Name.Trim().ToLower() == cat));
         }
 
         if (facilityId.HasValue && facilityId.Value > 0)
@@ -41,13 +43,23 @@ public class EquipmentsController : ControllerBase
             var targetFacility = await _context.Facilities.FindAsync(facilityId.Value);
             if (targetFacility != null)
             {
-                var facSport = (targetFacility.Name ?? "").ToLower();
-                query = query.Where(e => e.FacilityId == facilityId.Value ||
-                    (e.FacilityId == null && (e.SportCategory.ToLower() == facSport || facSport.Contains(e.SportCategory.ToLower()))));
+                var facSport = (targetFacility.SportCategory ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(facSport))
+                {
+                    facSport = await _context.SportCategories
+                    .Where(category => category.Id == targetFacility.SportCategoryId)
+                    .Select(category => category.Name)
+                    .FirstOrDefaultAsync() ?? "";
+                }
+                facSport = facSport.ToLower();
+                query = query.Where(e => e.FacilityEquipments.Any(link => link.FacilityId == facilityId.Value) ||
+                    e.SportCategory.Trim().ToLower() == facSport ||
+                    (e.SportCategoryNavigation != null &&
+                     e.SportCategoryNavigation.Name.Trim().ToLower() == facSport));
             }
             else
             {
-                query = query.Where(e => e.FacilityId == facilityId.Value);
+                query = query.Where(e => e.FacilityEquipments.Any(link => link.FacilityId == facilityId.Value));
             }
         }
 
@@ -72,10 +84,12 @@ public class EquipmentsController : ControllerBase
             {
                 e.Id,
                 e.Name,
-                e.SportCategory,
+                SportCategory = string.IsNullOrWhiteSpace(e.SportCategory)
+                    ? e.SportCategoryNavigation != null ? e.SportCategoryNavigation.Name : "Other"
+                    : e.SportCategory,
                 e.HourlyRate,
-                e.FacilityId,
-                FacilityName = e.Facility != null ? e.Facility.Name : null,
+                FacilityId = e.FacilityEquipments.Select(link => (int?)link.FacilityId).FirstOrDefault(),
+                FacilityName = e.FacilityEquipments.Select(link => link.Facility.Name).FirstOrDefault(),
                 e.TotalStock,
                 e.Description,
                 e.IsAvailable,
@@ -90,7 +104,7 @@ public class EquipmentsController : ControllerBase
     public async Task<IActionResult> GetEquipment(int id)
     {
         var eq = await _context.Equipments
-            .Include(e => e.Facility)
+            .Include(e => e.SportCategoryNavigation)
             .FirstOrDefaultAsync(e => e.Id == id);
 
         if (eq == null) return NotFound("Equipment not found.");
@@ -101,8 +115,8 @@ public class EquipmentsController : ControllerBase
             eq.Name,
             eq.SportCategory,
             eq.HourlyRate,
-            eq.FacilityId,
-            FacilityName = eq.Facility != null ? eq.Facility.Name : null,
+            FacilityId = eq.FacilityEquipments.Select(link => (int?)link.FacilityId).FirstOrDefault(),
+            FacilityName = eq.FacilityEquipments.Select(link => link.Facility.Name).FirstOrDefault(),
             eq.TotalStock,
             eq.Description,
             eq.IsAvailable,
@@ -123,12 +137,15 @@ public class EquipmentsController : ControllerBase
         if (request.HourlyRate < 0)
             return BadRequest("Hourly rate cannot be negative.");
 
+        var category = await ResolveCategoryAsync(request.SportCategoryId, request.SportCategory);
+        if (category == null) return BadRequest("A valid sport category is required.");
+
         var equipment = new Equipment
         {
             Name = request.Name.Trim(),
             SportCategory = request.SportCategory.Trim(),
+            SportCategoryId = category.Id,
             HourlyRate = request.HourlyRate,
-            FacilityId = request.FacilityId > 0 ? request.FacilityId : null,
             TotalStock = Math.Max(0, request.TotalStock),
             Description = request.Description?.Trim(),
             IsAvailable = request.IsAvailable,
@@ -160,7 +177,9 @@ public class EquipmentsController : ControllerBase
         equipment.Name = request.Name.Trim();
         equipment.SportCategory = request.SportCategory.Trim();
         equipment.HourlyRate = request.HourlyRate;
-        equipment.FacilityId = request.FacilityId > 0 ? request.FacilityId : null;
+        var category = await ResolveCategoryAsync(request.SportCategoryId, request.SportCategory);
+        if (category == null) return BadRequest("A valid sport category is required.");
+        equipment.SportCategoryId = category.Id;
         equipment.TotalStock = Math.Max(0, request.TotalStock);
         equipment.Description = request.Description?.Trim();
         equipment.IsAvailable = request.IsAvailable;
@@ -181,5 +200,19 @@ public class EquipmentsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private async Task<SportCategory?> ResolveCategoryAsync(int categoryId, string name)
+    {
+        if (categoryId > 0)
+            return await _context.SportCategories.FindAsync(categoryId);
+        var normalized = name.Trim().ToUpperInvariant();
+        if (normalized.Length == 0) return null;
+        var category = await _context.SportCategories.FirstOrDefaultAsync(c => c.NormalizedName == normalized);
+        if (category != null) return category;
+        category = new SportCategory { Name = name.Trim(), NormalizedName = normalized };
+        _context.SportCategories.Add(category);
+        await _context.SaveChangesAsync();
+        return category;
     }
 }

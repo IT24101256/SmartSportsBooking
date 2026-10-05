@@ -424,7 +424,7 @@ class _ReviewModalState extends State<ReviewModal> {
                 onChanged: (_) => setState(() {}),
                 decoration: const InputDecoration(
                   labelText: 'Share details of your session *',
-                  hintText: 'Turf grip, court lighting, cleanliness, gear tension, staff assistance...',
+                  hintText: 'Turf grip, court lighting, cleanliness, equipment condition, staff assistance...',
                   border: OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),

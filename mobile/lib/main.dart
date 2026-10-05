@@ -19,7 +19,6 @@ import 'widgets/book_with_ai_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await ApiService().initialize();
   runApp(const SmartSportsApp());
 }
 
@@ -62,7 +61,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   @override
   void initState() {
     super.initState();
-    _loadAllData();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await _apiService.initialize();
+    if (mounted) {
+      await _loadAllData();
+    }
   }
 
   Future<void> _loadAllData({bool retryOnFailure = true}) async {
@@ -528,18 +534,18 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: const LinearGradient(
-            colors: [Color(0xFF1D4ED8), Color(0xFF0284C7), Color(0xFF20D6C7)],
+            colors: [Color(0xFF7C3AED), Color(0xFFDB2777), Color(0xFFF97316)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1D4ED8).withValues(alpha: 0.5),
+              color: const Color(0xFF7C3AED).withValues(alpha: 0.5),
               blurRadius: 14,
               offset: const Offset(0, 5),
             ),
             BoxShadow(
-              color: const Color(0xFF20D6C7).withValues(alpha: 0.3),
+              color: const Color(0xFFF97316).withValues(alpha: 0.3),
               blurRadius: 10,
             ),
           ],

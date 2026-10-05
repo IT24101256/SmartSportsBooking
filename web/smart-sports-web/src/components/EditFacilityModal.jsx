@@ -6,8 +6,15 @@ export default function EditFacilityModal({
   facility,
   onSave,
   onClose,
+  sportCategories = [],
   apiBaseUrl = 'http://localhost:5187/api',
 }) {
+  const defaultSportCategories = ['Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball']
+  const [availableSportCategories, setAvailableSportCategories] = useState(() => (
+    [...defaultSportCategories, ...sportCategories]
+      .filter((category, index, categories) => categories.indexOf(category) === index)
+      .filter((category) => category !== 'Indoor' && category !== 'Outdoor')
+  ))
   const parseEquipments = (raw) => {
     if (!raw) return []
     if (Array.isArray(raw)) return raw
@@ -29,7 +36,7 @@ export default function EditFacilityModal({
 
   const [form, setForm] = useState(() => ({
     name: facility?.name || '',
-    type: facility?.sportCategory || facility?.type || 'Badminton',
+    sportCategory: facility?.sportCategory || facility?.type || defaultSportCategories[0],
     courtType: facility?.courtType || facility?.courtTag || 'Indoor',
     hourlyRate: facility?.hourlyRate || '',
     description: facility?.description || '',
@@ -46,20 +53,32 @@ export default function EditFacilityModal({
   useEffect(() => {
     if (!isOpen) return
     let active = true
-    fetch(`${apiBaseUrl}/equipments`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
+    const equipmentUrl = new URL(`${apiBaseUrl}/equipments`)
+    if (facility?.id) equipmentUrl.searchParams.set('facilityId', facility.id)
+    const assignedUrl = facility?.id ? `${apiBaseUrl}/Facilities/${facility.id}/equipment` : null
+    Promise.all([
+      fetch(equipmentUrl).then((res) => (res.ok ? res.json() : [])),
+      assignedUrl ? fetch(assignedUrl).then((res) => (res.ok ? res.json() : [])) : Promise.resolve([]),
+    ])
+      .then(([data, assigned]) => {
         if (active && Array.isArray(data)) {
-          setMasterEquipments(data)
+          const normalized = data.map((equipment) => ({
+            ...equipment,
+            sportCategory: equipment.sportCategory || equipment.sportCategoryName || equipment.category?.name || '',
+          }))
+          setMasterEquipments(normalized)
+          if (!isNew && Array.isArray(assigned)) {
+            setEquipments(assigned.map((equipment) => ({ id: equipment.id, name: equipment.name })))
+          }
           // If this is a new facility and equipments list is empty, auto-populate with sport defaults
           if (isNew && (!equipments || equipments.length === 0)) {
-            const curSport = (facility?.sportCategory || facility?.type || 'Badminton').toLowerCase()
-            const matching = data.filter((eq) => {
+            const curSport = (facility?.sportCategory || facility?.type || 'Indoor').toLowerCase()
+            const matching = normalized.filter((eq) => {
               const eqSport = (eq.sportCategory || '').toLowerCase()
               return eqSport === curSport || curSport.includes(eqSport) || eqSport.includes(curSport)
             })
             if (matching.length > 0) {
-              setEquipments(matching.map((m) => ({ name: m.name, hourlyRate: m.hourlyRate })))
+              setEquipments(matching.map((m) => ({ id: m.id, name: m.name })))
             }
           }
         }
@@ -68,41 +87,17 @@ export default function EditFacilityModal({
     return () => {
       active = false
     }
-  }, [isOpen, apiBaseUrl, isNew])
+  }, [isOpen, apiBaseUrl, isNew, facility?.id])
 
   const sportMasterEquipments = useMemo(() => {
-    const curType = (form.type || 'Badminton').toLowerCase()
+    const curType = (form.sportCategory || 'Indoor').toLowerCase()
     return masterEquipments.filter((eq) => {
       const eqSport = (eq.sportCategory || '').toLowerCase()
       return eqSport === curType || curType.includes(eqSport) || eqSport.includes(curType)
     })
-  }, [masterEquipments, form.type])
+  }, [masterEquipments, form.sportCategory])
 
   if (!isOpen) return null
-
-  const sportCategories = [
-    { label: 'Badminton', icon: '🏸' },
-    { label: 'Cricket', icon: '🏏' },
-    { label: 'Football', icon: '⚽' },
-    { label: 'Basketball', icon: '🏀' },
-    { label: 'Swimming', icon: '🏊' },
-    { label: 'Table Tennis', icon: '🏓' },
-    { label: 'Volleyball', icon: '🏐' },
-  ]
-
-  const handleAddEquipment = () => {
-    setEquipments((curr) => [...curr, { name: '', hourlyRate: '' }])
-  }
-
-  const handleUpdateEquipment = (index, field, value) => {
-    setEquipments((curr) =>
-      curr.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
-    )
-  }
-
-  const handleRemoveEquipment = (index) => {
-    setEquipments((curr) => curr.filter((_, idx) => idx !== index))
-  }
 
   const handleAddFaq = () => {
     setForm((curr) => ({
@@ -171,15 +166,14 @@ export default function EditFacilityModal({
 
     const cleanedEquipments = equipments
       .filter((eq) => eq.name.trim())
-      .map((eq) => ({
-        name: eq.name.trim(),
-        hourlyRate: Math.max(0, Number(eq.hourlyRate) || 0),
-      }))
+      .map((eq) => ({ id: eq.id, name: eq.name.trim() }))
 
     setSaving(true)
     try {
       await onSave({
         ...form,
+        sportCategory: form.sportCategory.trim(),
+        type: form.sportCategory.trim(),
         equipmentsProvided: JSON.stringify(cleanedEquipments),
       })
       onClose()
@@ -299,14 +293,12 @@ export default function EditFacilityModal({
             <label className="facility-field">
               <span className="field-label">Sport Category *</span>
               <select
-                value={form.type}
-                onChange={(e) => setForm((c) => ({ ...c, type: e.target.value }))}
+                value={form.sportCategory}
+                onChange={(e) => setForm((c) => ({ ...c, sportCategory: e.target.value }))}
                 className="facility-select"
               >
-                {sportCategories.map((cat) => (
-                  <option key={cat.label} value={cat.label}>
-                    {cat.icon} {cat.label}
-                  </option>
+                {availableSportCategories.map((category) => (
+                  <option key={category} value={category}>{category}</option>
                 ))}
               </select>
             </label>
@@ -336,23 +328,16 @@ export default function EditFacilityModal({
             />
           </label>
 
-          {/* 3.5 Equipments Provided & Hourly Rates */}
+          {/* 3.5 Equipments Provided */}
           <div className="facility-section-block">
             <div className="section-block-header">
               <div>
-                <span className="section-title">Equipments Provided & Hourly Rates ({equipments.length})</span>
+                <span className="section-title">Equipments Provided ({equipments.length})</span>
                 <span className="section-sub">
-                  Define sports gear included or rentable with this facility. Rates are used when admin/manager adds additional equipment to bookings.
+                  Select equipment from the registry. Rental prices are managed on the Equipment page.
                 </span>
               </div>
 
-              <button
-                type="button"
-                className="facility-btn-add-faq"
-                onClick={handleAddEquipment}
-              >
-                + Add Equipment
-              </button>
             </div>
 
             {/* Registry Quick Sync Selector */}
@@ -360,7 +345,7 @@ export default function EditFacilityModal({
               <div className="equip-registry-quick-bar">
                 <div className="registry-bar-header">
                   <span className="registry-bar-title">
-                    🎯 Available from Sports Equipment Registry ({sportMasterEquipments.length} for {form.type}):
+                    🎯 Available from Sports Equipment Registry ({sportMasterEquipments.length} for {form.sportCategory}):
                   </span>
                   <button
                     type="button"
@@ -371,11 +356,11 @@ export default function EditFacilityModal({
                       )
                       const toAdd = sportMasterEquipments
                         .filter((me) => !existingNames.has(me.name.trim().toLowerCase()))
-                        .map((me) => ({ name: me.name, hourlyRate: me.hourlyRate }))
+                        .map((me) => ({ id: me.id, name: me.name }))
                       setEquipments((curr) => [...curr, ...toAdd])
                     }}
                   >
-                    ⚡ Attach All {form.type} Gear
+                    ⚡ Attach All {form.sportCategory} Equipment
                   </button>
                 </div>
                 <div className="registry-pills-wrap">
@@ -399,14 +384,13 @@ export default function EditFacilityModal({
                           } else {
                             setEquipments((curr) => [
                               ...curr,
-                              { name: me.name, hourlyRate: me.hourlyRate },
+                              { id: me.id, name: me.name },
                             ])
                           }
                         }}
                       >
                         <span className="pill-check">{isAdded ? '✓ Added' : '+ Add'}</span>
                         <span className="pill-name">{me.name}</span>
-                        <span className="pill-rate">LKR {Number(me.hourlyRate).toLocaleString()}/hr</span>
                       </button>
                     )
                   })}
@@ -416,41 +400,17 @@ export default function EditFacilityModal({
 
             {equipments.length === 0 ? (
               <div className="facility-faq-empty">
-                <span>No equipment configured yet. Click "+ Add Equipment" to set items and hourly rates.</span>
+                <span>No equipment selected for this facility.</span>
               </div>
             ) : (
               <div className="facility-equipment-builder-list">
                 {equipments.map((eq, idx) => (
                   <div key={idx} className="facility-equipment-builder-row">
-                    <div className="equip-builder-name-col">
-                      <span className="mini-field-label">Equipment Name</span>
-                      <input
-                        type="text"
-                        className="facility-input"
-                        placeholder="e.g. Yonex Carbon Rackets (Pair)"
-                        value={eq.name}
-                        onChange={(e) => handleUpdateEquipment(idx, 'name', e.target.value)}
-                      />
-                    </div>
-                    <div className="equip-builder-rate-col">
-                      <span className="mini-field-label">Hourly Rate (LKR / hr)</span>
-                      <div className="equip-rate-input-wrap">
-                        <span className="rate-prefix">LKR</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="50"
-                          className="facility-input rate-input"
-                          placeholder="e.g. 300"
-                          value={eq.hourlyRate}
-                          onChange={(e) => handleUpdateEquipment(idx, 'hourlyRate', e.target.value)}
-                        />
-                      </div>
-                    </div>
+                    <span>{eq.name}</span>
                     <button
                       type="button"
                       className="facility-faq-delete-btn equip-delete-btn"
-                      onClick={() => handleRemoveEquipment(idx)}
+                      onClick={() => setEquipments((curr) => curr.filter((_, itemIndex) => itemIndex !== idx))}
                       title="Remove equipment item"
                     >
                       ✕

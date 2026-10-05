@@ -43,16 +43,37 @@ public class AppDbContext : DbContext
     public DbSet<BookingWorkflowAuditEvent> BookingWorkflowAuditEvents => Set<BookingWorkflowAuditEvent>();
     public DbSet<BookingEquipmentPayment> BookingEquipmentPayments => Set<BookingEquipmentPayment>();
     public DbSet<Equipment> Equipments => Set<Equipment>();
+    public DbSet<SportCategory> SportCategories => Set<SportCategory>();
+    public DbSet<FacilityEquipment> FacilityEquipments => Set<FacilityEquipment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<SportCategory>()
+            .HasIndex(c => c.NormalizedName)
+            .IsUnique();
+
+        modelBuilder.Entity<Facility>()
+            .HasOne(f => f.SportCategoryNavigation)
+            .WithMany(c => c.Facilities)
+            .HasForeignKey(f => f.SportCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<Equipment>()
-            .HasOne(e => e.Facility)
-            .WithMany()
-            .HasForeignKey(e => e.FacilityId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .HasOne(e => e.SportCategoryNavigation)
+            .WithMany(c => c.Equipments)
+            .HasForeignKey(e => e.SportCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FacilityEquipment>()
+            .HasKey(x => new { x.FacilityId, x.EquipmentId });
+        modelBuilder.Entity<FacilityEquipment>()
+            .HasOne(x => x.Facility).WithMany(f => f.FacilityEquipments)
+            .HasForeignKey(x => x.FacilityId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<FacilityEquipment>()
+            .HasOne(x => x.Equipment).WithMany(e => e.FacilityEquipments)
+            .HasForeignKey(x => x.EquipmentId).OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<BookingEquipmentPayment>()
             .HasOne(p => p.Booking)

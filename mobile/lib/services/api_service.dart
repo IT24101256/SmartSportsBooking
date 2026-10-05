@@ -128,6 +128,9 @@ class ApiService {
       HttpOverrides.global = DevHttpOverrides();
     }
     await _loadPersistedUrl();
+    if (kIsWeb && kDebugMode) {
+      _baseUrl = 'http://localhost:5187';
+    }
     if (!kIsWeb && kDebugMode) {
       await autoDetectBackendUrl();
     }
@@ -404,6 +407,17 @@ class ApiService {
       if (response.statusCode != 200 && response.statusCode != 201 && response.statusCode != 204) {
         throw Exception(_extractErrorMessage(response));
       }
+      final savedId = id ?? (response.body.isNotEmpty ? (jsonDecode(response.body) as Map<String, dynamic>)['id'] as int? : null);
+      if (savedId != null) {
+        final selected = (payload['equipmentsProvided'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map((item) => item['id'])
+            .whereType<int>()
+            .toList();
+        final assignment = await http.put(Uri.parse('$_baseUrl/api/Facilities/$savedId/equipment'),
+            headers: _headers, body: jsonEncode({'equipmentIds': selected})).timeout(const Duration(seconds: 15));
+        if (assignment.statusCode != 200) throw Exception(_extractErrorMessage(assignment));
+      }
     } catch (e) {
       rethrow;
     }
@@ -419,6 +433,32 @@ class ApiService {
     } catch (e) {
       rethrow;
     }
+  }
+
+  Future<List<String>> getSportCategories() async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/api/sport-categories'),
+      headers: _authHeaderOnly,
+    ).timeout(const Duration(seconds: 12));
+    if (response.statusCode != 200) throw Exception(_extractErrorMessage(response));
+    final values = jsonDecode(response.body) as List<dynamic>;
+    return values
+        .whereType<Map<String, dynamic>>()
+        .map((item) => (item['name'] ?? '').toString().trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+  }
+
+  Future<String> createSportCategory(String name) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/sport-categories'),
+      headers: _headers,
+      body: jsonEncode({'name': name.trim()}),
+    ).timeout(const Duration(seconds: 12));
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception(_extractErrorMessage(response));
+    }
+    return ((jsonDecode(response.body) as Map<String, dynamic>)['name'] ?? name).toString();
   }
 
   // ----------------------------------------------------

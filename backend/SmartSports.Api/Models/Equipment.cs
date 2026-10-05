@@ -7,12 +7,12 @@ public class Equipment
     public string Name { get; set; } = string.Empty;
 
     public string SportCategory { get; set; } = string.Empty;
+    public int SportCategoryId { get; set; }
+    public SportCategory? SportCategoryNavigation { get; set; }
 
     public decimal HourlyRate { get; set; }
 
-    public int? FacilityId { get; set; }
-
-    public Facility? Facility { get; set; }
+    public ICollection<FacilityEquipment> FacilityEquipments { get; set; } = new List<FacilityEquipment>();
 
     public int TotalStock { get; set; } = 10;
 

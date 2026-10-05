@@ -11,6 +11,7 @@ using SmartSportsFacilityBooking.Data;
 
 // Import our Facility model.
 using SmartSportsFacilityBooking.Models;
+using SmartSportsFacilityBooking.Dtos.Facility;
 using System.Security.Claims;
 
 // Define this class as an API controller.
@@ -43,7 +44,9 @@ public class FacilitiesController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
-        var facilitiesQuery = _context.Facilities.AsQueryable();
+        var facilitiesQuery = _context.Facilities
+            .Include(facility => facility.SportCategoryNavigation)
+            .AsQueryable();
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLower();
@@ -124,6 +127,7 @@ public class FacilitiesController : ControllerBase
                 {
                     facility.Id,
                     facility.Name,
+                    sportCategory = facility.SportCategoryNavigation != null ? facility.SportCategoryNavigation.Name : facility.SportCategory,
                     facility.IsAvailable,
                     facility.HourlyRate,
                     facility.Description,
@@ -153,7 +157,9 @@ public class FacilitiesController : ControllerBase
     public async Task<IActionResult> GetFacility(int id)
     {
         // Search for a facility using its ID.
-        var facility = await _context.Facilities.FindAsync(id);
+        var facility = await _context.Facilities
+            .Include(item => item.SportCategoryNavigation)
+            .FirstOrDefaultAsync(item => item.Id == id);
 
         if (facility == null)
         {
@@ -184,6 +190,7 @@ public class FacilitiesController : ControllerBase
         {
             facility.Id,
             facility.Name,
+            sportCategory = facility.SportCategoryNavigation != null ? facility.SportCategoryNavigation.Name : facility.SportCategory,
             facility.IsAvailable,
             facility.HourlyRate,
             facility.Description,
@@ -245,12 +252,20 @@ public class FacilitiesController : ControllerBase
             return BadRequest("Facility name is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(facility.SportCategory))
+        {
+            return BadRequest("Sport category is required.");
+        }
+
         if (string.IsNullOrWhiteSpace(facility.CourtType))
         {
             facility.CourtType = "Indoor";
         }
 
-        // Add the new facility to the database context.
+        var category = await ResolveCategoryAsync(facility.SportCategoryId, facility.SportCategory);
+        if (category == null) return BadRequest("A valid sport category is required.");
+        facility.SportCategoryId = category.Id;
+        facility.SportCategory = category.Name;
         _context.Facilities.Add(facility);
 
         // Save the new facility to PostgreSQL.
@@ -288,6 +303,11 @@ public class FacilitiesController : ControllerBase
         }
 
         existingFacility.Name = facility.Name;
+        existingFacility.SportCategory = facility.SportCategory;
+        var category = await ResolveCategoryAsync(facility.SportCategoryId, facility.SportCategory);
+        if (category == null) return BadRequest("A valid sport category is required.");
+        existingFacility.SportCategoryId = category.Id;
+        existingFacility.SportCategory = category.Name;
         existingFacility.IsAvailable = facility.IsAvailable;
         existingFacility.HourlyRate = facility.HourlyRate;
         existingFacility.Description = facility.Description;
@@ -319,6 +339,52 @@ public class FacilitiesController : ControllerBase
 
         // Return HTTP 204 No Content after a successful update.
         return NoContent();
+    }
+
+    [Authorize(Roles = "Admin,Manager")]
+    [HttpPut("{id}/equipment")]
+    public async Task<IActionResult> UpdateEquipment(int id, UpdateFacilityEquipmentRequest request)
+    {
+        var facility = await _context.Facilities.FindAsync(id);
+        if (facility == null) return NotFound();
+        var ids = request.EquipmentIds.Distinct().ToList();
+        var equipment = await _context.Equipments
+            .Include(e => e.SportCategoryNavigation)
+            .Where(e => ids.Contains(e.Id))
+            .ToListAsync();
+        if (equipment.Count != ids.Count) return BadRequest("One or more equipment items were not found.");
+        var facilityCategory = (await _context.SportCategories
+            .Where(category => category.Id == facility.SportCategoryId)
+            .Select(category => category.Name)
+            .FirstOrDefaultAsync() ?? facility.SportCategory).Trim().ToLower();
+        if (equipment.Any(e => (e.SportCategory ?? "").Trim().ToLower() != facilityCategory &&
+            (e.SportCategoryNavigation == null || e.SportCategoryNavigation.Name.Trim().ToLower() != facilityCategory)))
+            return BadRequest("Equipment must belong to the facility sport category.");
+        var existing = await _context.FacilityEquipments.Where(x => x.FacilityId == id).ToListAsync();
+        _context.FacilityEquipments.RemoveRange(existing.Where(x => !ids.Contains(x.EquipmentId)));
+        var existingIds = existing.Select(x => x.EquipmentId).ToHashSet();
+        _context.FacilityEquipments.AddRange(ids.Where(eid => !existingIds.Contains(eid))
+            .Select(eid => new FacilityEquipment { FacilityId = id, EquipmentId = eid }));
+        await _context.SaveChangesAsync();
+        return Ok(ids);
+    }
+
+    [HttpGet("{id}/equipment")]
+    public async Task<IActionResult> GetEquipment(int id) =>
+        Ok(await _context.FacilityEquipments.Where(x => x.FacilityId == id)
+            .Select(x => x.Equipment).ToListAsync());
+
+    private async Task<SportCategory?> ResolveCategoryAsync(int categoryId, string name)
+    {
+        if (categoryId > 0) return await _context.SportCategories.FindAsync(categoryId);
+        var normalized = name.Trim().ToUpperInvariant();
+        if (normalized.Length == 0) return null;
+        var category = await _context.SportCategories.FirstOrDefaultAsync(c => c.NormalizedName == normalized);
+        if (category != null) return category;
+        category = new SportCategory { Name = name.Trim(), NormalizedName = normalized };
+        _context.SportCategories.Add(category);
+        await _context.SaveChangesAsync();
+        return category;
     }
   
     // Handle DELETE requests to /api/Facilities/{id}.

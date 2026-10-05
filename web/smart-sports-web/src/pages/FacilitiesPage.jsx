@@ -3,9 +3,10 @@ import { getFacilityImage } from '../utils/facilityImages'
 import EditFacilityModal from '../components/EditFacilityModal'
 import { isFacilityOccupiedNow, getFacilityRatingStats } from '../utils/facilityStatus'
 
-const emptyFacility = { name: '', hourlyRate: '', description: '', faq: [], images: [], isAvailable: true, courtType: 'Indoor' }
+const emptyFacility = { name: '', sportCategory: '', hourlyRate: '', description: '', faq: [], images: [], isAvailable: true, courtType: 'Indoor' }
+const defaultSportCategories = ['Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball']
 
-export default function FacilitiesPage({ facilities = [], bookings = [], reviews = [], isAdmin, onDetails, onBook, onSave, onDelete }) {
+export default function FacilitiesPage({ facilities = [], bookings = [], reviews = [], isAdmin, onDetails, onBook, onSave, onDelete, onCreateSportCategory, apiBaseUrl, token, sportCategories = [] }) {
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [editing, setEditing] = useState(null)
@@ -16,7 +17,7 @@ export default function FacilitiesPage({ facilities = [], bookings = [], reviews
   const categories = useMemo(() => {
     const set = new Set()
     facilities.forEach((f) => {
-      if (f.type) set.add(f.type)
+      if (f.sportCategory || f.type) set.add(f.sportCategory || f.type)
       else if (f.name?.includes('Badminton')) set.add('Badminton')
       else if (f.name?.includes('Football') || f.name?.includes('Turf')) set.add('Football')
       else if (f.name?.includes('Cricket')) set.add('Cricket')
@@ -24,8 +25,13 @@ export default function FacilitiesPage({ facilities = [], bookings = [], reviews
       else if (f.name?.includes('Tennis')) set.add('Tennis')
       else if (f.name?.includes('Basket')) set.add('Basketball')
     })
-    return ['All', ...Array.from(set)]
-  }, [facilities])
+    const persistedCategories = sportCategories
+      .map((category) => typeof category === 'string' ? category : category.name)
+      .filter(Boolean)
+    return ['All', ...defaultSportCategories, ...persistedCategories, ...Array.from(set)]
+      .filter((category, index, values) => values.indexOf(category) === index)
+      .filter((category) => category !== 'Indoor' && category !== 'Outdoor')
+  }, [facilities, sportCategories])
 
   const openEditor = (facility = emptyFacility, id = 'new') => {
     setEditing(id)
@@ -365,6 +371,10 @@ export default function FacilitiesPage({ facilities = [], bookings = [], reviews
           isOpen={Boolean(editing)}
           isNew={editing === 'new'}
           facility={form}
+          onCreateSportCategory={onCreateSportCategory}
+          sportCategories={sportCategories.map((category) => typeof category === 'string' ? category : category.name)}
+          apiBaseUrl={apiBaseUrl}
+          token={token}
           onSave={async (updatedForm) => {
             await onSave(updatedForm, editing === 'new' ? null : editing)
             setEditing(null)

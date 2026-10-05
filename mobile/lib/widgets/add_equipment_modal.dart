@@ -139,7 +139,7 @@ class _AddEquipmentModalState extends State<AddEquipmentModal> {
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.deepHeading),
                       ),
                       Text(
-                        'Record payment & add gear to booking',
+                        'Record payment & add equipment to booking',
                         style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
                       ),
                     ],
@@ -155,7 +155,7 @@ class _AddEquipmentModalState extends State<AddEquipmentModal> {
 
             // Facility presets if available
             if (widget.facility != null && widget.facility!.equipments.isNotEmpty) ...[
-              const Text('Quick Select Available Gear:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.deepHeading)),
+              const Text('Quick Select Available Equipment:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.deepHeading)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -303,7 +303,7 @@ class _AddEquipmentModalState extends State<AddEquipmentModal> {
               onPressed: _isSubmitting ? null : _handleSubmit,
               child: _isSubmitting
                   ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Record Payment & Issue Gear'),
+                  : const Text('Record Payment & Issue Equipment'),
             ),
           ],
         ),

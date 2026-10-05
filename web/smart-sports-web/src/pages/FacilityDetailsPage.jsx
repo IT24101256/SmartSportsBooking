@@ -165,8 +165,17 @@ export default function FacilityDetailsPage({
         description: eq.description || '',
       }))
 
-    // Combine provided with catalog without duplicates
-    const combined = [...rawProvided]
+    // Hydrate assignments saved as only id/name with the catalog price.
+    const combined = rawProvided.map((item) => {
+      const catalogItem = matchingCatalog.find(
+        (catalog) => (catalog.name || '').toLowerCase() === (item.name || '').toLowerCase()
+      )
+      return catalogItem
+        ? { ...catalogItem, ...item, hourlyRate: item.hourlyRate ?? catalogItem.hourlyRate }
+        : item
+    })
+
+    // Add any matching catalog items not already serialized on the facility.
     matchingCatalog.forEach((item) => {
       if (!combined.some((c) => (c.name || '').toLowerCase() === (item.name || '').toLowerCase())) {
         combined.push(item)

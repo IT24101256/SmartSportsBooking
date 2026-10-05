@@ -18,12 +18,23 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
   bool _isLoading = true;
   String _selectedSport = 'All';
 
-  final List<String> _sports = ['All', 'Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball'];
+  List<String> _sports = ['All'];
 
   @override
   void initState() {
     super.initState();
+    _loadSportCategories();
     _loadEquipments();
+  }
+
+  Future<void> _loadSportCategories() async {
+    try {
+      const defaults = ['Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball'];
+      final categories = await _apiService.getSportCategories();
+      if (mounted) setState(() => _sports = ['All', ...{...defaults, ...categories}]);
+    } catch (_) {
+      if (mounted) setState(() => _sports = ['All', 'Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball']);
+    }
   }
 
   Future<void> _loadEquipments() async {
@@ -76,7 +87,7 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: _sports.contains(sportCat) && sportCat != 'All' ? sportCat : 'Badminton',
+                  initialValue: _sports.contains(sportCat) && sportCat != 'All' ? sportCat : (_sports.length > 1 ? _sports[1] : null),
                   decoration: const InputDecoration(labelText: 'Sport Category', border: OutlineInputBorder()),
                   items: _sports.where((s) => s != 'All').map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                   onChanged: (val) {
@@ -225,7 +236,7 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showEquipmentDialog(),
         icon: const Icon(Icons.add),
-        label: const Text('Add Gear'),
+        label: const Text('Add Equipment'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

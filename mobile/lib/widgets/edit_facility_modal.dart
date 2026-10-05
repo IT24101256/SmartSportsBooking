@@ -44,15 +44,7 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
   bool _isSaving = false;
   String? _error;
 
-  static const List<String> _availableSports = [
-    'Badminton',
-    'Basketball',
-    'Cricket',
-    'Football',
-    'Swimming',
-    'Table Tennis',
-    'Volleyball',
-  ];
+  List<String> _sportCategories = [];
 
   @override
   void initState() {
@@ -65,22 +57,35 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
       text: f != null ? f.equipments.map((e) => e.name).join(', ') : '',
     );
 
-    _sportCategory = f != null
-        ? _availableSports.firstWhere(
-            (s) => s.toLowerCase() == f.type.toLowerCase(),
-            orElse: () => _availableSports.firstWhere(
-              (s) => f.name.toLowerCase().contains(s.toLowerCase()),
-              orElse: () => 'Badminton',
-            ),
-          )
-        : 'Badminton';
+    _sportCategory = f?.type.isNotEmpty == true ? f!.type : 'Badminton';
 
     _courtType = (f != null && f.courtType.isNotEmpty) ? f.courtType : 'Indoor';
     _isAvailable = f?.isAvailable ?? true;
     _images = f != null ? List<String>.from(f.images) : [];
     _faqs = f != null ? List<FacilityFaqItem>.from(f.faq) : [];
 
+    _loadSportCategories();
     _loadMasterEquipments();
+  }
+
+  Future<void> _loadSportCategories() async {
+    try {
+      const defaults = ['Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball'];
+      final categories = await _apiService.getSportCategories();
+      if (mounted) {
+        setState(() {
+          _sportCategories = {...defaults, ...categories, _sportCategory}
+              .where((category) => category != 'Indoor' && category != 'Outdoor')
+              .toList();
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _sportCategories = {
+          'Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball', _sportCategory,
+        }.toList());
+      }
+    }
   }
 
   Future<void> _loadMasterEquipments() async {
@@ -463,13 +468,14 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
                         child: DropdownButtonFormField<String>(
                           initialValue: _sportCategory,
                           decoration: const InputDecoration(labelText: 'Sport Category', border: OutlineInputBorder()),
-                          items: _availableSports.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                          items: (_sportCategories.isEmpty ? <String>[_sportCategory] : _sportCategories)
+                              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                              .toList(),
                           onChanged: (val) {
                             if (val != null) setState(() => _sportCategory = val);
                           },
                         ),
                       ),
-                      const SizedBox(width: 12),
                       Expanded(
                         child: DropdownButtonFormField<String>(
                           initialValue: _courtType,
@@ -608,7 +614,7 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
                   TextField(
                     controller: _equipCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Equipments Provided (Free or default gear)',
+                      labelText: 'Equipment Provided (Free or default equipment)',
                       hintText: 'e.g. Badminton Rackets, Feather Shuttles, Court Net',
                       border: OutlineInputBorder(),
                     ),
@@ -623,17 +629,25 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
                       spacing: 6,
                       runSpacing: 6,
                       children: _masterEquipments.take(8).map((eq) {
+                        final selected = _equipCtrl.text.split(',').map((item) => item.trim()).contains(eq.name);
                         return ActionChip(
-                          avatar: const Icon(Icons.add, size: 14, color: AppTheme.primary),
-                          label: Text('${eq.name} (LKR ${eq.hourlyRate.toInt()}/h)', style: const TextStyle(fontSize: 11)),
-                          onPressed: () {
-                            final current = _equipCtrl.text.trim();
-                            if (current.isEmpty) {
-                              _equipCtrl.text = eq.name;
-                            } else if (!current.contains(eq.name)) {
-                              _equipCtrl.text = '$current, ${eq.name}';
-                            }
-                          },
+                        avatar: Icon(selected ? Icons.check : Icons.add, size: 14, color: selected ? AppTheme.success : AppTheme.primary),
+                        label: Text(eq.name, style: const TextStyle(fontSize: 11)),
+                        onPressed: () {
+                          final current = _equipCtrl.text.trim();
+                          if (selected) {
+                            _equipCtrl.text = current
+                                .split(',')
+                                .map((item) => item.trim())
+                                .where((item) => item != eq.name && item.isNotEmpty)
+                                .join(', ');
+                          } else if (current.isEmpty) {
+                            _equipCtrl.text = eq.name;
+                          } else if (!current.contains(eq.name)) {
+                            _equipCtrl.text = '$current, ${eq.name}';
+                          }
+                          setState(() {});
+                        },
                         );
                       }).toList(),
                     ),

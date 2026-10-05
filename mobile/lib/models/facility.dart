@@ -101,7 +101,7 @@ class Facility {
   factory Facility.fromJson(Map<String, dynamic> json) {
     final id = json['id'] is int ? json['id'] as int : int.tryParse(json['id']?.toString() ?? '0') ?? 0;
     final name = json['name']?.toString() ?? 'Facility';
-    final type = json['type']?.toString() ?? json['sportCategory']?.toString() ?? 'Sports';
+    final type = json['sportCategory']?.toString() ?? json['type']?.toString() ?? 'Sports';
     final courtType = json['courtType']?.toString() ?? json['courtTag']?.toString() ?? 'Indoor';
     final hourlyRate = json['hourlyRate'] != null ? (json['hourlyRate'] as num).toDouble() : 0.0;
     final isAvailable = json['isAvailable'] == true;

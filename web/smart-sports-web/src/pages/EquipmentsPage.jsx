@@ -1,21 +1,11 @@
 import { useState, useMemo, useEffect } from 'react'
 
-const SPORT_CATEGORIES = [
-  { label: 'All', icon: '⚡' },
-  { label: 'Badminton', icon: '🏸' },
-  { label: 'Cricket', icon: '🏏' },
-  { label: 'Football', icon: '⚽' },
-  { label: 'Basketball', icon: '🏀' },
-  { label: 'Swimming', icon: '🏊' },
-  { label: 'Table Tennis', icon: '🏓' },
-  { label: 'Volleyball', icon: '🏐' },
-]
-
 export default function EquipmentsPage({
   apiBaseUrl,
   token,
   facilities = [],
   currentUser,
+  sportCategories = [],
 }) {
   const [equipments, setEquipments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -28,15 +18,21 @@ export default function EquipmentsPage({
   const [editingEquipment, setEditingEquipment] = useState(null)
   const [form, setForm] = useState({
     name: '',
-    sportCategory: 'Badminton',
+    sportCategory: '',
     hourlyRate: 250,
-    facilityId: '',
     totalStock: 10,
     description: '',
     isAvailable: true,
   })
   const [saving, setSaving] = useState(false)
   const [modalFeedback, setModalFeedback] = useState('')
+  const defaultSportCategories = ['Badminton', 'Basketball', 'Cricket', 'Football', 'Swimming', 'Table Tennis', 'Volleyball']
+  const availableSportCategories = useMemo(() => (
+    [...defaultSportCategories, ...sportCategories.map((category) => typeof category === 'string' ? category : category.name)]
+      .filter(Boolean)
+      .filter((category, index, categories) => categories.indexOf(category) === index)
+  ), [sportCategories])
+  const sportCategoryOptions = ['All', ...availableSportCategories]
 
   const fetchEquipments = async () => {
     setLoading(true)
@@ -100,7 +96,6 @@ export default function EquipmentsPage({
       name: '',
       sportCategory: selectedSport !== 'All' ? selectedSport : 'Badminton',
       hourlyRate: 250,
-      facilityId: '',
       totalStock: 15,
       description: '',
       isAvailable: true,
@@ -115,7 +110,6 @@ export default function EquipmentsPage({
       name: eq.name || '',
       sportCategory: eq.sportCategory || 'Badminton',
       hourlyRate: eq.hourlyRate || 0,
-      facilityId: eq.facilityId || '',
       totalStock: eq.totalStock || 10,
       description: eq.description || '',
       isAvailable: eq.isAvailable !== false,
@@ -166,7 +160,6 @@ export default function EquipmentsPage({
         name: form.name.trim(),
         sportCategory: form.sportCategory.trim(),
         hourlyRate: Number(form.hourlyRate) || 0,
-        facilityId: form.facilityId ? Number(form.facilityId) : null,
         totalStock: Math.max(0, parseInt(form.totalStock, 10) || 0),
         description: form.description.trim() || null,
         isAvailable: form.isAvailable,
@@ -197,10 +190,7 @@ export default function EquipmentsPage({
   }
 
   const getSportIcon = (sport = '') => {
-    const found = SPORT_CATEGORIES.find(
-      (c) => c.label.toLowerCase() === sport.toLowerCase()
-    )
-    return found ? found.icon : '🏅'
+    return '🏅'
   }
 
   return (
@@ -281,20 +271,20 @@ export default function EquipmentsPage({
       <section className="equip-filter-section">
         {/* Sport Pills */}
         <div className="equip-sports-pills-bar">
-          {SPORT_CATEGORIES.map((cat) => (
+          {sportCategoryOptions.map((category) => (
             <button
-              key={cat.label}
+              key={category}
               type="button"
-              className={`sport-pill-btn ${selectedSport === cat.label ? 'active' : ''}`}
-              onClick={() => setSelectedSport(cat.label)}
+              className={`sport-pill-btn ${selectedSport === category ? 'active' : ''}`}
+              onClick={() => setSelectedSport(category)}
             >
-              <span className="pill-icon">{cat.icon}</span>
-              <span className="pill-text">{cat.label}</span>
-              {cat.label === 'All' ? (
+              <span className="pill-icon">{category === 'All' ? '⚡' : '🏅'}</span>
+              <span className="pill-text">{category}</span>
+              {category === 'All' ? (
                 <span className="pill-count">{equipments.length}</span>
               ) : (
                 <span className="pill-count">
-                  {equipments.filter((e) => e.sportCategory?.toLowerCase() === cat.label.toLowerCase()).length}
+                  {equipments.filter((e) => e.sportCategory?.toLowerCase() === category.toLowerCase()).length}
                 </span>
               )}
             </button>
@@ -491,41 +481,16 @@ export default function EquipmentsPage({
               {/* Sport Category & Linked Venue */}
               <div className="form-double-col">
                 <label className="facility-field">
-                  <span className="field-label">Sport Discipline *</span>
+                  <span className="field-label">Sport Category *</span>
                   <select
                     className="facility-select"
                     value={form.sportCategory}
                     onChange={(e) => setForm((c) => ({ ...c, sportCategory: e.target.value }))}
                     required
                   >
-                    {SPORT_CATEGORIES.filter((c) => c.label !== 'All').map((cat) => (
-                      <option key={cat.label} value={cat.label}>
-                        {cat.icon} {cat.label}
-                      </option>
+                    {availableSportCategories.map((category) => (
+                      <option key={category} value={category}>{category}</option>
                     ))}
-                  </select>
-                </label>
-
-                <label className="facility-field">
-                  <span className="field-label">Specific Facility (Optional)</span>
-                  <select
-                    className="facility-select"
-                    value={form.facilityId}
-                    onChange={(e) => setForm((c) => ({ ...c, facilityId: e.target.value }))}
-                  >
-                    <option value="">🌐 Universal (All {form.sportCategory} Courts)</option>
-                    {facilities
-                      .filter((f) => {
-                        const cat = (form.sportCategory || '').toLowerCase()
-                        const fn = (f.name || '').toLowerCase()
-                        const ft = (f.type || f.sportCategory || '').toLowerCase()
-                        return fn.includes(cat) || ft.includes(cat) || cat.includes(ft)
-                      })
-                      .map((fac) => (
-                        <option key={fac.id} value={fac.id}>
-                          🏟️ {fac.name}
-                        </option>
-                      ))}
                   </select>
                 </label>
               </div>

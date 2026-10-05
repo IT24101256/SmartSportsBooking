@@ -10,6 +10,10 @@ public class Facility
     // This stores the facility name.
     public string Name { get; set; } = string.Empty;
 
+    public string SportCategory { get; set; } = string.Empty;
+    public int SportCategoryId { get; set; }
+    public SportCategory? SportCategoryNavigation { get; set; }
+
     public decimal HourlyRate { get; set; }
 
     public string Description { get; set; } = string.Empty;
@@ -32,4 +36,5 @@ public class Facility
 
     // This represents bookings made for the facility.
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
-} 
+    public ICollection<FacilityEquipment> FacilityEquipments { get; set; } = new List<FacilityEquipment>();
+}

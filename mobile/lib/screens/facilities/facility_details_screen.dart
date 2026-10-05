@@ -445,7 +445,7 @@ class _FacilityDetailsScreenState extends State<FacilityDetailsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Available Gear Rental', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppTheme.deepHeading)),
+                        const Text('Available Equipment Rental', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppTheme.deepHeading)),
                         Text('${f.equipments.length} items', style: const TextStyle(color: AppTheme.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
                       ],
                     ),
