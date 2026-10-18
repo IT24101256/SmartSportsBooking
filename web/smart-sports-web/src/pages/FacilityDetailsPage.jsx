@@ -80,6 +80,18 @@ export default function FacilityDetailsPage({
   const [activeImagePreview, setActiveImagePreview] = useState(null)
   const [catalogEquipments, setCatalogEquipments] = useState([])
 
+  const resolvePhotoSrc = (photo) => {
+    if (!photo) return ''
+    if (photo.startsWith('data:image') || photo.startsWith('http://') || photo.startsWith('https://')) {
+      return photo
+    }
+    const origin = apiBaseUrl
+      ? apiBaseUrl.replace(/\/api\/?$/, '')
+      : 'https://smartsportsbooking.onrender.com'
+    const cleanPath = photo.startsWith('/') ? photo : `/${photo}`
+    return `${origin}${cleanPath}`
+  }
+
   // Fetch catalog equipments for the venue sport
   useEffect(() => {
     if (!apiBaseUrl) return
@@ -492,15 +504,24 @@ export default function FacilityDetailsPage({
 
                   {review.photos?.length > 0 && (
                     <div className="review-attached-photos">
-                      {review.photos.map((photo) => (
-                        <img
-                          key={photo}
-                          src={`${apiOrigin}${photo}`}
-                          alt="Member review photo"
-                          className="review-thumb-img"
-                          onClick={() => setActiveImagePreview(`${apiOrigin}${photo}`)}
-                        />
-                      ))}
+                      {review.photos.map((photo, pIdx) => {
+                        const fullUrl = resolvePhotoSrc(photo)
+                        return (
+                          <img
+                            key={photo || pIdx}
+                            src={fullUrl}
+                            alt="Member review photo"
+                            className="review-thumb-img"
+                            style={{ cursor: 'pointer' }}
+                            title="Click to view full photo"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null
+                              e.currentTarget.src = getFacilityImage(facility || { name: review.facilityName })
+                            }}
+                            onClick={() => setActiveImagePreview(e.currentTarget.src || fullUrl)}
+                          />
+                        )
+                      })}
                     </div>
                   )}
 

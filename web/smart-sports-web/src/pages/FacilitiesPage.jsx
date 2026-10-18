@@ -121,7 +121,7 @@ export default function FacilitiesPage({ facilities = [], bookings = [], reviews
           </h1>
 
           <p className="facilities-hero-narrative">
-            Discover tournament-grade sports infrastructure engineered for athletes, competitive leagues, and community champions. From BWF-standard indoor hardwood badminton courts and FIFA-grade astroturf to Olympic-size 50m heated pools and floodlit cricket grounds—each facility features automated scheduling, live slot verification, and 100% free rain-check protection.
+            Find the perfect sports facility for you, from badminton courts and football fields to swimming pools and cricket grounds. Easily book available time slots and enjoy free rain-check protection.
           </p>
         </div>
       </section>

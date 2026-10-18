@@ -1,9 +1,25 @@
 import { useEffect, useState, useRef } from 'react'
+import { getFacilityImage } from '../utils/facilityImages'
 
-const emptyForm = { name: '', rating: 0, review: '', photos: [] }
+export default function ReviewModal({
+  booking,
+  existingReview,
+  apiBaseUrl = '',
+  currentUser,
+  onSubmit,
+  onClose,
+}) {
+  const isEditing = Boolean(
+    existingReview &&
+    (existingReview.bookingId !== undefined ||
+     existingReview.rating !== undefined ||
+     typeof existingReview.review === 'string') &&
+    (existingReview.id || existingReview.reviewId)
+  )
 
-export default function ReviewModal({ booking, existingReview, onSubmit, onClose }) {
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState({ name: '', rating: 0, review: '' })
+  const [existingPhotos, setExistingPhotos] = useState([])
+  const [newPhotos, setNewPhotos] = useState([])
   const [hoverRating, setHoverRating] = useState(0)
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -11,12 +27,27 @@ export default function ReviewModal({ booking, existingReview, onSubmit, onClose
 
   useEffect(() => {
     setForm({
-      name: existingReview?.name || '',
-      rating: existingReview?.rating || 0,
-      review: existingReview?.review || '',
-      photos: [],
+      name: (isEditing ? existingReview?.name : (currentUser?.name || booking?.customerName)) || '',
+      rating: isEditing ? (existingReview?.rating || 0) : 0,
+      review: isEditing ? (existingReview?.review || '') : '',
     })
-  }, [existingReview])
+    const rawPhotos = isEditing ? (existingReview?.photos || existingReview?.photoPaths || []) : []
+    setExistingPhotos(Array.isArray(rawPhotos) ? [...rawPhotos] : [])
+    setNewPhotos([])
+    setFeedback('')
+  }, [existingReview, isEditing, currentUser, booking])
+
+  const resolvePhotoSrc = (photo) => {
+    if (!photo) return ''
+    if (photo.startsWith('data:image') || photo.startsWith('http://') || photo.startsWith('https://')) {
+      return photo
+    }
+    const origin = apiBaseUrl
+      ? apiBaseUrl.replace(/\/api\/?$/, '')
+      : 'https://smartsportsbooking.onrender.com'
+    const cleanPath = photo.startsWith('/') ? photo : `/${photo}`
+    return `${origin}${cleanPath}`
+  }
 
   const ratingDescriptions = {
     1: '😞 Poor — Significant issues with court or service',
@@ -26,39 +57,39 @@ export default function ReviewModal({ booking, existingReview, onSubmit, onClose
     5: '🤩 Outstanding — Professional tournament-grade experience!',
   }
 
+  const totalPhotosCount = existingPhotos.length + newPhotos.length
+
   // Handle adding new files up to max 4 photos
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files || [])
     if (!selectedFiles.length) return
 
-    setForm((current) => {
-      const remainingSlots = 4 - current.photos.length
-      if (remainingSlots <= 0) {
-        setFeedback('Maximum 4 photos allowed.')
-        return current
-      }
+    const remainingSlots = 4 - totalPhotosCount
+    if (remainingSlots <= 0) {
+      setFeedback('Maximum 4 photos allowed per review.')
+      return
+    }
 
-      const validFiles = selectedFiles.filter((f) => f.type.startsWith('image/'))
-      if (validFiles.length < selectedFiles.length) {
-        setFeedback('Only image files (PNG, JPG, WEBP) are supported.')
-      } else {
-        setFeedback('')
-      }
+    const validFiles = selectedFiles.filter((f) => f.type.startsWith('image/'))
+    if (validFiles.length < selectedFiles.length) {
+      setFeedback('Only image files (PNG, JPG, WEBP) are supported.')
+    } else {
+      setFeedback('')
+    }
 
-      const newPhotos = [...current.photos, ...validFiles.slice(0, remainingSlots)]
-      return { ...current, photos: newPhotos }
-    })
-
-    // Reset input value so same files can be re-selected if removed
+    setNewPhotos((current) => [...current, ...validFiles.slice(0, remainingSlots)])
     e.target.value = ''
   }
 
-  // Remove photo at index
-  const handleRemovePhoto = (indexToRemove) => {
-    setForm((current) => ({
-      ...current,
-      photos: current.photos.filter((_, idx) => idx !== indexToRemove),
-    }))
+  // Remove an existing photo
+  const handleRemoveExistingPhoto = (indexToRemove) => {
+    setExistingPhotos((current) => current.filter((_, idx) => idx !== indexToRemove))
+    setFeedback('')
+  }
+
+  // Remove a newly selected photo
+  const handleRemoveNewPhoto = (indexToRemove) => {
+    setNewPhotos((current) => current.filter((_, idx) => idx !== indexToRemove))
     setFeedback('')
   }
 
@@ -72,7 +103,7 @@ export default function ReviewModal({ booking, existingReview, onSubmit, onClose
       setFeedback('Please write a brief review of your experience.')
       return
     }
-    if (form.photos.length > 4) {
+    if (totalPhotosCount > 4) {
       setFeedback('A maximum of 4 photos is allowed.')
       return
     }
@@ -80,7 +111,15 @@ export default function ReviewModal({ booking, existingReview, onSubmit, onClose
     setSubmitting(true)
     setFeedback('')
     try {
-      await onSubmit({ ...form, bookingId: booking.id, reviewId: existingReview?.id })
+      await onSubmit({
+        name: form.name,
+        rating: form.rating,
+        review: form.review,
+        existingPhotos,
+        photos: newPhotos,
+        bookingId: booking?.id || (isEditing ? existingReview?.bookingId : undefined),
+        reviewId: isEditing ? (existingReview?.id || existingReview?.reviewId) : undefined,
+      })
       onClose()
     } catch (err) {
       setFeedback(err?.message || 'Failed to submit review.')
@@ -90,6 +129,7 @@ export default function ReviewModal({ booking, existingReview, onSubmit, onClose
   }
 
   const activeStars = hoverRating || form.rating
+  const facilityName = booking?.facilityName || booking?.facility?.name || booking?.name || existingReview?.facilityName || 'Championship Arena'
 
   return (
     <div className="booking-modal-backdrop" onClick={onClose}>
@@ -105,13 +145,13 @@ export default function ReviewModal({ booking, existingReview, onSubmit, onClose
               <span>VERIFIED MEMBER REVIEW</span>
             </div>
             <h3 className="modal-headline">
-              {existingReview ? 'Update Your Match Review' : 'Rate Your Match Experience'}
+              {isEditing ? 'Update Your Match Review' : 'Rate Your Match Experience'}
             </h3>
             <div className="review-booking-context-card">
               <div className="booking-context-icon">🏟️</div>
               <div className="booking-context-info">
-                <strong>{booking.facilityName || booking.facility?.name || booking.name || 'Championship Arena'}</strong>
-                <span>{booking.date ? `Session: ${booking.date}` : 'Verified Booking'}</span>
+                <strong>{facilityName}</strong>
+                <span>{booking?.date ? `Session: ${booking.date}` : 'Verified Booking'}</span>
               </div>
             </div>
           </div>
@@ -225,7 +265,7 @@ export default function ReviewModal({ booking, existingReview, onSubmit, onClose
             <div className="field-label-row">
               <label>
                 <span className="field-label-text">Match Photos</span>
-                <span className="field-hint-pill">{form.photos.length} / 4 attached</span>
+                <span className="field-hint-pill">{totalPhotosCount} / 4 attached</span>
               </label>
               <span className="photo-max-hint">Max 4 images (PNG, JPG, WEBP)</span>
             </div>
@@ -242,34 +282,60 @@ export default function ReviewModal({ booking, existingReview, onSubmit, onClose
             />
 
             {/* Attached Photos Thumbnail Preview Grid */}
-            {form.photos.length > 0 && (
+            {totalPhotosCount > 0 && (
               <div className="review-photos-preview-grid">
-                {form.photos.map((file, idx) => {
+                {/* Existing Photos from previous submission */}
+                {existingPhotos.map((photoUrl, idx) => (
+                  <div key={`existing-${idx}`} className="photo-preview-thumbnail-card">
+                    <img
+                      src={resolvePhotoSrc(photoUrl)}
+                      alt={`Attached photo ${idx + 1}`}
+                      className="preview-img-thumb"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = getFacilityImage({ name: facilityName })
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="photo-thumb-remove-btn"
+                      onClick={() => handleRemoveExistingPhoto(idx)}
+                      title="Remove photo"
+                      aria-label="Remove photo"
+                    >
+                      ✕
+                    </button>
+                    <span className="photo-thumb-number">#{idx + 1}</span>
+                  </div>
+                ))}
+
+                {/* Newly Selected Photos */}
+                {newPhotos.map((file, idx) => {
                   const previewUrl = URL.createObjectURL(file)
                   return (
-                    <div key={idx} className="photo-preview-thumbnail-card">
+                    <div key={`new-${idx}`} className="photo-preview-thumbnail-card">
                       <img
                         src={previewUrl}
-                        alt={`Upload preview ${idx + 1}`}
+                        alt={`New upload preview ${idx + 1}`}
                         className="preview-img-thumb"
                         onLoad={() => URL.revokeObjectURL(previewUrl)}
                       />
                       <button
                         type="button"
                         className="photo-thumb-remove-btn"
-                        onClick={() => handleRemovePhoto(idx)}
+                        onClick={() => handleRemoveNewPhoto(idx)}
                         title="Remove photo"
                         aria-label="Remove photo"
                       >
                         ✕
                       </button>
-                      <span className="photo-thumb-number">#{idx + 1}</span>
+                      <span className="photo-thumb-number">#{existingPhotos.length + idx + 1}</span>
                     </div>
                   )
                 })}
 
                 {/* Slot to add more if under 4 photos */}
-                {form.photos.length < 4 && (
+                {totalPhotosCount < 4 && (
                   <button
                     type="button"
                     className="photo-preview-add-more-btn"
@@ -280,14 +346,14 @@ export default function ReviewModal({ booking, existingReview, onSubmit, onClose
                       <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
                     <span>Add Photo</span>
-                    <small>({4 - form.photos.length} remaining)</small>
+                    <small>({4 - totalPhotosCount} remaining)</small>
                   </button>
                 )}
               </div>
             )}
 
             {/* Empty Upload Dropzone if no photos yet */}
-            {form.photos.length === 0 && (
+            {totalPhotosCount === 0 && (
               <div
                 className="review-upload-dropzone"
                 onClick={() => fileInputRef.current?.click()}
@@ -330,7 +396,7 @@ export default function ReviewModal({ booking, existingReview, onSubmit, onClose
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                   </svg>
-                  <span>{existingReview ? 'Update Verified Review' : 'Submit Verified Review'}</span>
+                  <span>{isEditing ? 'Update Verified Review' : 'Submit Verified Review'}</span>
                 </>
               )}
             </button>

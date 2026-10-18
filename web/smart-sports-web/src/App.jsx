@@ -650,11 +650,41 @@ function App() {
     }
   }
 
-  const openReview = (booking) => {
-    const selectedBooking = booking.bookingId
-      ? bookingsList.find((item) => item.id === booking.bookingId) || { id: booking.bookingId, name: `${booking.facilityName || 'Facility'} • booking`, review: booking }
-      : booking
-    if (requireLogin('Please log in before leaving a review.')) setReviewBooking(selectedBooking)
+  const openReview = (bookingOrReview) => {
+    if (!requireLogin('Please log in before leaving a review.')) return
+    if (!bookingOrReview) return
+
+    let matchedBooking = null
+    let review = null
+
+    // Determine if bookingOrReview is an existing Review or a Booking object
+    const isReviewObject = Boolean(
+      bookingOrReview.bookingId ||
+      (bookingOrReview.rating !== undefined && typeof bookingOrReview.review === 'string')
+    )
+
+    if (isReviewObject) {
+      review = bookingOrReview
+      const bId = bookingOrReview.bookingId
+      matchedBooking = bookingsList.find((item) => item.id === bId) || {
+        id: bId,
+        facilityName: bookingOrReview.facilityName || 'Facility',
+      }
+    } else {
+      // It is a Booking object
+      matchedBooking = bookingOrReview
+      review =
+        (bookingOrReview.review && bookingOrReview.review.id ? bookingOrReview.review : null) ||
+        reviewsList.find((r) => r.bookingId === bookingOrReview.id) ||
+        null
+    }
+
+    const bookingId = matchedBooking?.id || bookingOrReview.bookingId || bookingOrReview.id
+    const selectedBooking = {
+      ...(matchedBooking || { id: bookingId, name: `${bookingOrReview.facilityName || 'Facility'} • booking` }),
+      review: review || null,
+    }
+    setReviewBooking(selectedBooking)
   }
 
   const saveReview = async (form) => {
@@ -663,21 +693,55 @@ function App() {
     payload.append('Name', form.name)
     payload.append('Rating', String(form.rating))
     payload.append('Review', form.review)
-    form.photos.forEach((photo) => payload.append('Photos', photo))
-    const response = await fetch(`${API_BASE_URL}/reviews${form.reviewId ? `/${form.reviewId}` : ''}`, {
-      method: form.reviewId ? 'PUT' : 'POST',
+    if (form.photos && Array.isArray(form.photos)) {
+      form.photos.forEach((photo) => {
+        if (photo instanceof File) {
+          payload.append('Photos', photo)
+        }
+      })
+    }
+    if (form.existingPhotos && Array.isArray(form.existingPhotos)) {
+      form.existingPhotos.forEach((photo) => payload.append('ExistingPhotos', photo))
+    }
+
+    const isUpdate = Boolean(form.reviewId)
+    const url = isUpdate ? `${API_BASE_URL}/reviews/${form.reviewId}` : `${API_BASE_URL}/reviews`
+    const method = isUpdate ? 'PUT' : 'POST'
+
+    const response = await fetch(url, {
+      method,
       headers: { Authorization: `Bearer ${authToken}` },
       body: payload,
     })
+
     if (!response.ok) {
-      setBookingNotice(await response.text() || 'The review could not be saved.')
-      return
+      let errorMessage = 'The review could not be saved.'
+      try {
+        const errJson = await response.json()
+        errorMessage = errJson.detail || errJson.title || errorMessage
+      } catch {
+        try {
+          const text = await response.text()
+          if (text) errorMessage = text
+        } catch {}
+      }
+      setBookingNotice(errorMessage)
+      throw new Error(errorMessage)
     }
+
     const savedReview = await response.json()
-    setReviewsList((current) => form.reviewId ? current.map((review) => review.id === savedReview.id ? savedReview : review) : [savedReview, ...current])
-    setBookingsList((current) => current.map((booking) => booking.id === savedReview.bookingId ? { ...booking, review: savedReview } : booking))
+    setReviewsList((current) =>
+      isUpdate
+        ? current.map((review) => (review.id === savedReview.id ? savedReview : review))
+        : [savedReview, ...current]
+    )
+    setBookingsList((current) =>
+      current.map((booking) =>
+        booking.id === savedReview.bookingId ? { ...booking, review: savedReview } : booking
+      )
+    )
     setReviewBooking(null)
-    setBookingNotice(form.reviewId ? 'Review updated.' : 'Review submitted. Thanks for sharing your experience.')
+    setBookingNotice(isUpdate ? 'Review updated.' : 'Review submitted. Thanks for sharing your experience.')
   }
 
   const deleteReview = async (review) => {
@@ -1360,7 +1424,16 @@ function App() {
 
       {isBookingOpen && <BookingWizard facilities={facilitiesList} initialFacilityName={bookingForm.facility} initialDate={bookingForm.date} initialStartTime={bookingForm.time} initialHoursNeeded={bookingForm.hoursNeeded} customer={currentUser} token={authToken} apiBaseUrl={API_BASE_URL} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsBookingOpen(false)} onCreated={handleWizardCreated} />}
 
-      {reviewBooking && <ReviewModal booking={reviewBooking} existingReview={reviewBooking.review} onSubmit={saveReview} onClose={() => setReviewBooking(null)} />}
+      {reviewBooking && (
+        <ReviewModal
+          booking={reviewBooking}
+          existingReview={reviewBooking.review}
+          apiBaseUrl={API_BASE_URL}
+          currentUser={currentUser}
+          onSubmit={saveReview}
+          onClose={() => setReviewBooking(null)}
+        />
+      )}
 
       <CreateTicketModal
         isOpen={isTicketOpen}

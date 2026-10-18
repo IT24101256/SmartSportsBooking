@@ -189,6 +189,7 @@ class _ReviewModalState extends State<ReviewModal> {
           name: name,
           rating: _rating,
           review: reviewText,
+          existingPhotos: _existingPhotoPaths,
           photos: _selectedPhotos,
         );
       } else {
@@ -472,6 +473,7 @@ class _ReviewModalState extends State<ReviewModal> {
                                   width: 72,
                                   height: 72,
                                   fit: BoxFit.cover,
+                                  facilityName: rev?.facilityName ?? widget.booking?.facilityName,
                                 ),
                               ),
                               Positioned(

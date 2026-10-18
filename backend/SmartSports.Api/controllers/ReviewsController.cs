@@ -73,8 +73,27 @@ public class ReviewsController : ControllerBase
     {
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
-        var review = await _context.BookingReviews.Include(item => item.Booking!).ThenInclude(booking => booking.Facility).FirstOrDefaultAsync(item => item.Id == id);
-        if (review == null) return NotFound();
+        var review = await _context.BookingReviews
+            .Include(item => item.Booking!)
+                .ThenInclude(booking => booking.Facility)
+            .FirstOrDefaultAsync(item => item.Id == id);
+
+        // Resilient fallback: If no review matches review.Id, check if id was sent as bookingId for an existing review
+        if (review == null)
+        {
+            review = await _context.BookingReviews
+                .Include(item => item.Booking!)
+                    .ThenInclude(booking => booking.Facility)
+                .FirstOrDefaultAsync(item => item.BookingId == id);
+        }
+
+        if (review == null)
+        {
+            var isBooking = await _context.Bookings.AnyAsync(b => b.Id == id);
+            return NotFound(isBooking
+                ? $"No review exists for booking #{id} yet. To submit a review, use POST /api/reviews."
+                : $"Review #{id} was not found.");
+        }
         if (review.UserId != userId.Value) return Forbid();
         if (request.Rating is < 1 or > 5) return BadRequest("Rating must be between 1 and 5.");
         if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Review)) return BadRequest("Name and review are required.");
@@ -84,7 +103,41 @@ public class ReviewsController : ControllerBase
         review.Name = request.Name.Trim();
         review.Rating = request.Rating;
         review.Review = request.Review.Trim();
-        if (request.Photos?.Count > 0) review.PhotoPathsJson = await SavePhotos(request.Photos);
+
+        // Handle keeping existing photos and adding new photos
+        var currentPaths = JsonSerializer.Deserialize<List<string>>(review.PhotoPathsJson) ?? [];
+        var retainedPaths = new List<string>();
+
+        if (request.ExistingPhotos != null)
+        {
+            foreach (var ep in request.ExistingPhotos)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(ep, @"/photos/(\d+)");
+                if (match.Success && int.TryParse(match.Groups[1].Value, out var idx) && idx >= 0 && idx < currentPaths.Count)
+                {
+                    retainedPaths.Add(currentPaths[idx]);
+                }
+                else if (currentPaths.Contains(ep))
+                {
+                    retainedPaths.Add(ep);
+                }
+            }
+        }
+        else if (request.Photos == null || request.Photos.Count == 0)
+        {
+            // If neither ExistingPhotos nor Photos was provided, keep all current photos
+            retainedPaths = currentPaths;
+        }
+
+        // Save newly uploaded photos
+        if (request.Photos?.Count > 0)
+        {
+            var newPathsJson = await SavePhotos(request.Photos);
+            var newPaths = JsonSerializer.Deserialize<List<string>>(newPathsJson) ?? [];
+            retainedPaths.AddRange(newPaths);
+        }
+
+        review.PhotoPathsJson = JsonSerializer.Serialize(retainedPaths.Take(4).ToList());
         review.UpdatedAtUtc = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         await LoadReviewReferences(review);
@@ -98,7 +151,7 @@ public class ReviewsController : ControllerBase
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
         var review = await _context.BookingReviews.FindAsync(id);
-        if (review == null) return NotFound();
+        if (review == null) return NotFound($"Review #{id} was not found.");
         if (review.UserId != userId.Value && !IsAdmin()) return Forbid();
         _context.BookingReviews.Remove(review);
         await _context.SaveChangesAsync();
@@ -109,33 +162,109 @@ public class ReviewsController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> GetPhoto(int id, int photoIndex)
     {
-        var review = await _context.BookingReviews.FindAsync(id);
-        if (review == null || photoIndex < 0) return NotFound();
+        var review = await _context.BookingReviews
+            .Include(r => r.Booking!)
+                .ThenInclude(b => b.Facility)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (review == null || photoIndex < 0) return NotFound($"Review #{id} was not found.");
         var photos = JsonSerializer.Deserialize<List<string>>(review.PhotoPathsJson) ?? [];
-        if (photoIndex >= photos.Count) return NotFound();
+        if (photoIndex >= photos.Count) return NotFound($"Photo index {photoIndex} not found for review #{id}.");
         var relPath = photos[photoIndex];
-        var path = Path.Combine(AppContext.BaseDirectory, relPath);
-        if (!System.IO.File.Exists(path))
+
+        // 1. If stored as Base64 Data URL (e.g. data:image/jpeg;base64,...), serve directly from DB
+        if (relPath.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
         {
-            var fallback = Path.Combine(Directory.GetCurrentDirectory(), relPath);
-            if (System.IO.File.Exists(fallback))
+            try
             {
-                path = fallback;
+                var commaIdx = relPath.IndexOf(',');
+                var meta = commaIdx != -1 ? relPath[..commaIdx] : "";
+                var b64 = commaIdx != -1 ? relPath[(commaIdx + 1)..] : relPath;
+                var mime = meta.Contains("png") ? "image/png" : (meta.Contains("webp") ? "image/webp" : "image/jpeg");
+                return File(Convert.FromBase64String(b64), mime);
             }
-            else
+            catch
             {
-                return NotFound();
+                // Fall through to fallback
             }
         }
-        var ext = Path.GetExtension(relPath).ToLowerInvariant();
-        var contentType = ext switch
+
+        // 2. If stored as file on disk, serve it if it exists
+        var path = Path.Combine(AppContext.BaseDirectory, relPath);
+        if (System.IO.File.Exists(path))
         {
-            ".png" => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".webp" => "image/webp",
-            _ => "application/octet-stream"
-        };
-        return PhysicalFile(path, contentType, enableRangeProcessing: true);
+            var ext = Path.GetExtension(relPath).ToLowerInvariant();
+            var contentType = ext switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".webp" => "image/webp",
+                _ => "application/octet-stream"
+            };
+            return PhysicalFile(path, contentType, enableRangeProcessing: true);
+        }
+
+        var fallback = Path.Combine(Directory.GetCurrentDirectory(), relPath);
+        if (System.IO.File.Exists(fallback))
+        {
+            var ext = Path.GetExtension(relPath).ToLowerInvariant();
+            var contentType = ext switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".webp" => "image/webp",
+                _ => "application/octet-stream"
+            };
+            return PhysicalFile(fallback, contentType, enableRangeProcessing: true);
+        }
+
+        // 3. Resilient Fallback: If physical file is missing (e.g. Render container wiped out disk on restart),
+        // serve a facility-specific fallback asset so clients NEVER get an ugly 404 broken image!
+        var facilityName = review.Booking?.Facility?.Name ?? "";
+        var fallbackFileName = ResolveFallbackAsset(facilityName);
+        var assetPath = Path.Combine(AppContext.BaseDirectory, "Assets", fallbackFileName);
+        if (System.IO.File.Exists(assetPath))
+        {
+            return PhysicalFile(assetPath, "image/jpeg", enableRangeProcessing: true);
+        }
+
+        var assetFallback = Path.Combine(Directory.GetCurrentDirectory(), "Assets", fallbackFileName);
+        if (System.IO.File.Exists(assetFallback))
+        {
+            return PhysicalFile(assetFallback, "image/jpeg", enableRangeProcessing: true);
+        }
+
+        // Ultra-safe fallback: inline SVG
+        return Content(GenerateFallbackSvg(facilityName), "image/svg+xml");
+    }
+
+    private static string ResolveFallbackAsset(string facilityName)
+    {
+        var name = (facilityName ?? "").ToLowerInvariant();
+        if (name.Contains("badminton")) return "facility-badminton.jpg";
+        if (name.Contains("cricket")) return "facility-cricket.jpg";
+        if (name.Contains("tennis")) return "facility-tennis.jpg";
+        if (name.Contains("basket")) return "facility-basketball.jpg";
+        if (name.Contains("swim") || name.Contains("aqua")) return "facility-swimming.jpg";
+        return "sports-hero.jpg";
+    }
+
+    private static string GenerateFallbackSvg(string facilityName)
+    {
+        var cleanName = System.Security.SecurityElement.Escape(string.IsNullOrWhiteSpace(facilityName) ? "Sports Court" : facilityName);
+        return $@"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 400 300"" width=""400"" height=""300"">
+  <defs>
+    <linearGradient id=""grad"" x1=""0%"" y1=""0%"" x2=""100%"" y2=""100%"">
+      <stop offset=""0%"" style=""stop-color:#0f172a;stop-opacity:1"" />
+      <stop offset=""100%"" style=""stop-color:#1e293b;stop-opacity:1"" />
+    </linearGradient>
+  </defs>
+  <rect width=""100%"" height=""100%"" fill=""url(#grad)""/>
+  <circle cx=""200"" cy=""120"" r=""48"" fill=""#2563eb"" opacity=""0.2""/>
+  <text x=""200"" y=""135"" font-size=""40"" text-anchor=""middle"" fill=""#ffffff"">🏟️</text>
+  <text x=""200"" y=""190"" font-family=""sans-serif"" font-size=""16"" font-weight=""bold"" text-anchor=""middle"" fill=""#f8fafc"">{cleanName}</text>
+  <text x=""200"" y=""215"" font-family=""sans-serif"" font-size=""12"" text-anchor=""middle"" fill=""#94a3b8"">Verified Member Review</text>
+</svg>";
     }
 
     private async Task<string> SavePhotos(IFormFileCollection? photos)
@@ -144,15 +273,30 @@ public class ReviewsController : ControllerBase
         if (photos.Count > 4) throw new InvalidOperationException("A maximum of 4 photos is allowed.");
         var paths = new List<string>();
         var directory = Path.Combine(AppContext.BaseDirectory, "uploads", "reviews");
-        Directory.CreateDirectory(directory);
+        try { Directory.CreateDirectory(directory); } catch { }
+
         foreach (var photo in photos)
         {
-            if (photo.Length == 0 || !photo.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Only image photos are allowed.");
-            var extension = Path.GetExtension(photo.FileName);
-            var storedName = $"{Guid.NewGuid():N}{extension}";
-            await using var stream = System.IO.File.Create(Path.Combine(directory, storedName));
-            await photo.CopyToAsync(stream);
-            paths.Add(Path.Combine("uploads", "reviews", storedName).Replace("\\", "/"));
+            if (photo.Length == 0 || !photo.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Only image photos are allowed.");
+
+            // Store directly in database as Data URL if under 3MB so photos permanently survive Render container restarts
+            if (photo.Length <= 3_000_000)
+            {
+                using var memoryStream = new MemoryStream();
+                await photo.CopyToAsync(memoryStream);
+                var base64 = Convert.ToBase64String(memoryStream.ToArray());
+                paths.Add($"data:{photo.ContentType};base64,{base64}");
+            }
+            else
+            {
+                var extension = Path.GetExtension(photo.FileName);
+                if (string.IsNullOrEmpty(extension)) extension = ".jpg";
+                var storedName = $"{Guid.NewGuid():N}{extension}";
+                await using var stream = System.IO.File.Create(Path.Combine(directory, storedName));
+                await photo.CopyToAsync(stream);
+                paths.Add(Path.Combine("uploads", "reviews", storedName).Replace("\\", "/"));
+            }
         }
         return JsonSerializer.Serialize(paths);
     }
@@ -199,5 +343,6 @@ public class ReviewsController : ControllerBase
         public int Rating { get; set; }
         public string Review { get; set; } = string.Empty;
         public IFormFileCollection? Photos { get; set; }
+        public List<string>? ExistingPhotos { get; set; }
     }
 }

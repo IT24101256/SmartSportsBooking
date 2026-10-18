@@ -811,6 +811,7 @@ class ApiService {
     required String name,
     required int rating,
     required String review,
+    List<String>? existingPhotos,
     List<XFile>? photos,
   }) async {
     final uri = Uri.parse('$_baseUrl/api/reviews/$reviewId');
@@ -821,6 +822,12 @@ class ApiService {
     request.fields['Name'] = name.trim();
     request.fields['Rating'] = rating.toString();
     request.fields['Review'] = review.trim();
+
+    if (existingPhotos != null) {
+      for (var i = 0; i < existingPhotos.length; i++) {
+        request.fields['ExistingPhotos[$i]'] = existingPhotos[i];
+      }
+    }
 
     if (photos != null && photos.isNotEmpty) {
       for (final p in photos) {

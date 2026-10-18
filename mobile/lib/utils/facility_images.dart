@@ -52,21 +52,37 @@ String getFacilityImageAsset(Facility facility) {
   return images.isNotEmpty ? images.first : 'assets/images/sports-hero.jpg';
 }
 
+String getFallbackAssetForName(String? facilityName) {
+  final name = (facilityName ?? '').toLowerCase();
+  if (name.contains('badminton')) return 'assets/images/facility-badminton.jpg';
+  if (name.contains('cricket')) return 'assets/images/facility-cricket.jpg';
+  if (name.contains('tennis')) return 'assets/images/facility-tennis.jpg';
+  if (name.contains('basket')) return 'assets/images/facility-basketball.jpg';
+  if (name.contains('swim') || name.contains('aqua')) return 'assets/images/facility-swimming.jpg';
+  return 'assets/images/sports-hero.jpg';
+}
+
 Widget buildUniversalImage(
   String imageSrc, {
   double? width,
   double? height,
   BoxFit fit = BoxFit.cover,
+  String? facilityName,
   Widget Function(BuildContext)? errorWidget,
 }) {
+  final fallbackAsset = getFallbackAssetForName(facilityName);
   final fallback = errorWidget != null
       ? null
       : (BuildContext ctx, Object err, StackTrace? st) => Image.asset(
-            'assets/images/sports-hero.jpg',
+            fallbackAsset,
             width: width,
             height: height,
             fit: fit,
           );
+
+  if (imageSrc.trim().isEmpty) {
+    return Image.asset(fallbackAsset, width: width, height: height, fit: fit);
+  }
 
   if (imageSrc.startsWith('http://') || imageSrc.startsWith('https://')) {
     return Image.network(
@@ -88,7 +104,7 @@ Widget buildUniversalImage(
         errorBuilder: (ctx, err, st) => errorWidget != null ? errorWidget(ctx) : fallback!(ctx, err, st),
       );
     } catch (_) {
-      return Image.asset('assets/images/sports-hero.jpg', width: width, height: height, fit: fit);
+      return Image.asset(fallbackAsset, width: width, height: height, fit: fit);
     }
   } else if (imageSrc.startsWith('/') || imageSrc.startsWith('uploads/')) {
     final fullUrl = ApiService().resolveImageUrl(imageSrc);

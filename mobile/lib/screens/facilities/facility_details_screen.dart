@@ -583,6 +583,7 @@ class _FacilityDetailsScreenState extends State<FacilityDetailsScreen> {
                                             width: 68,
                                             height: 68,
                                             fit: BoxFit.cover,
+                                            facilityName: widget.facility.name,
                                           ),
                                         ),
                                       ),
@@ -768,6 +769,7 @@ class _FacilityDetailsScreenState extends State<FacilityDetailsScreen> {
                 child: buildUniversalImage(
                   imageUrl,
                   fit: BoxFit.contain,
+                  facilityName: widget.facility.name,
                 ),
               ),
             ),

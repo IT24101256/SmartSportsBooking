@@ -1076,7 +1076,7 @@ class OverviewScreen extends StatelessWidget {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(16),
                                 child: InteractiveViewer(
-                                  child: buildUniversalImage(photo, fit: BoxFit.contain),
+                                  child: buildUniversalImage(photo, fit: BoxFit.contain, facilityName: facility),
                                 ),
                               ),
                               Positioned(
@@ -1100,7 +1100,7 @@ class OverviewScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
                         decoration: BoxDecoration(border: Border.all(color: AppTheme.border)),
-                        child: buildUniversalImage(photo, width: 52, height: 52, fit: BoxFit.cover),
+                        child: buildUniversalImage(photo, width: 52, height: 52, fit: BoxFit.cover, facilityName: facility),
                       ),
                     ),
                   );
