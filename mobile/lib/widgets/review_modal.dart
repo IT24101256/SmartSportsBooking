@@ -279,7 +279,8 @@ class _ReviewModalState extends State<ReviewModal> {
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = (widget.existingReview ?? widget.booking?.review) != null;
+    final rev = widget.existingReview ?? widget.booking?.review;
+    final isEditing = rev != null;
     final dateFmt = DateFormat('EEE, MMM d, yyyy');
 
     return Dialog(
