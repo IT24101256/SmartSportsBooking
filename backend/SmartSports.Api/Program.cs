@@ -141,7 +141,7 @@ var dbConnectionString = ConnectionStringHelper.ResolvePostgresConnectionString(
 
 if (string.IsNullOrWhiteSpace(dbConnectionString))
 {
-    if (builder.Environment.IsDevelopment())
+    if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
     {
         dbConnectionString = "Host=localhost;Port=5432;Database=SmartSportsBookingDb;Username=postgres;Password=your_password";
     }
@@ -211,9 +211,17 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        logger.LogInformation("[MySpot DB] Applying database migrations...");
-        dbContext.Database.Migrate();
-        logger.LogInformation("[MySpot DB] Database migrations applied successfully.");
+        if (dbContext.Database.IsRelational())
+        {
+            logger.LogInformation("[MySpot DB] Applying database migrations...");
+            dbContext.Database.Migrate();
+            logger.LogInformation("[MySpot DB] Database migrations applied successfully.");
+        }
+        else
+        {
+            logger.LogInformation("[MySpot DB] Using non-relational database. Ensuring created...");
+            dbContext.Database.EnsureCreated();
+        }
 
         AppDbContext.SeedRoles(dbContext);
         AppDbContext.SeedDevelopmentAdmin(dbContext);
@@ -463,3 +471,5 @@ public static class ConnectionStringHelper
         return rawInput;
     }
 }
+
+public partial class Program { }
