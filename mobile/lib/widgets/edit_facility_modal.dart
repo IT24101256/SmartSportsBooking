@@ -363,6 +363,7 @@ class _EditFacilityModalState extends State<EditFacilityModal> {
       final payload = <String, dynamic>{
         if (!isNew) 'id': widget.facility!.id,
         'name': name,
+        'sportCategory': _sportCategory,
         'type': _sportCategory,
         'hourlyRate': rate,
         'courtType': _courtType,

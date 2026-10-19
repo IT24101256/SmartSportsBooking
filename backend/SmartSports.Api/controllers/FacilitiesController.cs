@@ -303,8 +303,10 @@ public class FacilitiesController : ControllerBase
         }
 
         existingFacility.Name = facility.Name;
-        existingFacility.SportCategory = facility.SportCategory;
-        var category = await ResolveCategoryAsync(facility.SportCategoryId, facility.SportCategory);
+        var categoryName = !string.IsNullOrWhiteSpace(facility.SportCategory)
+            ? facility.SportCategory
+            : existingFacility.SportCategory;
+        var category = await ResolveCategoryAsync(facility.SportCategoryId, categoryName);
         if (category == null) return BadRequest("A valid sport category is required.");
         existingFacility.SportCategoryId = category.Id;
         existingFacility.SportCategory = category.Name;
@@ -374,9 +376,16 @@ public class FacilitiesController : ControllerBase
         Ok(await _context.FacilityEquipments.Where(x => x.FacilityId == id)
             .Select(x => x.Equipment).ToListAsync());
 
-    private async Task<SportCategory?> ResolveCategoryAsync(int categoryId, string name)
+    private async Task<SportCategory?> ResolveCategoryAsync(int categoryId, string? name)
     {
-        if (categoryId > 0) return await _context.SportCategories.FindAsync(categoryId);
+        if (categoryId > 0)
+        {
+            var existing = await _context.SportCategories.FindAsync(categoryId);
+            if (existing != null) return existing;
+        }
+
+        if (string.IsNullOrWhiteSpace(name)) return null;
+
         var normalized = name.Trim().ToUpperInvariant();
         if (normalized.Length == 0) return null;
         var category = await _context.SportCategories.FirstOrDefaultAsync(c => c.NormalizedName == normalized);

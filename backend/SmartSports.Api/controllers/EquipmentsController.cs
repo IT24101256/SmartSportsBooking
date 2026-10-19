@@ -202,10 +202,16 @@ public class EquipmentsController : ControllerBase
         return NoContent();
     }
 
-    private async Task<SportCategory?> ResolveCategoryAsync(int categoryId, string name)
+    private async Task<SportCategory?> ResolveCategoryAsync(int categoryId, string? name)
     {
         if (categoryId > 0)
-            return await _context.SportCategories.FindAsync(categoryId);
+        {
+            var existing = await _context.SportCategories.FindAsync(categoryId);
+            if (existing != null) return existing;
+        }
+
+        if (string.IsNullOrWhiteSpace(name)) return null;
+
         var normalized = name.Trim().ToUpperInvariant();
         if (normalized.Length == 0) return null;
         var category = await _context.SportCategories.FirstOrDefaultAsync(c => c.NormalizedName == normalized);

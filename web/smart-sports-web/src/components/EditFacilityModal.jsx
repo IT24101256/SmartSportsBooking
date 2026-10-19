@@ -168,12 +168,13 @@ export default function EditFacilityModal({
       .filter((eq) => eq.name.trim())
       .map((eq) => ({ id: eq.id, name: eq.name.trim() }))
 
+    const resolvedCategory = (form.sportCategory || defaultSportCategories[0]).trim()
     setSaving(true)
     try {
       await onSave({
         ...form,
-        sportCategory: form.sportCategory.trim(),
-        type: form.sportCategory.trim(),
+        sportCategory: resolvedCategory,
+        type: resolvedCategory,
         equipmentsProvided: JSON.stringify(cleanedEquipments),
       })
       onClose()
