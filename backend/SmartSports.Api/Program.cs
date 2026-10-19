@@ -113,12 +113,18 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register HTTP Client Factory
+// Register In-Memory Cache & HTTP Client Factory
+builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
 
 // Register OTP & Email Services
 builder.Services.AddSingleton<SmartSportsFacilityBooking.Services.OtpStore>();
 builder.Services.AddScoped<SmartSportsFacilityBooking.Services.EmailService>();
+
+// Register Weather Forecast Service & Monitoring Agent
+builder.Services.AddSingleton<SmartSportsFacilityBooking.Services.Weather.IWeatherService, SmartSportsFacilityBooking.Services.Weather.OpenMeteoWeatherService>();
+builder.Services.AddSingleton<SmartSportsFacilityBooking.Services.Weather.IWeatherMonitoringAgent, SmartSportsFacilityBooking.Services.Weather.WeatherMonitoringAgent>();
+builder.Services.AddHostedService<SmartSportsFacilityBooking.Services.Weather.WeatherMonitoringBackgroundService>();
 
 // Register Grounded Agentic RAG & Book With AI Subsystems
 builder.Services.AddMySpotAiSubsystem();

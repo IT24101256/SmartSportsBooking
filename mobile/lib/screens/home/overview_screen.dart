@@ -6,8 +6,10 @@ import '../../models/support.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/facility_images.dart';
-import '../../widgets/ticket_qr_modal.dart';
+import '../../models/weather.dart';
 import '../../widgets/review_modal.dart';
+import '../../widgets/ticket_qr_modal.dart';
+import '../../widgets/weather_info_modal.dart';
 import '../admin/revenue_screen.dart';
 
 class OverviewScreen extends StatelessWidget {
@@ -17,6 +19,7 @@ class OverviewScreen extends StatelessWidget {
   final List<Map<String, dynamic>> scheduleEvents;
   final Map<String, dynamic> dashboardStats;
   final List<BookingReviewItem> reviews;
+  final WeatherOverview? weatherOverview;
   final bool isLoading;
   final VoidCallback onRefresh;
   final Function(int) onNavigateTab;
@@ -32,6 +35,7 @@ class OverviewScreen extends StatelessWidget {
     required this.scheduleEvents,
     required this.dashboardStats,
     this.reviews = const [],
+    this.weatherOverview,
     required this.isLoading,
     required this.onRefresh,
     required this.onNavigateTab,
@@ -99,7 +103,37 @@ class OverviewScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const Icon(Icons.bolt_rounded, color: Color(0xFFFBBF24)),
+                    InkWell(
+                      onTap: () {
+                        if (weatherOverview != null) {
+                          WeatherInfoModal.show(context, weatherOverview!, bookings: bookings, onRefresh: onRefresh);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(weatherOverview?.current.icon ?? '🌤️', style: const TextStyle(fontSize: 13)),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${weatherOverview?.current.temperature != null ? "${weatherOverview!.current.temperature!.round()}°C" : "28°C"} • ${weatherOverview?.current.suitabilityMessage ?? "Good Conditions"}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -149,6 +183,90 @@ class OverviewScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
+
+          // Weather Monitoring Agent Risk Banner
+          if ((weatherOverview?.alerts ?? []).isNotEmpty) ...[
+            InkWell(
+              onTap: () {
+                if (weatherOverview != null) {
+                  WeatherInfoModal.show(context, weatherOverview!, bookings: bookings, onRefresh: onRefresh);
+                }
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFEF3C7), Color(0xFFFDE68A)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFF59E0B)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Text('🌧️', style: TextStyle(fontSize: 20)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                isAdmin
+                                    ? '${weatherOverview!.alerts.length} Weather Reschedule Alerts'
+                                    : 'Inclement Weather Advisory',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                  color: Color(0xFF78350F),
+                                ),
+                              ),
+                              const Spacer(),
+                              const Text(
+                                'Inspect →',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFFB45309),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            isAdmin
+                                ? 'Active outdoor bookings under rain risk. Tap to inspect 7-day forecast & offer rain-checks.'
+                                : (weatherOverview!.alerts.firstOrNull?.warningReason ?? 'Outdoor games may be impacted by rain.'),
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
 
           // Admin Only: Financial / Revenue Quick Access Banner
           if (isAdmin) ...[

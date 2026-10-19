@@ -5,6 +5,7 @@ import 'theme/app_theme.dart';
 import 'models/facility.dart';
 import 'models/booking.dart';
 import 'models/support.dart';
+import 'models/weather.dart';
 import 'widgets/auth_modal.dart';
 import 'widgets/edit_facility_modal.dart';
 import 'screens/home/overview_screen.dart';
@@ -55,6 +56,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   List<BookingReviewItem> _reviews = [];
   List<Map<String, dynamic>> _scheduleEvents = [];
   Map<String, dynamic> _dashboardStats = {};
+  WeatherOverview? _weatherOverview;
 
   Facility? _viewingFacility;
 
@@ -79,6 +81,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         _apiService.getSchedule().catchError((_) => <Map<String, dynamic>>[]),
         _apiService.getStats().catchError((_) => <String, dynamic>{}),
         _apiService.getReviews().catchError((_) => <BookingReviewItem>[]),
+        _apiService.getWeatherOverview().catchError((_) => WeatherOverview(current: CurrentWeather())),
       ];
 
       if (_apiService.isAuthenticated) {
@@ -95,14 +98,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           _scheduleEvents = results[1] as List<Map<String, dynamic>>;
           _dashboardStats = results[2] as Map<String, dynamic>;
           _reviews = results[3] as List<BookingReviewItem>;
+          _weatherOverview = results[4] as WeatherOverview;
 
-          if (_apiService.isAuthenticated && results.length >= 6) {
-            final rawBookings = results[4] as List<Booking>;
+          if (_apiService.isAuthenticated && results.length >= 7) {
+            final rawBookings = results[5] as List<Booking>;
             _bookings = rawBookings.map((b) {
               final rev = _reviews.where((r) => r.bookingId == b.id).firstOrNull;
               return rev != null ? b.copyWith(review: rev) : b;
             }).toList();
-            _supportRequests = results[5] as List<SupportRequest>;
+            _supportRequests = results[6] as List<SupportRequest>;
           } else {
             _bookings = [];
             _supportRequests = [];
@@ -323,6 +327,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           ? BookingsScreen(
               bookings: _bookings,
               facilities: _facilities,
+              weatherOverview: _weatherOverview,
               isLoading: _isLoadingData,
               onRefresh: _loadAllData,
               onNewBooking: () => _openBookingWizard(),
@@ -370,6 +375,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           scheduleEvents: _scheduleEvents,
           dashboardStats: _dashboardStats,
           reviews: _reviews,
+          weatherOverview: _weatherOverview,
           isLoading: _isLoadingData,
           onRefresh: _loadAllData,
           onNavigateTab: (tab) => setState(() => _selectedTab = tab),

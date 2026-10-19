@@ -1,9 +1,14 @@
+import React, { useState, useEffect } from 'react'
+import WeatherRiskAlertsModal from './WeatherRiskAlertsModal'
+
 export default function HeroSection({
   heroMessage = 'PLAY HARDER. BOOK SMARTER.',
   facilities = [],
   bookings = [],
   reviews = [],
   averageRating,
+  apiBaseUrl,
+  weatherOverview: propWeatherOverview,
   onBooking,
   onBookWithAi,
   onExploreFacilities,
@@ -11,6 +16,53 @@ export default function HeroSection({
   const facilityCount = facilities?.length || 6
   const activeBookingsCount = bookings?.filter((b) => b.status === 'Confirmed' || b.status === 'Pending').length || bookings?.length || 0
   const ratingDisplay = averageRating || (reviews?.length ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : '4.9')
+
+  const [weatherOverview, setWeatherOverview] = useState(propWeatherOverview || null)
+  const [weatherLoading, setWeatherLoading] = useState(false)
+  const [showForecastModal, setShowForecastModal] = useState(false)
+
+  useEffect(() => {
+    if (propWeatherOverview) {
+      setWeatherOverview(propWeatherOverview)
+      return
+    }
+
+    let isMounted = true
+    const baseUrl = apiBaseUrl || 'http://localhost:5187/api'
+
+    const fetchWeather = async () => {
+      try {
+        setWeatherLoading(true)
+        const res = await fetch(`${baseUrl}/weather/overview`)
+        if (res.ok && isMounted) {
+          const data = await res.json()
+          setWeatherOverview(data)
+        }
+      } catch (err) {
+        console.warn('HeroSection weather fetch error:', err)
+      } finally {
+        if (isMounted) setWeatherLoading(false)
+      }
+    }
+
+    fetchWeather()
+    const timer = setInterval(fetchWeather, 5 * 60 * 1000)
+    return () => {
+      isMounted = false
+      clearInterval(timer)
+    }
+  }, [apiBaseUrl, propWeatherOverview])
+
+  const current = weatherOverview?.current || {
+    temperature: 26.9,
+    condition: 'Overcast',
+    icon: '☁️',
+    isSuitableForPlay: true,
+    suitabilityMessage: 'Good Conditions for Play',
+    locationName: 'Colombo Arena Complex',
+    windSpeed: 1,
+    humidity: 87,
+  }
 
   return (
     <section className="hero-banner-section">
@@ -101,9 +153,69 @@ export default function HeroSection({
                 <strong className="metric-value">{ratingDisplay} ★ Member Rating</strong>
               </div>
             </div>
+
+            {/* Live Weather Information Card - Positioned in right side below the 3 boxes */}
+            <div
+              className="hero-weather-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => setShowForecastModal(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  setShowForecastModal(true)
+                }
+              }}
+              title="Click to view full 7-day arena weather forecast & conditions"
+            >
+              <div className="hero-weather-top">
+                <span className="hero-weather-icon">{current.icon || '☁️'}</span>
+                <div className="hero-weather-info">
+                  <div className="hero-weather-temp-row">
+                    <span className="hero-weather-temp">
+                      {current.temperature != null ? `${current.temperature}°C` : '26.9°C'}
+                    </span>
+                    <span
+                      className={`hero-weather-status-pill ${
+                        current.isSuitableForPlay ? 'status-good' : 'status-caution'
+                      }`}
+                    >
+                      {current.suitabilityMessage || 'Good Conditions for Play'}
+                    </span>
+                  </div>
+                  <p className="hero-weather-subtitle">
+                    {current.locationName || 'Colombo Arena Complex'} • {current.condition || 'Overcast'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="hero-weather-metrics">
+                <div className="hero-weather-metric-item">
+                  <span className="hero-weather-metric-label">WIND SPEED</span>
+                  <strong className="hero-weather-metric-val">{current.windSpeed ?? 1} km/h</strong>
+                </div>
+                <div className="hero-weather-metric-item">
+                  <span className="hero-weather-metric-label">HUMIDITY</span>
+                  <strong className="hero-weather-metric-val">{current.humidity ?? 87}%</strong>
+                </div>
+                <div className="hero-weather-metric-item">
+                  <span className="hero-weather-metric-label">PROVIDER</span>
+                  <strong className="hero-weather-metric-provider">Open-Meteo</strong>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* 7-Day Arena Weather & Playability Modal for Athletes */}
+      {showForecastModal && (
+        <WeatherRiskAlertsModal
+          weatherOverview={weatherOverview}
+          bookings={bookings}
+          isAdmin={false}
+          onClose={() => setShowForecastModal(false)}
+        />
+      )}
     </section>
   )
 }

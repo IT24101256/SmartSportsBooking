@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import WeatherRiskAlertsModal from '../components/WeatherRiskAlertsModal'
 
 const formatLKR = (val) => `LKR ${Number(val || 0).toLocaleString()}`
 
@@ -83,11 +84,65 @@ export default function AdminOverviewPage({
   onOpenBooking,
   onFacilityDetails,
   onSelectSupport,
+  onRequestReschedule,
 }) {
   // Live ticking clock for mission-control realism
   const [liveTime, setLiveTime] = useState(() =>
     new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   )
+
+  // Weather Monitoring Agent State
+  const [weatherOverview, setWeatherOverview] = useState(null)
+  const [weatherLoading, setWeatherLoading] = useState(false)
+  const [showWeatherModal, setShowWeatherModal] = useState(false)
+
+  const fetchWeatherOverview = useCallback(async () => {
+    try {
+      setWeatherLoading(true)
+      const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      const res = await fetch(`${apiBaseUrl}/weather/overview`, { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setWeatherOverview(data)
+      }
+    } catch (err) {
+      console.warn('Weather overview fetch error:', err)
+    } finally {
+      setWeatherLoading(false)
+    }
+  }, [apiBaseUrl, authToken])
+
+  useEffect(() => {
+    fetchWeatherOverview()
+    const timer = setInterval(fetchWeatherOverview, 5 * 60 * 1000)
+    return () => clearInterval(timer)
+  }, [fetchWeatherOverview])
+
+  const [isDataReady, setIsDataReady] = useState(false)
+
+  useEffect(() => {
+    if (weatherOverview !== null || bookings.length > 0) {
+      setIsDataReady(true)
+    } else {
+      const timer = setTimeout(() => setIsDataReady(true), 600)
+      return () => clearTimeout(timer)
+    }
+  }, [weatherOverview, bookings])
+
+  const handleOfferReschedule = async (item) => {
+    const bookingId = item.bookingId || item.id
+    const targetBooking = bookings.find((b) => b.id === bookingId) || { id: bookingId }
+    const defaultReason = `Weather Advisory: ${item.warningReason || 'Inclement weather expected during slot'}`
+    if (onRequestReschedule) {
+      await onRequestReschedule(targetBooking, defaultReason)
+      setTimeout(fetchWeatherOverview, 600)
+    }
+  }
+
+  const handleNavigateToBooking = (alert) => {
+    setShowWeatherModal(false)
+    setActiveTab('Bookings')
+  }
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -270,12 +325,16 @@ export default function AdminOverviewPage({
     return (sum / reviews.length).toFixed(1)
   }, [reviews])
 
+  const weatherAlerts = weatherOverview?.alerts || []
+  const unresolvedWeatherAlerts = weatherAlerts.filter((a) => !a.isRescheduleOffered)
+
   // Urgent Queue count
   const urgentCount =
     pendingRefunds.length +
     pendingBankSlips.length +
     rescheduleCount +
-    highPriorityTickets
+    highPriorityTickets +
+    unresolvedWeatherAlerts.length
 
   return (
     <div className="admin-overview-wrapper">
@@ -303,9 +362,38 @@ export default function AdminOverviewPage({
           </div>
 
           <div className="hero-status-right">
-            <span className="weather-pill">
-              <span>🌤️</span>
-              <span>28°C • Good Conditions for Play</span>
+            <span
+              className="weather-pill"
+              onClick={() => setShowWeatherModal(true)}
+              role="button"
+              tabIndex={0}
+              style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+              title="Click to view 7-Day Weather Intelligence & Reschedule Alerts"
+            >
+              <span>{weatherOverview?.current?.icon || '🌤️'}</span>
+              <span>
+                {weatherOverview?.current?.temperature != null
+                  ? `${weatherOverview.current.temperature}°C`
+                  : '28°C'}{' '}
+                • {weatherOverview?.current?.suitabilityMessage || 'Good Conditions for Play'}
+              </span>
+              {weatherAlerts.length > 0 && (
+                <span
+                  style={{
+                    marginLeft: '6px',
+                    padding: '2px 7px',
+                    borderRadius: '6px',
+                    background: '#ef4444',
+                    color: '#ffffff',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.3px',
+                    boxShadow: '0 0 8px rgba(239, 68, 68, 0.5)',
+                  }}
+                >
+                  {weatherAlerts.length} {weatherAlerts.length === 1 ? 'Alert' : 'Alerts'}
+                </span>
+              )}
             </span>
             <span className="venue-tag">Colombo Arena Hub</span>
           </div>
@@ -432,7 +520,27 @@ export default function AdminOverviewPage({
 
       {/* 2. URGENT OPERATIONAL ATTENTION QUEUE */}
       <section className="admin-action-queue-section">
-        {urgentCount > 0 ? (
+        {!isDataReady ? (
+          <div
+            className="admin-action-queue-card"
+            style={{
+              padding: '20px 24px',
+              minHeight: '85px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px',
+              opacity: 0.75,
+            }}
+          >
+            <span style={{ fontSize: '1.4rem' }}>⚡</span>
+            <div>
+              <strong style={{ fontSize: '0.98rem' }}>Syncing Operations Intelligence...</strong>
+              <p style={{ margin: '3px 0 0', fontSize: '0.82rem', opacity: 0.7 }}>
+                Evaluating court reservations, refund requests, and real-time weather forecasts.
+              </p>
+            </div>
+          </div>
+        ) : urgentCount > 0 ? (
           <div className="admin-action-queue-card urgent-active">
             <div className="queue-header">
               <div className="queue-title-wrap">
@@ -440,17 +548,59 @@ export default function AdminOverviewPage({
                 <div>
                   <h3 className="queue-title">Operational Attention Required ({urgentCount})</h3>
                   <p className="queue-desc">
-                    Pending administrative verification, customer refund approvals, or high priority tickets requiring response.
+                    Pending administrative verification, customer refund approvals, or weather-impacted bookings requiring action.
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                className="queue-primary-btn"
-                onClick={() => setActiveTab('Bookings')}
-              >
-                Go to Bookings Hub →
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="queue-primary-btn ask-reschedule-btn"
+                  onClick={() => setShowWeatherModal(true)}
+                  style={{
+                    background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                    borderColor: '#8b5cf6',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: 800,
+                  }}
+                  id="ask-reschedule-queue-btn"
+                >
+                  <span>🌧️</span>
+                  <span>Ask Reschedule</span>
+                  {unresolvedWeatherAlerts.length > 0 && (
+                    <span
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.25)',
+                        padding: '1px 7px',
+                        borderRadius: '8px',
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      {unresolvedWeatherAlerts.length}
+                    </span>
+                  )}
+                  <span>→</span>
+                </button>
+                <button
+                  type="button"
+                  className="queue-secondary-btn"
+                  onClick={() => setActiveTab('Bookings')}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: 'inherit',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Bookings Hub
+                </button>
+              </div>
             </div>
 
             <div className="queue-badges-grid">
@@ -497,6 +647,31 @@ export default function AdminOverviewPage({
                   <div className="pill-info">
                     <strong>{rescheduleCount} Weather Reschedules</strong>
                     <small>Rain-check slots requested</small>
+                  </div>
+                  <span className="pill-arrow">→</span>
+                </div>
+              )}
+
+              {weatherAlerts.length > 0 && (
+                <div
+                  className="queue-item-pill raincheck-pill weather-alert-pill"
+                  onClick={() => setShowWeatherModal(true)}
+                  role="button"
+                  tabIndex={0}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className="pill-icon">⚡🌧️</span>
+                  <div className="pill-info">
+                    <strong>
+                      {unresolvedWeatherAlerts.length > 0
+                        ? `${unresolvedWeatherAlerts.length} Weather Risk Alerts`
+                        : `${weatherAlerts.length} Weather Alerts Handled`}
+                    </strong>
+                    <small>
+                      {unresolvedWeatherAlerts.length > 0
+                        ? 'Active outdoor bookings at rain risk • Review & offer'
+                        : 'All at-risk reservations offered reschedule'}
+                    </small>
                   </div>
                   <span className="pill-arrow">→</span>
                 </div>
@@ -1091,6 +1266,17 @@ export default function AdminOverviewPage({
           <span className="cmd-arrow">→</span>
         </div>
       </section>
+
+      {/* 5. WEATHER RISK INTELLIGENCE & RESCHEDULE MODAL */}
+      {showWeatherModal && (
+        <WeatherRiskAlertsModal
+          weatherOverview={weatherOverview}
+          bookings={bookings}
+          onClose={() => setShowWeatherModal(false)}
+          onOfferReschedule={handleOfferReschedule}
+          onNavigateToBooking={handleNavigateToBooking}
+        />
+      )}
     </div>
   )
 }

@@ -1186,6 +1186,7 @@ function App() {
             setActiveTab('Support')
           }}
           onConfirmRefund={confirmRefund}
+          onRequestReschedule={requestReschedule}
         />
       )
     }

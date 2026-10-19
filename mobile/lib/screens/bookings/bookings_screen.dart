@@ -12,11 +12,13 @@ import '../../widgets/admin_refund_modal.dart';
 import '../../widgets/add_equipment_modal.dart';
 import '../../widgets/review_modal.dart';
 import '../../widgets/bank_slip_modal.dart';
+import '../../models/weather.dart';
 import '../../widgets/user_update_booking_modal.dart';
 
 class BookingsScreen extends StatefulWidget {
   final List<Booking> bookings;
   final List<Facility> facilities;
+  final WeatherOverview? weatherOverview;
   final bool isLoading;
   final VoidCallback onRefresh;
   final VoidCallback onNewBooking;
@@ -25,6 +27,7 @@ class BookingsScreen extends StatefulWidget {
     super.key,
     required this.bookings,
     required this.facilities,
+    this.weatherOverview,
     required this.isLoading,
     required this.onRefresh,
     required this.onNewBooking,
@@ -400,6 +403,47 @@ class _BookingsScreenState extends State<BookingsScreen> {
                           ),
                         ),
                       ],
+
+                      // Weather Risk Advisory Banner from Monitoring Agent
+                      () {
+                        final weatherAlert = widget.weatherOverview?.alerts.where((a) => a.bookingId == b.id).firstOrNull;
+                        if (weatherAlert != null && !b.isRescheduleOffer && !b.isCancelled && !b.isExpired) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                border: Border.all(color: const Color(0xFFF59E0B)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(weatherAlert.icon.isNotEmpty ? weatherAlert.icon : '🌧️', style: const TextStyle(fontSize: 18)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Weather Risk Advisory',
+                                          style: TextStyle(color: Color(0xFF92400E), fontWeight: FontWeight.w800, fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          weatherAlert.warningReason,
+                                          style: const TextStyle(color: Color(0xFF78350F), fontSize: 11),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }(),
 
                       const Divider(height: 24),
 

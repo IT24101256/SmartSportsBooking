@@ -10,6 +10,7 @@ import '../models/booking.dart';
 import '../models/support.dart';
 import '../models/equipment.dart';
 import '../models/revenue.dart';
+import '../models/weather.dart';
 
 class DevHttpOverrides extends HttpOverrides {
   @override
@@ -1366,6 +1367,42 @@ class ApiService {
       return body.trim().isNotEmpty ? body.trim() : 'Server responded with status ${response.statusCode}';
     } catch (_) {
       return 'Request failed with status ${response.statusCode}';
+    }
+  }
+
+  Future<WeatherOverview> getWeatherOverview() async {
+    final uri = Uri.parse('$_baseUrl/api/weather/overview');
+    try {
+      final response = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return WeatherOverview.fromJson(data);
+      }
+      throw Exception(_extractErrorMessage(response));
+    } catch (e) {
+      debugPrint('[ApiService] getWeatherOverview error: $e');
+      return WeatherOverview(current: CurrentWeather());
+    }
+  }
+
+  Future<CurrentWeather> getCurrentWeather() async {
+    final uri = Uri.parse('$_baseUrl/api/weather/current');
+    try {
+      final response = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return CurrentWeather.fromJson(data);
+      }
+      throw Exception(_extractErrorMessage(response));
+    } catch (e) {
+      debugPrint('[ApiService] getCurrentWeather error: $e');
+      return CurrentWeather();
     }
   }
 }
