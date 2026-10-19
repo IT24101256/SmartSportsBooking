@@ -63,11 +63,15 @@ public class WeatherMonitoringAgent : IWeatherMonitoringAgent
             var localToday = localNow.Date;
             var localEndDate = localToday.AddDays(ForecastWindowDays);
 
+            // Ensure UTC DateTimeKind for PostgreSQL 'timestamp with time zone' parameter binding
+            var queryStartUtc = DateTime.SpecifyKind(localToday, DateTimeKind.Utc);
+            var queryEndUtc = DateTime.SpecifyKind(localEndDate, DateTimeKind.Utc);
+
             // Fetch upcoming active bookings within the forecast window
             var upcomingBookings = await dbContext.Bookings
                 .Include(b => b.Facility)
                 .Where(b => b.Status != "Cancelled")
-                .Where(b => b.BookingDate >= localToday && b.BookingDate <= localEndDate)
+                .Where(b => b.BookingDate >= queryStartUtc && b.BookingDate <= queryEndUtc)
                 .ToListAsync(cancellationToken);
 
             // Fetch hourly forecast for the sports complex

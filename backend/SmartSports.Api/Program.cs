@@ -16,6 +16,9 @@ using System.Text.Json.Serialization;
 // Load environment variables from .env file (searching current directory, project directory, parent directories, and base directory)
 DotEnvLoader.Load();
 
+// Configure Npgsql timestamp behavior for robust PostgreSQL compatibility across environments
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 // Create the application builder.
 var builder = WebApplication.CreateBuilder(args);
 
