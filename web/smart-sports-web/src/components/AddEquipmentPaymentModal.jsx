@@ -14,44 +14,86 @@ export default function AddEquipmentPaymentModal({
   // Determine booking facility and sport category
   const facilityData = useMemo(() => {
     if (!booking) return null
-    if (booking.facility && typeof booking.facility === 'object') return booking.facility
-    const facId = booking.facilityId
+    const facId = booking.facilityId || (booking.facility && typeof booking.facility === 'object' ? booking.facility.id : null)
     if (facId && facilities.length) {
-      return facilities.find((f) => f.id === facId) || null
+      const found = facilities.find((f) => f.id === facId)
+      if (found) {
+        return booking.facility && typeof booking.facility === 'object'
+          ? { ...booking.facility, ...found }
+          : found
+      }
     }
-    const name = booking.facilityName || booking.name
-    if (name && facilities.length) {
-      return facilities.find((f) => f.name?.toLowerCase() === name.toLowerCase()) || null
+    if (booking.facility && typeof booking.facility === 'object') return booking.facility
+    const rawName = booking.facilityName || booking.name || ''
+    const cleanName = rawName.split('•')[0].trim().toLowerCase()
+    if (cleanName && facilities.length) {
+      const found = facilities.find((f) => {
+        const fname = (f.name || '').toLowerCase()
+        return fname === cleanName || fname.includes(cleanName) || cleanName.includes(fname)
+      })
+      if (found) return found
     }
     return null
   }, [booking, facilities])
 
   const sportCategory = useMemo(() => {
-    const raw =
+    // 1. Direct explicit sport category from facilityData or booking
+    const direct = (
       facilityData?.sportCategory ||
-      facilityData?.type ||
+      facilityData?.sportCategoryName ||
       booking?.facility?.sportCategory ||
-      booking?.facility?.type ||
+      booking?.sportCategory ||
+      ''
+    ).trim()
+    if (direct && direct.toLowerCase() !== 'general') {
+      return direct
+    }
+
+    // 2. Direct facility type if it represents a sport (and not generic indoor/outdoor/court/ground/turf)
+    const directType = (facilityData?.type || booking?.facility?.type || '').trim()
+    if (
+      directType &&
+      !['indoor', 'outdoor', 'facility', 'court', 'ground', 'field', 'general', 'turf'].includes(
+        directType.toLowerCase()
+      )
+    ) {
+      return directType
+    }
+
+    // 3. Fallback: match sport keywords in facility name or booking name
+    const text = (
+      facilityData?.name ||
+      booking?.facilityName ||
       booking?.name ||
       ''
-    const lower = raw.toLowerCase()
-    if (lower.includes('badminton')) return 'Badminton'
-    if (lower.includes('cricket')) return 'Cricket'
-    if (lower.includes('football') || lower.includes('turf') || lower.includes('soccer')) return 'Football'
-    if (lower.includes('basket')) return 'Basketball'
-    if (lower.includes('swim')) return 'Swimming'
-    if (lower.includes('tennis') && !lower.includes('table')) return 'Tennis'
-    if (lower.includes('table tennis')) return 'Table Tennis'
-    if (lower.includes('volley')) return 'Volleyball'
-    if (lower.includes('fitness') || lower.includes('gym')) return 'Fitness'
-    return 'General'
+    ).toLowerCase()
+
+    if (text.includes('rugby')) return 'Rugby'
+    if (text.includes('badminton')) return 'Badminton'
+    if (text.includes('cricket')) return 'Cricket'
+    if (text.includes('football') || text.includes('soccer')) return 'Football'
+    if (text.includes('basket')) return 'Basketball'
+    if (text.includes('swim') || text.includes('pool') || text.includes('aqua')) return 'Swimming'
+    if (text.includes('table tennis') || text.includes('ping pong')) return 'Table Tennis'
+    if (text.includes('tennis')) return 'Tennis'
+    if (text.includes('volley')) return 'Volleyball'
+    if (text.includes('fitness') || text.includes('gym')) return 'Fitness'
+    if (text.includes('squash')) return 'Squash'
+    if (text.includes('baseball') || text.includes('softball')) return 'Baseball'
+    if (text.includes('hockey')) return 'Hockey'
+    if (text.includes('futsal')) return 'Futsal'
+    if (text.includes('netball')) return 'Netball'
+
+    return direct || 'General'
   }, [facilityData, booking])
 
-  // Fetch equipments from API
+  // Fetch equipments from API (scoped to facility if available)
   useEffect(() => {
     let active = true
     setLoadingEquip(true)
-    fetch(`${apiBaseUrl}/equipments`)
+    const facId = booking?.facilityId || facilityData?.id
+    const queryParam = facId ? `?facilityId=${encodeURIComponent(facId)}` : ''
+    fetch(`${apiBaseUrl}/equipments${queryParam}`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (active && Array.isArray(data)) {
@@ -65,29 +107,41 @@ export default function AddEquipmentPaymentModal({
     return () => {
       active = false
     }
-  }, [apiBaseUrl])
+  }, [apiBaseUrl, booking?.facilityId, facilityData?.id])
 
-  // Filter available equipments for this facility/sport
+  // Filter available equipments strictly for this facility / sport category
   const availableEquipments = useMemo(() => {
     const facId = booking?.facilityId || facilityData?.id
+    const targetSport = (sportCategory || '').trim().toLowerCase()
 
-    // 1. From API
+    // 1. From API: Only return equipments that belong to this sport category or linked to this facility
     let matched = fetchedEquipments.filter((eq) => {
-      if (facId && eq.facilityId === facId) return true
-      if (sportCategory !== 'General') {
-        const cat = (eq.sportCategory || '').toLowerCase()
-        const sc = sportCategory.toLowerCase()
-        return cat === sc || cat.includes(sc) || sc.includes(cat)
+      // Direct facility link
+      if (facId && eq.facilityId && String(eq.facilityId) === String(facId)) {
+        return true
       }
-      return true
+
+      // Check equipment sport category
+      const eqSport = (eq.sportCategory || '').trim().toLowerCase()
+      if (targetSport && targetSport !== 'general') {
+        return (
+          eqSport === targetSport ||
+          eqSport.includes(targetSport) ||
+          targetSport.includes(eqSport)
+        )
+      }
+
+      // If sportCategory is general/unknown, only keep items with general or matching facility
+      return false
     })
 
-    // 2. If API is empty, fallback to facility equipmentsProvided JSON
+    // 2. If API returned no match, fallback to facility equipmentsProvided JSON
     if (matched.length === 0) {
       const raw = facilityData?.equipmentsProvided || booking?.facility?.equipmentsProvided
       if (raw) {
-        if (Array.isArray(raw)) matched = raw
-        else if (typeof raw === 'string') {
+        if (Array.isArray(raw)) {
+          matched = raw
+        } else if (typeof raw === 'string') {
           try {
             const parsed = JSON.parse(raw)
             if (Array.isArray(parsed)) matched = parsed
@@ -96,7 +150,7 @@ export default function AddEquipmentPaymentModal({
               .split(',')
               .map((i) => i.trim())
               .filter(Boolean)
-              .map((name) => ({ name, hourlyRate: 250 }))
+              .map((name) => ({ name, hourlyRate: 250, sportCategory }))
           }
         }
       }
@@ -119,15 +173,23 @@ export default function AddEquipmentPaymentModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  // Sync initial when availableEquipments loads
+  // Sync selected gear when availableEquipments loads
   useEffect(() => {
-    if (availableEquipments.length > 0 && selectedGearId === '__custom__' && !equipmentName) {
-      const first = availableEquipments[0]
-      setSelectedGearId(first.id || first.name)
-      setEquipmentName(first.name)
-      setHourlyRate(first.hourlyRate ?? 250)
+    if (availableEquipments.length > 0) {
+      const exists = availableEquipments.some((eq) => (eq.id || eq.name) === selectedGearId)
+      if (!exists && (selectedGearId !== '__custom__' || !equipmentName)) {
+        const first = availableEquipments[0]
+        setSelectedGearId(first.id || first.name)
+        setEquipmentName(first.name)
+        setHourlyRate(first.hourlyRate ?? 250)
+      }
+    } else if (availableEquipments.length === 0 && !loadingEquip) {
+      setSelectedGearId('__custom__')
+      if (!equipmentName) {
+        setHourlyRate(250)
+      }
     }
-  }, [availableEquipments])
+  }, [availableEquipments, loadingEquip])
 
   if (!booking) return null
 
@@ -182,15 +244,20 @@ export default function AddEquipmentPaymentModal({
   }
 
   const getSportEmoji = (sport = '') => {
-    const s = sport.toLowerCase()
+    const s = (sport || '').toLowerCase()
     if (s.includes('badminton')) return '🏸'
     if (s.includes('cricket')) return '🏏'
-    if (s.includes('football')) return '⚽'
+    if (s.includes('football') || s.includes('soccer') || s.includes('turf')) return '⚽'
     if (s.includes('basket')) return '🏀'
-    if (s.includes('swim')) return '🏊'
+    if (s.includes('swim') || s.includes('pool') || s.includes('aqua')) return '🏊'
+    if (s.includes('table tennis') || s.includes('ping pong')) return '🏓'
     if (s.includes('tennis')) return '🎾'
-    if (s.includes('table')) return '🏓'
     if (s.includes('volley')) return '🏐'
+    if (s.includes('rugby')) return '🏉'
+    if (s.includes('baseball') || s.includes('softball')) return '⚾'
+    if (s.includes('hockey')) return '🏑'
+    if (s.includes('squash')) return '🎾'
+    if (s.includes('fitness') || s.includes('gym')) return '🏋️'
     return '🎒'
   }
 
@@ -228,7 +295,15 @@ export default function AddEquipmentPaymentModal({
         <div className="equip-modal-booking-strip">
           <div className="strip-item">
             <span className="strip-label">ARENA / COURT</span>
-            <strong className="strip-val">{booking.facilityName || booking.facility?.name || booking.name}</strong>
+            <strong className="strip-val" title={booking.facilityName || booking.facility?.name || booking.name}>
+              {booking.facilityName || booking.facility?.name || (booking.name ? booking.name.split('•')[0].trim() : 'Arena')}
+            </strong>
+          </div>
+          <div className="strip-item">
+            <span className="strip-label">SPORT DISCIPLINE</span>
+            <strong className="strip-val" style={{ color: '#0284c7' }}>
+              {getSportEmoji(sportCategory)} {sportCategory}
+            </strong>
           </div>
           <div className="strip-item">
             <span className="strip-label">MEMBER</span>
@@ -237,12 +312,6 @@ export default function AddEquipmentPaymentModal({
           <div className="strip-item">
             <span className="strip-label">DATE & TIME</span>
             <strong className="strip-val">{booking.date || 'Today'}</strong>
-          </div>
-          <div className="strip-item">
-            <span className="strip-label">CURRENT FARE</span>
-            <strong className="strip-val" style={{ color: '#10b981' }}>
-              LKR {Number(booking.totalAmount || 0).toLocaleString()}
-            </strong>
           </div>
         </div>
 
@@ -307,6 +376,28 @@ export default function AddEquipmentPaymentModal({
                 <span className="gear-card-stock">Manual specification</span>
               </button>
             </div>
+
+            {availableEquipments.length === 0 && !loadingEquip && (
+              <div
+                style={{
+                  marginTop: '10px',
+                  padding: '10px 14px',
+                  background: 'rgba(241, 245, 249, 0.8)',
+                  borderRadius: '10px',
+                  fontSize: '12px',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  border: '1px dashed #cbd5e1',
+                }}
+              >
+                <span>ℹ️</span>
+                <span>
+                  No pre-configured equipment catalog items found for <strong>{sportCategory}</strong>. You can specify custom equipment and rental rates below.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* If Custom chosen, or allow editing name & rate */}

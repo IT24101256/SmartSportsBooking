@@ -1043,6 +1043,8 @@ export default function BookingsPage({
         <AddEquipmentPaymentModal
           booking={equipmentModalBooking}
           facilities={facilities}
+          apiBaseUrl={apiBaseUrl}
+          token={token}
           onClose={() => setEquipmentModalBooking(null)}
           onSubmit={async (bookingId, paymentData) => {
             if (onAddAdditionalEquipment) {
