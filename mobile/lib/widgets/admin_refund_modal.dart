@@ -45,7 +45,14 @@ class _AdminRefundModalState extends State<AdminRefundModal> {
         Navigator.pop(context);
         widget.onConfirmed();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Refund verified and confirmed!')),
+          SnackBar(
+            content: Text(
+              widget.booking.isRescheduleRefund
+                  ? 'Reschedule refund verified and confirmed!'
+                  : 'Refund verified and confirmed!',
+            ),
+            backgroundColor: widget.booking.isRescheduleRefund ? const Color(0xFF2563EB) : AppTheme.success,
+          ),
         );
       }
     } catch (e) {
@@ -61,6 +68,41 @@ class _AdminRefundModalState extends State<AdminRefundModal> {
   @override
   Widget build(BuildContext context) {
     final currencyFmt = NumberFormat('#,##0', 'en_US');
+    final b = widget.booking;
+    final isReschedule = b.isRescheduleRefund;
+    final isFull = b.isFullRefund;
+
+    final primaryColor = isReschedule
+        ? const Color(0xFF2563EB)
+        : (isFull ? AppTheme.success : const Color(0xFFD97706));
+    final iconBgColor = isReschedule
+        ? const Color(0xFFEFF6FF)
+        : (isFull ? AppTheme.successBg : const Color(0xFFFEF3C7));
+
+    final String eyebrow = isReschedule
+        ? 'Reschedule Refund Verification'
+        : 'Management Refund Verification';
+
+    final String title = isReschedule
+        ? 'Verify & Confirm Reschedule Refund'
+        : 'Verify & Confirm ${isFull ? 'Full Refund (100%)' : 'Half Refund (50%)'}';
+
+    final String subtitle = isReschedule
+        ? 'Process price difference refund to member'
+        : 'Record cancellation refund transfer to member';
+
+    final String pillText = isReschedule
+        ? '🔄 Price Difference Refund'
+        : (isFull ? '🟢 Full 100% Refund' : '🟡 Half 50% Refund');
+
+    String adjustmentReason = (b.rescheduleReason != null && b.rescheduleReason!.isNotEmpty)
+        ? b.rescheduleReason!
+        : (b.refundNotes != null && b.refundNotes!.isNotEmpty)
+            ? b.refundNotes!.split('(')[0].trim()
+            : 'Booking rescheduled to lower priced slot';
+    if (adjustmentReason.isEmpty) {
+      adjustmentReason = 'Booking rescheduled to lower priced slot';
+    }
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
@@ -77,23 +119,41 @@ class _AdminRefundModalState extends State<AdminRefundModal> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppTheme.successBg,
+                    color: iconBgColor,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(Icons.verified_outlined, color: AppTheme.success, size: 24),
+                  child: Icon(
+                    isReschedule ? Icons.sync_alt_rounded : Icons.verified_outlined,
+                    color: primaryColor,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Confirm Refund',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.deepHeading),
+                        eyebrow.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.deepHeading,
+                        ),
                       ),
                       Text(
-                        'Record payment transfer to member',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                        subtitle,
+                        style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
                       ),
                     ],
                   ),
@@ -108,34 +168,182 @@ class _AdminRefundModalState extends State<AdminRefundModal> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppTheme.scaffoldBg,
+                color: isReschedule ? const Color(0xFFF8FAFC) : AppTheme.scaffoldBg,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.border),
+                border: Border.all(
+                  color: isReschedule ? const Color(0xFFBFDBFE) : AppTheme.border,
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Booking #${widget.booking.id}',
-                        style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.deepHeading),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              b.facilityName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                color: AppTheme.deepHeading,
+                              ),
+                            ),
+                            Text(
+                              'Pass #BK-${b.id.toString().padLeft(5, '0')} • Member: ${b.customerName}',
+                              style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                            ),
+                            if (b.contactNumber.isNotEmpty)
+                              Text(
+                                'Contact: ${b.contactNumber}',
+                                style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                              ),
+                          ],
+                        ),
                       ),
-                      Text(
-                        'LKR ${currencyFmt.format(widget.booking.refundAmount ?? 0)} (${widget.booking.refundPercentage ?? 0}%)',
-                        style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.successDark, fontSize: 15),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'LKR ${currencyFmt.format(b.refundAmount ?? 0)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: primaryColor,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: iconBgColor,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              pillText,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text('Member: ${widget.booking.customerName}', style: const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
-                  Text('Contact: ${widget.booking.contactNumber} • NIC: ${widget.booking.nicNumber}', style: const TextStyle(color: AppTheme.textMuted, fontSize: 12)),
-                  if (widget.booking.cancellationReason != null && widget.booking.cancellationReason!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text('Reason: "${widget.booking.cancellationReason}"', style: const TextStyle(fontStyle: FontStyle.italic, color: Color(0xFF64748B), fontSize: 12)),
+                  const Divider(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isReschedule ? 'Original Paid Amount:' : 'Original Amount:',
+                        style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                      ),
+                      Text(
+                        'LKR ${currencyFmt.format(b.totalAmount)}',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  if (isReschedule) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Refund Amount (Difference):',
+                          style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                        ),
+                        Text(
+                          'LKR ${currencyFmt.format(b.refundAmount ?? 0)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF2563EB),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Adjustment Reason:',
+                          style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            adjustmentReason,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Cancellation Reason:',
+                          style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            b.cancellationReason?.isNotEmpty == true
+                                ? b.cancellationReason!
+                                : 'Member requested cancellation.',
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                              fontStyle: FontStyle.italic,
+                              color: Color(0xFF64748B),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Current Status:',
+                        style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'To Refund (Pending Verification)',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFB45309),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -143,8 +351,8 @@ class _AdminRefundModalState extends State<AdminRefundModal> {
             TextField(
               controller: _notesController,
               decoration: const InputDecoration(
-                labelText: 'Bank Transfer Ref / Transaction Notes',
-                hintText: 'e.g. Ref #TXN88291 via Commercial Bank',
+                labelText: 'Bank Transfer Ref / Transaction Notes (Optional)',
+                hintText: 'e.g. Bank slip transfer TRX-99238, cash refund at reception, etc.',
               ),
             ),
             if (_error != null) ...[
@@ -154,10 +362,20 @@ class _AdminRefundModalState extends State<AdminRefundModal> {
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _isSubmitting ? null : _handleConfirm,
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
               child: _isSubmitting
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Confirm & Mark as Refunded'),
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(
+                      isReschedule ? 'Confirm & Release Refund' : 'Confirm & Mark as Refunded',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
             ),
           ],
         ),

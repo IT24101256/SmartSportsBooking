@@ -201,7 +201,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   border: Border.all(
                     color: b.isRescheduleOffer
                         ? const Color(0xFFD8B4FE)
-                        : (b.isToRefund ? const Color(0xFFFCA5A5) : AppTheme.border),
+                        : (b.isToRefund
+                            ? (b.isRescheduleRefund ? const Color(0xFF93C5FD) : const Color(0xFFFCA5A5))
+                            : AppTheme.border),
                     width: b.isRescheduleOffer || b.isToRefund ? 1.5 : 1,
                   ),
                   boxShadow: [
@@ -305,7 +307,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
                             children: [
                               Text(
                                 b.refundPercentage != null && b.refundPercentage! > 0
-                                    ? 'Refund ${b.refundStatus ?? 'To Refund'}: LKR ${currencyFmt.format(b.refundAmount ?? 0)} (${b.refundPercentage}%)'
+                                    ? (b.isRefunded
+                                        ? 'Refunded (${b.refundPercentage}%): LKR ${currencyFmt.format(b.refundAmount ?? 0)}'
+                                        : 'Refund ${b.refundStatus ?? 'To Refund'}: LKR ${currencyFmt.format(b.refundAmount ?? 0)} (${b.refundPercentage}%)')
                                     : 'Non-refundable cancellation (<12h notice)',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
@@ -315,6 +319,62 @@ class _BookingsScreenState extends State<BookingsScreen> {
                               ),
                               if (b.cancellationReason != null && b.cancellationReason!.isNotEmpty)
                                 Text('Reason: "${b.cancellationReason}"', style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+                              if (b.refundConfirmedBy != null && b.refundConfirmedBy!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    'Verified by: ${b.refundConfirmedBy}${b.refundNotes != null && b.refundNotes!.isNotEmpty ? ' • Note: "${b.refundNotes}"' : ''}',
+                                    style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      // Reschedule Price Adjustment Refund banner (for active/non-cancelled bookings)
+                      if (!b.isCancelled && (b.isToRefund || (b.isRefunded && (b.refundAmount ?? 0) > 0))) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    b.isRefunded ? Icons.check_circle_outline : Icons.sync_alt_rounded,
+                                    size: 16,
+                                    color: b.isRefunded ? const Color(0xFF059669) : const Color(0xFF2563EB),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      b.isRefunded
+                                          ? 'Price Difference Refunded: LKR ${currencyFmt.format(b.refundAmount ?? 0)}'
+                                          : 'Pending Price Difference Refund: LKR ${currencyFmt.format(b.refundAmount ?? 0)}',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12,
+                                        color: b.isRefunded ? const Color(0xFF059669) : const Color(0xFF2563EB),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (b.refundConfirmedBy != null && b.refundConfirmedBy!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    'Verified by: ${b.refundConfirmedBy}${b.refundNotes != null && b.refundNotes!.isNotEmpty ? ' • Note: "${b.refundNotes}"' : ''}',
+                                    style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -397,9 +457,20 @@ class _BookingsScreenState extends State<BookingsScreen> {
                           if (isStaff && b.isToRefund)
                             ElevatedButton.icon(
                               onPressed: () => AdminRefundModal.show(context, b, widget.onRefresh),
-                              icon: const Icon(Icons.verified, size: 16),
-                              label: Text('Confirm Refund (LKR ${currencyFmt.format(b.refundAmount ?? 0)})'),
-                              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                              icon: Icon(b.isRescheduleRefund ? Icons.sync_alt_rounded : Icons.verified, size: 16),
+                              label: Text(
+                                b.isRescheduleRefund
+                                    ? 'Confirm Refund (LKR ${currencyFmt.format(b.refundAmount ?? 0)})'
+                                    : b.isFullRefund
+                                    ? 'Confirm Full (100% · LKR ${currencyFmt.format(b.refundAmount ?? 0)})'
+                                    : b.isHalfRefund
+                                    ? 'Confirm Half (50% · LKR ${currencyFmt.format(b.refundAmount ?? 0)})'
+                                    : 'Confirm Refund (LKR ${currencyFmt.format(b.refundAmount ?? 0)})',
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: b.isRescheduleRefund ? const Color(0xFF2563EB) : AppTheme.success,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
                             ),
 
                           // 6. Bank Slip Verification & Viewer

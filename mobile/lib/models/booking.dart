@@ -214,6 +214,40 @@ class Booking {
 
   bool get isRefunded => refundStatus == 'Refunded';
 
+  bool get isRescheduleRefund {
+    if (!isToRefund && !isRefunded) return false;
+    if (!isCancelled) return true;
+    final notes = (refundNotes ?? '').toLowerCase();
+    return notes.contains('booking update') ||
+        notes.contains('downgrade') ||
+        notes.contains('overpayment') ||
+        notes.contains('reschedule');
+  }
+
+  bool get isFullRefund {
+    if (!isToRefund || isRescheduleRefund) return false;
+    final pct = refundPercentage ?? 0;
+    final amt = refundAmount ?? 0.0;
+    final tot = totalAmount;
+    if (pct == 100) return true;
+    final statusStr = (refundStatus ?? '').toLowerCase();
+    if (statusStr.contains('100') || statusStr.contains('full')) return true;
+    if (amt > 0 && tot > 0 && amt >= tot) return true;
+    return pct > 50;
+  }
+
+  bool get isHalfRefund {
+    if (!isToRefund || isRescheduleRefund) return false;
+    final pct = refundPercentage ?? 0;
+    final amt = refundAmount ?? 0.0;
+    final tot = totalAmount;
+    if (pct == 50) return true;
+    final statusStr = (refundStatus ?? '').toLowerCase();
+    if (statusStr.contains('50') || statusStr.contains('half') || statusStr.contains('partial')) return true;
+    if (amt > 0 && tot > 0 && amt < tot) return true;
+    return pct > 0 && pct <= 50;
+  }
+
   bool get canCustomerUpdate {
     if (isCancelled || isExpired) return false;
     try {
