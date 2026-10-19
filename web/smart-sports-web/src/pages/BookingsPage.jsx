@@ -82,8 +82,21 @@ export default function BookingsPage({
     b.refundStatus === 'To Refund' ||
     (b.status === 'Cancelled' && (Number(b.refundAmount || 0) > 0 && b.refundStatus !== 'Refunded'))
 
+  const isRescheduleRefundBooking = (b) => {
+    if (!isToRefundBooking(b) && b.refundStatus !== 'Refunded') return false
+    return (
+      b.status !== 'Cancelled' ||
+      Boolean(
+        b.refundNotes?.toLowerCase().includes('booking update') ||
+        b.refundNotes?.toLowerCase().includes('downgrade') ||
+        b.refundNotes?.toLowerCase().includes('overpayment') ||
+        b.refundNotes?.toLowerCase().includes('reschedule')
+      )
+    )
+  }
+
   const isFullRefundBooking = (b) => {
-    if (!isToRefundBooking(b)) return false
+    if (!isToRefundBooking(b) || isRescheduleRefundBooking(b)) return false
     const pct = Number(b.refundPercentage || 0)
     const amt = Number(b.refundAmount || 0)
     const tot = Number(b.totalAmount || 0)
@@ -94,7 +107,7 @@ export default function BookingsPage({
   }
 
   const isHalfRefundBooking = (b) => {
-    if (!isToRefundBooking(b)) return false
+    if (!isToRefundBooking(b) || isRescheduleRefundBooking(b)) return false
     const pct = Number(b.refundPercentage || 0)
     const amt = Number(b.refundAmount || 0)
     const tot = Number(b.totalAmount || 0)
@@ -471,8 +484,9 @@ export default function BookingsPage({
             const isCancelled = booking.status === 'Cancelled'
             const isConfirmed = booking.status === 'Confirmed'
             const isToRefund = isToRefundBooking(booking)
-            const isFullRefund = isToRefund && isFullRefundBooking(booking)
-            const isHalfRefund = isToRefund && isHalfRefundBooking(booking)
+            const isRescheduleRefund = isToRefund && isRescheduleRefundBooking(booking)
+            const isFullRefund = isToRefund && !isRescheduleRefund && isFullRefundBooking(booking)
+            const isHalfRefund = isToRefund && !isRescheduleRefund && isHalfRefundBooking(booking)
             const isRefunded = isCancelled && booking.refundStatus === 'Refunded'
 
             return (
@@ -675,6 +689,31 @@ export default function BookingsPage({
                     </div>
                   )}
 
+                  {/* Reschedule Price Adjustment Refund Rider */}
+                  {!isCancelled && (booking.refundStatus === 'To Refund' || (booking.refundStatus === 'Refunded' && Number(booking.refundAmount || 0) > 0)) && (
+                    <div className="ticket-rider reschedule-rider" style={{ background: '#eff6ff', borderColor: '#bfdbfe' }}>
+                      <div className="rider-line">
+                        <span className="rider-label" style={{ color: '#1e40af' }}>Reschedule Price Adjustment:</span>
+                        <strong
+                          className={`refund-status-highlight ${
+                            booking.refundStatus === 'Refunded' ? 'refund-green' : 'refund-blue'
+                          }`}
+                          style={{ color: booking.refundStatus === 'Refunded' ? '#059669' : '#2563eb' }}
+                        >
+                          {booking.refundStatus === 'Refunded'
+                            ? `Price Difference Refunded · LKR ${Number(booking.refundAmount || 0).toLocaleString()}`
+                            : `Pending Price Difference Refund · LKR ${Number(booking.refundAmount || 0).toLocaleString()}`}
+                        </strong>
+                      </div>
+                      {booking.refundConfirmedBy && (
+                        <div className="refund-audit-text">
+                          Verified by: <strong>{booking.refundConfirmedBy}</strong>{' '}
+                          {booking.refundNotes ? `· Note: "${booking.refundNotes}"` : ''}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {isCancelled && (
                     <div className="ticket-rider cancel-rider">
                       <div className="rider-line">
@@ -755,8 +794,11 @@ export default function BookingsPage({
                         id={`admin-confirm-refund-btn-${booking.id}`}
                         onClick={() => setConfirmingRefundBooking(booking)}
                         title="Verify and release refund to member"
+                        style={isRescheduleRefund ? { background: '#2563eb', borderColor: '#1d4ed8' } : undefined}
                       >
-                        {isFullRefund
+                        {isRescheduleRefund
+                          ? `💰 Confirm Refund (LKR ${Number(booking.refundAmount || 0).toLocaleString()})`
+                          : isFullRefund
                           ? `💰 Confirm Full (100% · LKR ${Number(booking.refundAmount || 0).toLocaleString()})`
                           : isHalfRefund
                           ? `💰 Confirm Half (50% · LKR ${Number(booking.refundAmount || 0).toLocaleString()})`
