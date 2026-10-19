@@ -320,6 +320,15 @@ export default function AdminSidebar({
             </svg>
           ),
         },
+        {
+          id: 'Feedbacks',
+          label: 'Member Feedbacks',
+          icon: (
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+          ),
+        },
       ],
     },
     {
@@ -351,7 +360,7 @@ export default function AdminSidebar({
     },
   ]
 
-  // Manager only has access to Bookings and Support tabs
+  // Manager only has access to Bookings, Support, and Feedbacks tabs
   const navSections = isManager
     ? [
         {
@@ -360,7 +369,7 @@ export default function AdminSidebar({
         },
         {
           label: 'COMMUNICATION',
-          items: fullNavSections[1].items.filter((item) => item.id === 'Support'),
+          items: fullNavSections[1].items.filter((item) => item.id === 'Support' || item.id === 'Feedbacks'),
         },
       ]
     : fullNavSections

@@ -21,6 +21,7 @@ import ProfilePage from './pages/ProfilePage'
 import AuthModal from './components/AuthModal'
 import EquipmentsPage from './pages/EquipmentsPage'
 import SportCategoriesPage from './pages/SportCategoriesPage'
+import FeedbacksPage from './pages/FeedbacksPage'
 import FloatingAiChat from './components/FloatingAiChat'
 import BookWithAiModal from './components/BookWithAiModal'
 import { formatBookingSession, canCustomerUpdate } from './utils/bookingUtils'
@@ -34,8 +35,8 @@ const localDateString = (date = new Date()) => {
 }
 
 const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support']
-const adminNavItems = [...baseNavItems, 'Equipments', 'Sport Categories', 'Revenue', 'Members']
-const managerNavItems = ['Bookings', 'Support']
+const adminNavItems = [...baseNavItems, 'Equipments', 'Sport Categories', 'Revenue', 'Members', 'Feedbacks']
+const managerNavItems = ['Bookings', 'Support', 'Feedbacks']
 
 const initialBookingForm = {
   facility: 'Badminton Court',
@@ -1075,6 +1076,16 @@ function App() {
     ]
 
     if (activeTab === 'Members') return <MembersPage members={registeredMembers} />
+    if (activeTab === 'Feedbacks') return (
+      <FeedbacksPage
+        reviews={reviewsList}
+        facilities={facilitiesList}
+        apiBaseUrl={API_BASE_URL}
+        currentUser={currentUser}
+        onDeleteReview={deleteReview}
+        onRefreshReviews={loadReviews}
+      />
+    )
     if (activeTab === 'Revenue') return <RevenuePage apiBaseUrl={API_BASE_URL} token={authToken} />
     if (activeTab === 'Equipments') return (
       <EquipmentsPage
@@ -1232,6 +1243,7 @@ function App() {
     if (activeTab === 'Facilities') return 'Book a premium facility that fits your training plan.'
     if (activeTab === 'Bookings') return 'Manage your upcoming games and reservation updates in one place.'
     if (activeTab === 'Support') return 'Track support requests and get help from the facilities team.'
+    if (activeTab === 'Feedbacks') return 'Review and inspect community feedback, ratings and venue experiences.'
     if (activeTab === 'Members') return 'Review member activity, access and facility usage in one place.'
     return 'Play harder. Book smarter.'
   })()

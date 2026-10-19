@@ -512,6 +512,15 @@ export default function AdminOverviewPage({
                 >
                   <span>🎒 Gear</span>
                 </button>
+                <button
+                  type="button"
+                  className="mission-sub-btn"
+                  onClick={() => setActiveTab('Feedbacks')}
+                  title="Member Reviews & Feedbacks"
+                >
+                  <span>⭐ Feedbacks</span>
+                  <span className="sub-badge">{reviews?.length || 0}</span>
+                </button>
               </div>
             </div>
           </div>

@@ -11,6 +11,7 @@ export default function AdminTopBar({
     Facilities: 'Facility Portfolio & Court Operations',
     Bookings: 'Reservations, Schedule & Refunds',
     Support: 'Customer Support & Concierge Chat',
+    Feedbacks: 'Member Reviews & Experience Feedbacks',
     Revenue: 'Financial Operations & Revenue Intelligence',
     Members: 'Member Directory & Access Management',
     Profile: 'User Profile & Account Security',
