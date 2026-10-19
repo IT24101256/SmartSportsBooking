@@ -1,0 +1,16 @@
+namespace SmartSportsFacilityBooking.Dtos.Booking;
+
+public class CustomerUpdateBookingRequest
+{
+    public int FacilityId { get; set; }
+    public DateTime BookingDate { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public int HoursNeeded { get; set; }
+    public string? PaymentMethod { get; set; }
+    public string? CardNumber { get; set; }
+    public int? ExpiryMonth { get; set; }
+    public int? ExpiryYear { get; set; }
+    public string? Cvv { get; set; }
+    public string? CardLastFour { get; set; }
+    public IFormFile? BankSlip { get; set; }
+}

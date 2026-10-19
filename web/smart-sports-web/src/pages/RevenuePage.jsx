@@ -103,7 +103,8 @@ export default function RevenuePage({ apiBaseUrl, token }) {
     const map = {}
     report.items.forEach((item) => {
       const name = item.facility || 'General Facility'
-      map[name] = (map[name] || 0) + (Number(item.totalAmount) || 0)
+      const net = item.netAmount !== undefined ? Number(item.netAmount) : (Number(item.totalAmount) || 0)
+      map[name] = (map[name] || 0) + net
     })
     const total = report.totalRevenue || 1
     return Object.entries(map)
@@ -194,7 +195,12 @@ export default function RevenuePage({ apiBaseUrl, token }) {
     pdf.setFontSize(11)
     pdf.setTextColor(15, 23, 42)
     pdf.text(`Gross Revenue: ${currency.format(report.totalRevenue)}`, left + 6, y + 9)
-    pdf.text(`Total Bookings: ${report.bookingCount}`, left + 6, y + 17)
+    if (report.refundedAmount > 0) {
+      pdf.text(`Refunds Deducted: -${currency.format(report.refundedAmount)}`, left + 6, y + 17)
+      pdf.text(`Total Bookings: ${report.bookingCount}`, left + 90, y + 17)
+    } else {
+      pdf.text(`Total Bookings: ${report.bookingCount}`, left + 6, y + 17)
+    }
 
     const avgVal = report.bookingCount ? report.totalRevenue / report.bookingCount : 0
     pdf.text(`Avg Ticket: ${currency.format(avgVal)}`, left + 90, y + 9)
@@ -242,7 +248,7 @@ export default function RevenuePage({ apiBaseUrl, token }) {
   // Export CSV
   const exportCsv = () => {
     if (!report.items.length) return
-    const headers = ['Booking ID', 'Booking Date', 'Facility', 'Customer', 'Payment Method', 'Payment Status', 'Amount (LKR)']
+    const headers = ['Booking ID', 'Booking Date', 'Facility', 'Customer', 'Payment Method', 'Payment Status', 'Status', 'Gross Amount (LKR)', 'Refund Deducted (LKR)', 'Net Revenue (LKR)']
     const rows = report.items.map((item) => [
       item.id,
       item.bookingDate ? item.bookingDate.slice(0, 10) : '',
@@ -250,7 +256,10 @@ export default function RevenuePage({ apiBaseUrl, token }) {
       `"${(item.customer || '').replace(/"/g, '""')}"`,
       item.paymentMethod || '',
       item.paymentStatus || '',
+      item.status || '',
       item.totalAmount || 0,
+      item.refundStatus === 'Refunded' ? (item.refundAmount || 0) : 0,
+      item.netAmount !== undefined ? item.netAmount : (item.totalAmount || 0),
     ])
 
     const csvContent = [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
@@ -423,7 +432,11 @@ export default function RevenuePage({ apiBaseUrl, token }) {
           </div>
           <div className="kpi-footer">
             <span className="kpi-status-dot green" />
-            <span>Cleared & verified bank/online income</span>
+            <span>
+              {report.refundedAmount > 0
+                ? `Net revenue (-${currency.format(report.refundedAmount)} refunds deducted)`
+                : 'Cleared & verified bank/online income'}
+            </span>
           </div>
         </article>
 
@@ -808,7 +821,13 @@ export default function RevenuePage({ apiBaseUrl, token }) {
                           <span className="payment-method-tag">
                             {item.paymentMethod === 'BankSlip' ? '🏦 Bank Transfer' : `💳 ${item.paymentMethod || 'Online'}`}
                           </span>
-                          <span className="payment-status-badge verified">Paid</span>
+                          {item.refundStatus === 'Refunded' ? (
+                            <span className="payment-status-badge refunded" style={{ background: '#fee2e2', color: '#b91c1c' }}>
+                              Refunded
+                            </span>
+                          ) : (
+                            <span className="payment-status-badge verified">Paid</span>
+                          )}
                           {item.equipmentPayments && item.equipmentPayments.length > 0 && (
                             <span className="ledger-gear-included-chip" title="Includes additional on-site equipment">
                               🎒 +{item.equipmentPayments.length} gear (LKR {item.equipmentPayments.reduce((s, e) => s + Number(e.totalAmount || 0), 0).toLocaleString()})
@@ -819,8 +838,13 @@ export default function RevenuePage({ apiBaseUrl, token }) {
 
                       <td className="align-right">
                         <span className="ledger-amount-value">
-                          {currency.format(item.totalAmount)}
+                          {currency.format(item.netAmount !== undefined ? item.netAmount : item.totalAmount)}
                         </span>
+                        {item.refundStatus === 'Refunded' && Number(item.refundAmount) > 0 && (
+                          <div style={{ fontSize: '0.72rem', color: '#ef4444', fontWeight: 650, marginTop: '2px' }}>
+                            - {currency.format(item.refundAmount)} refunded
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))

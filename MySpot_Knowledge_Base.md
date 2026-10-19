@@ -109,7 +109,26 @@ For a valid reschedule request:
 
 Do not promise a free reschedule for every situation. Confirm that the system created the request and accepted the new slot.
 
-## 8. Registration and Account Security
+## 8. Customer Booking Modifications
+
+Customers can update their existing booking directly from their booking ticket under the following terms:
+
+- **24-Hour Notice Cutoff**: The 'Update Booking' button is visible on the booking pass/ticket and modifications are permitted only until **24 hours prior** to the scheduled booking start time. Bookings starting in less than 24 hours are locked and cannot be updated.
+- **Modifiable Details**: In the update dialog, the customer can modify:
+  1. Facility name / sport
+  2. Booking date
+  3. Start time (whole hours between 08:00 and 23:00)
+  4. Duration (number of hours, ending by midnight)
+- **Financial & Payment Handling (Two Situations)**:
+  - **Situation 1 — Upgrade (New amount > Earlier paid amount)**:
+    The earlier paid amount is deducted, and the customer only needs to pay the remaining difference. The booking total updates to the new amount upon payment settlement.
+  - **Situation 2 — Downgrade (New amount < Earlier paid amount)**:
+    An overpayment refund is queued for admin verification (`To Refund`). The admin receives a dedicated button displaying the exact amount to refund. When the admin confirms the refund, this refund is deducted directly from gross club revenue.
+  - **Equal Amount (New amount == Earlier paid amount)**:
+    The schedule is updated with no additional charges or refunds.
+- Expired or cancelled bookings cannot be updated.
+
+## 9. Registration and Account Security
 
 Registration requires a full name, email, 10-digit contact number, NIC number, and password.
 
@@ -169,6 +188,13 @@ Yes, provided it has not expired. The system calculates the refund from the time
 ### Can I reschedule because of rain?
 
 An authorized Manager or Admin can request rescheduling for eligible outdoor bookings. The customer must choose another available slot and the system must accept it.
+
+### Can I update or modify my booking?
+
+Yes. Customers can update their active booking up until **24 hours prior** to the booking start time using the 'Update Booking' button on their booking ticket.
+- You can update the **facility**, **date**, **start time**, and **duration (hours)**.
+- **Price difference**: If the new booking total is greater than the previous amount, the earlier paid amount is deducted and you only pay the remaining difference. If the new booking total is less, an overpayment refund is queued for admin approval and deducted from club revenue.
+- If less than 24 hours remain before the booking time, the booking is locked and cannot be updated.
 
 ### Are equipment rentals included in the facility price?
 

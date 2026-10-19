@@ -154,7 +154,7 @@ class _UserCancelModalState extends State<UserCancelModal> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${widget.booking.formattedDate} • ${widget.booking.formattedTimeSlot}',
+                    '${widget.booking.formattedDate} • ${widget.booking.formattedTimeSlotWithDuration}',
                     style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
                   ),
                   const SizedBox(height: 6),

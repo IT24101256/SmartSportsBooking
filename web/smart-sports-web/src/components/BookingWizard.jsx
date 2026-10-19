@@ -1175,7 +1175,7 @@ export default function BookingWizard({
               </div>
               <div className="ticket-detail-item">
                 <span className="item-label">DATE & TIME</span>
-                <strong>{date} • {startTime} to {endTime}</strong>
+                <strong>{date} • {startTime} to {endTime} ({requiredHours} {requiredHours === 1 ? 'hour' : 'hours'})</strong>
               </div>
               <div className="ticket-detail-item">
                 <span className="item-label">TOTAL PAID</span>

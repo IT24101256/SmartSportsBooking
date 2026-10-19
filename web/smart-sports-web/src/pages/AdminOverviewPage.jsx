@@ -119,12 +119,14 @@ export default function AdminOverviewPage({
     totalEquipmentRevenue,
     grossRevenue,
     todayRevenue,
+    totalRefundedAmount,
     paymentMethodStats,
     recentBookings,
   } = useMemo(() => {
     let courtRev = 0
     let equipRev = 0
     let todayRev = 0
+    let totalRefunded = 0
     let confirmed = 0
     let pending = 0
     let cancelled = 0
@@ -168,9 +170,16 @@ export default function AdminOverviewPage({
       else if (pm.includes('cash')) pmCounts.Cash++
       else pmCounts.Other++
 
-      // Revenues
-      if (!isCancelled) {
-        const amt = Number(b.totalAmount || 0)
+      // Revenues: include paid bookings, but deduct refund amount if admin refunded cancellation
+      const isPaid = (b.paymentStatus === 'Paid' || b.paymentStatus === 'Approved' || b.paymentStatus === 'MockPaid' || b.status === 'Confirmed')
+      if (isPaid || !isCancelled) {
+        let amt = Number(b.totalAmount || 0)
+        // If admin refunded a booking cancellation, deduct that amount from revenue
+        if (b.refundStatus === 'Refunded' && b.refundAmount) {
+          const refAmt = Number(b.refundAmount || 0)
+          amt = Math.max(0, amt - refAmt)
+          totalRefunded += refAmt
+        }
         courtRev += amt
         if (isToday) todayRev += amt
 
@@ -197,6 +206,7 @@ export default function AdminOverviewPage({
       totalEquipmentRevenue: equipRev,
       grossRevenue: courtRev + equipRev,
       todayRevenue: todayRev,
+      totalRefundedAmount: totalRefunded,
       paymentMethodStats: pmCounts,
       recentBookings: sortedRecent,
     }
@@ -552,6 +562,11 @@ export default function AdminOverviewPage({
             <span className="kpi-highlight-tag">Court: {formatLKR(totalCourtRevenue)}</span>
             {totalEquipmentRevenue > 0 && (
               <span className="kpi-secondary-tag">+ Gear: {formatLKR(totalEquipmentRevenue)}</span>
+            )}
+            {totalRefundedAmount > 0 && (
+              <span className="kpi-refunded-tag" style={{ color: '#ef4444', fontWeight: 650, fontSize: '0.8rem' }}>
+                - Refunds: {formatLKR(totalRefundedAmount)}
+              </span>
             )}
           </div>
 

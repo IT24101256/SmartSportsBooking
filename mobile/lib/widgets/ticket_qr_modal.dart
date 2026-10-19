@@ -119,7 +119,7 @@ class TicketQrModal extends StatelessWidget {
                 children: [
                   _infoRow('Date', booking.formattedDate),
                   const SizedBox(height: 8),
-                  _infoRow('Time Slot', booking.formattedTimeSlot),
+                  _infoRow('Time Slot', booking.formattedTimeSlotWithDuration),
                   const SizedBox(height: 8),
                   _infoRow('Member', booking.customerName),
                   const SizedBox(height: 8),

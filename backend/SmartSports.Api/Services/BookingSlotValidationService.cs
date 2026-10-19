@@ -20,7 +20,8 @@ public interface IBookingSlotValidationService
         DateTime bookingDate,
         TimeSpan startTime,
         int hoursNeeded,
-        bool checkOverlap = true);
+        bool checkOverlap = true,
+        int? excludeBookingId = null);
 }
 
 public sealed class BookingSlotValidationService : IBookingSlotValidationService
@@ -37,7 +38,8 @@ public sealed class BookingSlotValidationService : IBookingSlotValidationService
         DateTime bookingDate,
         TimeSpan startTime,
         int hoursNeeded,
-        bool checkOverlap = true)
+        bool checkOverlap = true,
+        int? excludeBookingId = null)
     {
         var facility = await _context.Facilities.FindAsync(facilityId);
         if (facility == null)
@@ -92,6 +94,7 @@ public sealed class BookingSlotValidationService : IBookingSlotValidationService
         if (checkOverlap)
         {
             var hasOverlap = await _context.Bookings.AnyAsync(b =>
+                (excludeBookingId == null || b.Id != excludeBookingId.Value) &&
                 b.FacilityId == facilityId &&
                 b.BookingDate == normalizedDate &&
                 b.StartTime < endTime &&

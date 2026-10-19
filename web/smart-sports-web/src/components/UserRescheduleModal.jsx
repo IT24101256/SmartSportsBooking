@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { formatBookingSession } from '../utils/bookingUtils'
 
 const today = () => {
   const date = new Date()
@@ -136,7 +137,7 @@ export default function UserRescheduleModal({ booking, token, apiBaseUrl, onClos
           <div className="original-booking-card">
             <span>Current Facility & Time:</span>
             <strong>{booking.facilityName || booking.name}</strong>
-            <p>Originally booked for: <b>{booking.date}</b> ({hoursNeeded} hr{hoursNeeded > 1 ? 's' : ''})</p>
+            <p>Originally booked for: <b>{formatBookingSession(booking)}</b></p>
           </div>
 
           {errorMsg && <div className="auth-feedback" style={{ margin: '8px 0' }}>{errorMsg}</div>}

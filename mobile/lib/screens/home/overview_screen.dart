@@ -316,7 +316,7 @@ class OverviewScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${nextSession.formattedDate} • ${nextSession.formattedTimeSlot}',
+                              '${nextSession.formattedDate} • ${nextSession.formattedTimeSlotWithDuration}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),

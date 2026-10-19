@@ -133,15 +133,15 @@ public class BookingsController : ControllerBase
                     break;
                 case "to-refund":
                 case "torefund":
-                    bookingsQuery = bookingsQuery.Where(booking => booking.Status == "Cancelled" && (booking.RefundStatus == "To Refund" || (booking.RefundAmount > 0 && booking.RefundStatus != "Refunded")));
+                    bookingsQuery = bookingsQuery.Where(booking => booking.RefundStatus == "To Refund" || (booking.Status == "Cancelled" && booking.RefundAmount > 0 && booking.RefundStatus != "Refunded"));
                     break;
                 case "full-refund":
                 case "fullrefund":
-                    bookingsQuery = bookingsQuery.Where(booking => booking.Status == "Cancelled" && (booking.RefundPercentage == 100 || (booking.RefundAmount > 0 && booking.RefundAmount >= booking.TotalAmount) || (booking.RefundStatus != null && (booking.RefundStatus.Contains("100") || booking.RefundStatus.ToLower().Contains("full")))) && booking.RefundStatus != "Refunded");
+                    bookingsQuery = bookingsQuery.Where(booking => (booking.RefundStatus == "To Refund" || booking.Status == "Cancelled") && (booking.RefundPercentage == 100 || (booking.RefundAmount > 0 && booking.RefundAmount >= booking.TotalAmount) || (booking.RefundStatus != null && (booking.RefundStatus.Contains("100") || booking.RefundStatus.ToLower().Contains("full")))) && booking.RefundStatus != "Refunded");
                     break;
                 case "half-refund":
                 case "halfrefund":
-                    bookingsQuery = bookingsQuery.Where(booking => booking.Status == "Cancelled" && (booking.RefundPercentage == 50 || (booking.RefundAmount > 0 && booking.RefundAmount < booking.TotalAmount) || (booking.RefundStatus != null && (booking.RefundStatus.Contains("50") || booking.RefundStatus.ToLower().Contains("half") || booking.RefundStatus.ToLower().Contains("partial")))) && booking.RefundStatus != "Refunded");
+                    bookingsQuery = bookingsQuery.Where(booking => (booking.RefundStatus == "To Refund" || booking.Status == "Cancelled") && (booking.RefundPercentage == 50 || (booking.RefundAmount > 0 && booking.RefundAmount < booking.TotalAmount) || (booking.RefundStatus != null && (booking.RefundStatus.Contains("50") || booking.RefundStatus.ToLower().Contains("half") || booking.RefundStatus.ToLower().Contains("partial")))) && booking.RefundStatus != "Refunded");
                     break;
                 case "refunded":
                     bookingsQuery = bookingsQuery.Where(booking => booking.RefundStatus == "Refunded");
@@ -198,6 +198,7 @@ public class BookingsController : ControllerBase
             b.RescheduleReason,
             b.RescheduleRequestedAt,
             IsExpired = CancellationRefundService.IsBookingExpired(b.BookingDate, b.StartTime, slNow),
+            CanCustomerUpdate = CancellationRefundService.CanCustomerUpdateBooking(b.BookingDate, b.StartTime, slNow) && b.Status != "Cancelled" && !CancellationRefundService.IsBookingExpired(b.BookingDate, b.StartTime, slNow),
             EquipmentPayments = b.EquipmentPayments?.Select(ep => new
             {
                 ep.Id,
@@ -362,14 +363,14 @@ public class BookingsController : ControllerBase
 
     [HttpGet("availability")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetAvailability([FromQuery] int facilityId, [FromQuery] DateTime date, [FromQuery] string? clientTime = null)
+    public async Task<IActionResult> GetAvailability([FromQuery] int facilityId, [FromQuery] DateTime date, [FromQuery] string? clientTime = null, [FromQuery] int? excludeBookingId = null)
     {
         var facility = await _context.Facilities.FindAsync(facilityId);
         if (facility == null) return NotFound("Facility not found.");
 
         var day = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
         var bookings = await _context.Bookings
-            .Where(booking => booking.FacilityId == facilityId && booking.BookingDate == day && booking.Status != "Cancelled")
+            .Where(booking => (excludeBookingId == null || booking.Id != excludeBookingId.Value) && booking.FacilityId == facilityId && booking.BookingDate == day && booking.Status != "Cancelled")
             .Select(booking => new { booking.StartTime, booking.EndTime })
             .ToListAsync();
 
@@ -456,7 +457,7 @@ public class BookingsController : ControllerBase
             return BadRequest("Invalid status value.");
 
         booking.Status = request.Status;
-        if (request.Status == "Confirmed" && booking.PaymentMethod == "BankTransfer")
+        if (request.Status == "Confirmed" && (booking.PaymentMethod == "BankTransfer" || booking.PaymentStatus == "Pending" || !string.IsNullOrWhiteSpace(booking.BankSlipFileName)))
         {
             booking.PaymentStatus = "Approved";
         }
@@ -559,7 +560,7 @@ public class BookingsController : ControllerBase
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (booking == null) return NotFound();
-        if (booking.Status != "Cancelled") return BadRequest("Only cancelled bookings can be refunded.");
+        if (booking.Status != "Cancelled" && booking.RefundStatus != "To Refund") return BadRequest("Only cancelled bookings or bookings with pending refund can be refunded.");
         if (booking.RefundStatus == "Refunded") return BadRequest("This booking has already been refunded.");
         if (booking.RefundAmount == null || booking.RefundAmount <= 0) return BadRequest("This booking is non-refundable.");
 
@@ -667,6 +668,148 @@ public class BookingsController : ControllerBase
         booking.Status = "Confirmed";
 
         await _context.SaveChangesAsync();
+        return Ok(booking);
+    }
+
+    [HttpPut("{id:int}/customer-update")]
+    [Authorize]
+    [RequestSizeLimit(5 * 1024 * 1024)]
+    public async Task<IActionResult> CustomerUpdateBooking(int id, [FromForm] CustomerUpdateBookingRequest request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var booking = await _context.Bookings
+            .Include(b => b.Facility)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking == null) return NotFound();
+        if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && booking.UserId != userId.Value) return Forbid();
+        if (booking.Status == "Cancelled") return BadRequest("Cannot update a cancelled booking.");
+
+        var slNow = CancellationRefundService.GetCurrentLocalTime();
+        if (CancellationRefundService.IsBookingExpired(booking.BookingDate, booking.StartTime, slNow))
+        {
+            return BadRequest("Expired bookings cannot be updated.");
+        }
+
+        // 24-hour cutoff rule: must be at least 24 hours prior to scheduled start time
+        if (!CancellationRefundService.CanCustomerUpdateBooking(booking.BookingDate, booking.StartTime, slNow))
+        {
+            return BadRequest("Bookings can only be updated at least 24 hours prior to the scheduled start time.");
+        }
+
+        // Validate target facility, date, start time, hours needed, excluding this booking for overlap
+        var slotValidation = await _slotValidationService.ValidateAsync(
+            request.FacilityId,
+            request.BookingDate,
+            request.StartTime,
+            request.HoursNeeded,
+            checkOverlap: true,
+            excludeBookingId: id);
+
+        if (!slotValidation.IsValid)
+        {
+            return BadRequest(slotValidation.ErrorMessage);
+        }
+
+        var targetFacility = slotValidation.Facility!;
+        var newTotal = targetFacility.HourlyRate * request.HoursNeeded;
+
+        // Current net amount paid by member (deducting already confirmed refunds if any)
+        var currentPaid = booking.TotalAmount - (booking.RefundStatus == "Refunded" ? (booking.RefundAmount ?? 0m) : 0m);
+        var diff = newTotal - currentPaid;
+
+        if (diff > 0)
+        {
+            // Situation 1: Current booking amount is greater than previous one
+            // We deduct earlier paid amount and show only remaining amount to pay
+            var method = string.IsNullOrWhiteSpace(request.PaymentMethod) ? booking.PaymentMethod : request.PaymentMethod;
+            if (method.Equals("Card", StringComparison.OrdinalIgnoreCase))
+            {
+                booking.PaymentMethod = "Card";
+                booking.PaymentStatus = "Paid";
+                if (!string.IsNullOrWhiteSpace(request.CardLastFour))
+                {
+                    booking.CardLastFour = request.CardLastFour;
+                }
+                else if (!string.IsNullOrWhiteSpace(request.CardNumber) && request.CardNumber.Length >= 4)
+                {
+                    booking.CardLastFour = request.CardNumber.Substring(request.CardNumber.Length - 4);
+                }
+            }
+            else if (method.Equals("BankTransfer", StringComparison.OrdinalIgnoreCase))
+            {
+                booking.PaymentMethod = "BankTransfer";
+                if (request.BankSlip != null)
+                {
+                    if (request.BankSlip.Length <= 0 || request.BankSlip.Length > 4 * 1024 * 1024)
+                    {
+                        return BadRequest("The bank slip must be a non-empty file no larger than 4 MB.");
+                    }
+                    var uploadDirectory = Path.Combine(AppContext.BaseDirectory, "uploads", "slips");
+                    Directory.CreateDirectory(uploadDirectory);
+                    var extension = Path.GetExtension(request.BankSlip.FileName);
+                    if (!new[] { ".jpg", ".jpeg", ".png", ".pdf" }.Contains(extension, StringComparer.OrdinalIgnoreCase))
+                    {
+                        return BadRequest("The bank slip must be a JPG, PNG, or PDF file.");
+                    }
+                    var storedName = $"{Guid.NewGuid():N}{extension}";
+                    await using var stream = System.IO.File.Create(Path.Combine(uploadDirectory, storedName));
+                    await request.BankSlip.CopyToAsync(stream);
+                    booking.BankSlipFileName = storedName;
+                    booking.PaymentStatus = "Pending";
+                }
+            }
+
+            // Total amount becomes the new higher total; reset pending refund fields
+            booking.TotalAmount = newTotal;
+            booking.RefundAmount = null;
+            booking.RefundStatus = null;
+            booking.RefundPercentage = null;
+            booking.RefundConfirmedAt = null;
+            booking.RefundConfirmedBy = null;
+            booking.RefundNotes = null;
+        }
+        else if (diff < 0)
+        {
+            // Situation 2: Current booking amount is less than earlier booking amount
+            // Queue an overpayment refund for admin with a button displaying the amount to refund,
+            // which when approved by admin will deduct from revenue.
+            var refundDiff = currentPaid - newTotal;
+            booking.TotalAmount = currentPaid;
+            booking.RefundAmount = refundDiff;
+            booking.RefundStatus = "To Refund";
+            booking.RefundPercentage = currentPaid > 0 ? (int)Math.Round((refundDiff / currentPaid) * 100) : 0;
+            booking.RefundConfirmedAt = null;
+            booking.RefundConfirmedBy = null;
+            booking.RefundNotes = $"Overpayment refund from booking update on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC (downgraded from LKR {currentPaid:N0} to LKR {newTotal:N0}).";
+        }
+        else
+        {
+            // diff == 0: Same amount, clear any pending refund
+            booking.TotalAmount = currentPaid;
+            booking.RefundAmount = null;
+            booking.RefundStatus = null;
+            booking.RefundPercentage = null;
+            booking.RefundConfirmedAt = null;
+            booking.RefundConfirmedBy = null;
+            booking.RefundNotes = null;
+        }
+
+        // Apply updated schedule & facility
+        booking.FacilityId = targetFacility.Id;
+        booking.BookingDate = slotValidation.BookingDate;
+        booking.StartTime = request.StartTime;
+        booking.EndTime = slotValidation.EndTime;
+        booking.HoursNeeded = request.HoursNeeded;
+        booking.IsRescheduleRequested = false;
+        booking.RescheduleReason = null;
+        booking.Status = "Confirmed";
+
+        await _context.SaveChangesAsync();
+        await _context.Entry(booking).Reference(b => b.Facility).LoadAsync();
+
         return Ok(booking);
     }
 

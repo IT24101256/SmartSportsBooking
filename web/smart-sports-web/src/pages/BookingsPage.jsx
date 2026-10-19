@@ -5,8 +5,10 @@ import UserRescheduleModal from '../components/UserRescheduleModal'
 import AdminRescheduleModal from '../components/AdminRescheduleModal'
 import AdminConfirmRefundModal from '../components/AdminConfirmRefundModal'
 import AddEquipmentPaymentModal from '../components/AddEquipmentPaymentModal'
+import CustomerUpdateBookingModal from '../components/CustomerUpdateBookingModal'
 import { getFacilityIcon } from '../utils/facilityImages'
 import TicketQRCode from '../components/TicketQRCode'
+import { formatBookingSession } from '../utils/bookingUtils'
 
 function getGateForVenue(name = '') {
   const lower = (name || '').toLowerCase()
@@ -34,11 +36,13 @@ export default function BookingsPage({
   onViewSlip,
   onReview,
   onAddAdditionalEquipment,
+  onCustomerUpdate,
 }) {
   const [cancellingBooking, setCancellingBooking] = useState(null)
   const [cancelReason, setCancelReason] = useState('')
   const [userCancellingBooking, setUserCancellingBooking] = useState(null)
   const [userReschedulingBooking, setUserReschedulingBooking] = useState(null)
+  const [userUpdatingBooking, setUserUpdatingBooking] = useState(null)
   const [adminReschedulingBooking, setAdminReschedulingBooking] = useState(null)
   const [confirmingRefundBooking, setConfirmingRefundBooking] = useState(null)
   const [equipmentModalBooking, setEquipmentModalBooking] = useState(null)
@@ -74,7 +78,9 @@ export default function BookingsPage({
     return sessionTime.getTime() <= renderNow
   }
 
-  const isToRefundBooking = (b) => b.status === 'Cancelled' && (b.refundStatus === 'To Refund' || (Number(b.refundAmount || 0) > 0 && b.refundStatus !== 'Refunded'))
+  const isToRefundBooking = (b) =>
+    b.refundStatus === 'To Refund' ||
+    (b.status === 'Cancelled' && (Number(b.refundAmount || 0) > 0 && b.refundStatus !== 'Refunded'))
 
   const isFullRefundBooking = (b) => {
     if (!isToRefundBooking(b)) return false
@@ -570,7 +576,7 @@ export default function BookingsPage({
                       <span className="cell-label">SESSION DATE & TIME</span>
                       <div className="cell-value date-value">
                         <span className="cell-icon">📅</span>
-                        <strong>{booking.date}</strong>
+                        <strong>{formatBookingSession(booking)}</strong>
                       </div>
                     </div>
 
@@ -741,7 +747,7 @@ export default function BookingsPage({
 
                   {/* Admin Action Buttons */}
                   <div className="stub-actions">
-                    {/* ADMIN REFUND VERIFICATION BUTTON: Only when cancelled with pending refund */}
+                    {/* ADMIN REFUND VERIFICATION BUTTON: Only when pending refund exists */}
                     {isToRefund && (
                       <button
                         className="primary-btn admin-confirm-refund-action-btn stub-btn"
@@ -750,7 +756,11 @@ export default function BookingsPage({
                         onClick={() => setConfirmingRefundBooking(booking)}
                         title="Verify and release refund to member"
                       >
-                        {isFullRefund ? '💰 Confirm Full (100%)' : '💰 Confirm Half (50%)'}
+                        {isFullRefund
+                          ? `💰 Confirm Full (100% · LKR ${Number(booking.refundAmount || 0).toLocaleString()})`
+                          : isHalfRefund
+                          ? `💰 Confirm Half (50% · LKR ${Number(booking.refundAmount || 0).toLocaleString()})`
+                          : `💰 Confirm Refund (LKR ${Number(booking.refundAmount || 0).toLocaleString()})`}
                       </button>
                     )}
 
@@ -766,15 +776,21 @@ export default function BookingsPage({
                       </button>
                     )}
 
-                    {booking.paymentMethod === 'BankTransfer' && !isConfirmed && !isCancelled && (
-                      <button
-                        className="primary-btn stub-btn"
-                        type="button"
-                        onClick={() => onStatusChange(booking, 'Confirmed')}
-                      >
-                        ✓ Verify transfer
-                      </button>
-                    )}
+                    {/* ADMIN BANK SLIP VERIFICATION BUTTON */}
+                    {(booking.paymentMethod === 'BankTransfer' || booking.bankSlipFileName) &&
+                      (booking.paymentStatus === 'Pending' || !isConfirmed) &&
+                      !isCancelled && (
+                        <button
+                          className="primary-btn stub-btn verify-slip-btn"
+                          type="button"
+                          id={`verify-slip-btn-${booking.id}`}
+                          onClick={() => onStatusChange(booking, 'Confirmed')}
+                          style={{ background: '#059669', borderColor: '#047857' }}
+                          title="Verify and approve the bank transfer slip"
+                        >
+                          ✓ Verify slip
+                        </button>
+                      )}
 
                     {/* Admin "Ask to Reschedule": Only if NOT cancelled and NOT expired */}
                     {!isCancelled && !isExpired && !isRescheduleRequested && (
@@ -833,6 +849,7 @@ export default function BookingsPage({
           onReview={onReview}
           onCancel={(booking) => setUserCancellingBooking(booking)}
           onReschedule={(booking) => setUserReschedulingBooking(booking)}
+          onUpdate={(booking) => setUserUpdatingBooking(booking)}
           emptyMessage={
             selectedFilter === 'expired'
               ? 'No expired passes found.'
@@ -1030,6 +1047,23 @@ export default function BookingsPage({
           onSubmit={async (bookingId, paymentData) => {
             if (onAddAdditionalEquipment) {
               await onAddAdditionalEquipment(bookingId, paymentData)
+            }
+          }}
+        />
+      )}
+
+      {/* Customer Update Booking Modal (Visible until 24h prior) */}
+      {userUpdatingBooking && (
+        <CustomerUpdateBookingModal
+          booking={userUpdatingBooking}
+          facilities={facilities}
+          token={token}
+          apiBaseUrl={apiBaseUrl}
+          onClose={() => setUserUpdatingBooking(null)}
+          onSuccess={async (updated) => {
+            setUserUpdatingBooking(null)
+            if (onCustomerUpdate) {
+              await onCustomerUpdate(updated)
             }
           }}
         />

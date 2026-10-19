@@ -44,6 +44,21 @@ public static class CancellationRefundService
         return sessionStart <= now;
     }
 
+    public static bool CanCustomerUpdateBooking(DateTime bookingDate, TimeSpan startTime, DateTime? referenceNow = null)
+    {
+        var now = referenceNow ?? GetCurrentLocalTime();
+        var sessionStart = new DateTime(
+            bookingDate.Year,
+            bookingDate.Month,
+            bookingDate.Day,
+            startTime.Hours,
+            startTime.Minutes,
+            0
+        );
+        var hoursPrior = (sessionStart - now).TotalHours;
+        return hoursPrior >= 24.0;
+    }
+
     public static CancellationRefundResult CalculateRefund(
         DateTime bookingDate,
         TimeSpan startTime,

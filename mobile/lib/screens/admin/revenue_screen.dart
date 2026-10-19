@@ -146,9 +146,13 @@ class _RevenueScreenState extends State<RevenueScreen> {
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        pw.Text('TOTAL GROSS REVENUE', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.teal900)),
+                        pw.Text('TOTAL NET REVENUE', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.teal900)),
                         pw.SizedBox(height: 4),
                         pw.Text('LKR ${currencyFmt.format(_report!.totalRevenue)}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.teal900)),
+                        if (_report!.refundedAmount > 0) ...[
+                          pw.SizedBox(height: 2),
+                          pw.Text('(Deducted: -LKR ${currencyFmt.format(_report!.refundedAmount)})', style: pw.TextStyle(fontSize: 7, color: PdfColors.red800)),
+                        ],
                       ],
                     ),
                   ),
@@ -423,6 +427,13 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           '${_report?.bookingCount ?? courtItems.length} Court Sessions • ${_report?.equipmentTransactionsCount ?? eqItems.length} Equipment Rentals',
                           style: const TextStyle(color: Color(0xFFA7F3D0), fontSize: 13),
                         ),
+                        if ((_report?.refundedAmount ?? 0) > 0) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '- LKR ${currencyFmt.format(_report!.refundedAmount)} cancellations refunded (deducted)',
+                            style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -582,6 +593,10 @@ class _RevenueScreenState extends State<RevenueScreen> {
                         final payMethod = item['paymentMethod']?.toString() ?? 'Card';
                         final payStatus = item['paymentStatus']?.toString() ?? 'Paid';
 
+                        final isRefunded = item['refundStatus'] == 'Refunded';
+                        final refundAmt = item['refundAmount'] != null ? (item['refundAmount'] as num).toDouble() : 0.0;
+                        final netAmt = item['netAmount'] != null ? (item['netAmount'] as num).toDouble() : (isRefunded ? (amt - refundAmt) : amt);
+
                         return Container(
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(14),
@@ -594,8 +609,15 @@ class _RevenueScreenState extends State<RevenueScreen> {
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(color: AppTheme.successBg, borderRadius: BorderRadius.circular(12)),
-                                child: const Icon(Icons.arrow_downward_rounded, color: AppTheme.successDark, size: 18),
+                                decoration: BoxDecoration(
+                                  color: isRefunded && netAmt <= 0 ? Colors.red.withValues(alpha: 0.1) : AppTheme.successBg,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  isRefunded && netAmt <= 0 ? Icons.remove_circle_outline_rounded : Icons.arrow_downward_rounded,
+                                  color: isRefunded && netAmt <= 0 ? Colors.redAccent : AppTheme.successDark,
+                                  size: 18,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -608,15 +630,31 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      '#$bId • $customer • $payMethod ($payStatus)',
+                                      isRefunded
+                                          ? '#$bId • $customer • Refunded'
+                                          : '#$bId • $customer • $payMethod ($payStatus)',
                                       style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
                                     ),
                                   ],
                                 ),
                               ),
-                              Text(
-                                '+ LKR ${currencyFmt.format(amt)}',
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppTheme.successDark),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    '+ LKR ${currencyFmt.format(netAmt)}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      color: isRefunded && netAmt <= 0 ? AppTheme.textMuted : AppTheme.successDark,
+                                    ),
+                                  ),
+                                  if (isRefunded && refundAmt > 0)
+                                    Text(
+                                      '- LKR ${currencyFmt.format(refundAmt)} refunded',
+                                      style: const TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w600),
+                                    ),
+                                ],
                               ),
                             ],
                           ),

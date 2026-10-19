@@ -81,10 +81,10 @@ public class DashboardDataController : ControllerBase
 
         var bookings = await _context.Bookings
             .Where(booking =>
-                booking.Status != "Cancelled" &&
                 (booking.PaymentStatus == "Paid" || booking.PaymentStatus == "Approved" || booking.PaymentStatus == "MockPaid" || booking.Status == "Confirmed") &&
                 ((booking.BookingDate >= start && booking.BookingDate < end) ||
-                 (booking.CreatedAt >= start && booking.CreatedAt < end)))
+                 (booking.CreatedAt >= start && booking.CreatedAt < end) ||
+                 (booking.RefundConfirmedAt >= start && booking.RefundConfirmedAt < end)))
             .Include(booking => booking.Facility)
             .Include(booking => booking.EquipmentPayments)
             .OrderByDescending(booking => booking.CreatedAt)
@@ -102,7 +102,17 @@ public class DashboardDataController : ControllerBase
         var equipmentPaymentsSum = equipmentPaymentsQuery.Sum(ep => ep.TotalAmount);
         var bookingEquipmentsSum = bookings.Sum(b => b.EquipmentPayments?.Sum(ep => ep.TotalAmount) ?? 0);
         var totalEquipmentRevenue = Math.Max(equipmentPaymentsSum, bookingEquipmentsSum);
-        var totalGrossRevenue = bookings.Sum(booking => booking.TotalAmount);
+
+        // Gross total collections
+        var totalGrossBookings = bookings.Sum(booking => booking.TotalAmount);
+
+        // Deduct refunds approved & processed by admin for cancellations
+        var totalRefundedAmount = bookings
+            .Where(booking => booking.RefundStatus == "Refunded" && booking.RefundAmount.HasValue && booking.RefundAmount > 0)
+            .Sum(booking => booking.RefundAmount!.Value);
+
+        // Net gross revenue after deducting refunded cancellations
+        var totalGrossRevenue = Math.Max(0, totalGrossBookings - totalRefundedAmount);
         if (equipmentPaymentsSum > 0 && bookingEquipmentsSum == 0)
         {
             totalGrossRevenue += equipmentPaymentsSum;
@@ -118,6 +128,9 @@ public class DashboardDataController : ControllerBase
             totalRevenue = totalGrossRevenue,
             courtRevenue = courtRevenue,
             equipmentRevenue = totalEquipmentRevenue,
+            grossBookings = totalGrossBookings,
+            refundedAmount = totalRefundedAmount,
+            totalRefunded = totalRefundedAmount,
             bookingCount = bookings.Count,
             equipmentTransactionsCount = equipmentPaymentsQuery.Count,
             items = bookings.Select(booking => new
@@ -128,6 +141,14 @@ public class DashboardDataController : ControllerBase
                 facility = booking.Facility!.Name,
                 customer = booking.CustomerName,
                 booking.TotalAmount,
+                refundAmount = booking.RefundStatus == "Refunded" && booking.RefundAmount.HasValue ? booking.RefundAmount.Value : 0m,
+                netAmount = booking.RefundStatus == "Refunded" && booking.RefundAmount.HasValue
+                    ? Math.Max(0, booking.TotalAmount - booking.RefundAmount.Value)
+                    : booking.TotalAmount,
+                refundStatus = booking.RefundStatus,
+                refundPercentage = booking.RefundPercentage,
+                refundConfirmedAt = booking.RefundConfirmedAt,
+                refundConfirmedBy = booking.RefundConfirmedBy,
                 booking.PaymentMethod,
                 paymentStatus = booking.PaymentStatus,
                 booking.Status,

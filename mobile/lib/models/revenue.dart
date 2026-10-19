@@ -2,6 +2,7 @@ class RevenueReport {
   final double totalRevenue;
   final double courtRevenue;
   final double equipmentRevenue;
+  final double refundedAmount;
   final int bookingCount;
   final int equipmentTransactionsCount;
   final DateTime fromDate;
@@ -13,6 +14,7 @@ class RevenueReport {
     required this.totalRevenue,
     required this.courtRevenue,
     required this.equipmentRevenue,
+    this.refundedAmount = 0.0,
     required this.bookingCount,
     required this.equipmentTransactionsCount,
     required this.fromDate,
@@ -36,6 +38,9 @@ class RevenueReport {
       totalRevenue: json['totalRevenue'] != null ? (json['totalRevenue'] as num).toDouble() : 0.0,
       courtRevenue: json['courtRevenue'] != null ? (json['courtRevenue'] as num).toDouble() : 0.0,
       equipmentRevenue: json['equipmentRevenue'] != null ? (json['equipmentRevenue'] as num).toDouble() : 0.0,
+      refundedAmount: json['refundedAmount'] != null
+          ? (json['refundedAmount'] as num).toDouble()
+          : (json['totalRefunded'] != null ? (json['totalRefunded'] as num).toDouble() : 0.0),
       bookingCount: json['bookingCount'] != null ? (json['bookingCount'] as num).toInt() : 0,
       equipmentTransactionsCount: json['equipmentTransactionsCount'] != null ? (json['equipmentTransactionsCount'] as num).toInt() : 0,
       fromDate: json['fromDate'] != null ? DateTime.tryParse(json['fromDate'].toString()) ?? DateTime.now() : DateTime.now(),

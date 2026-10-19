@@ -678,6 +678,60 @@ class ApiService {
     }
   }
 
+  Future<Booking> customerUpdateBooking({
+    required int bookingId,
+    required int facilityId,
+    required DateTime newDate,
+    required String newStartTime,
+    required int hoursNeeded,
+    String? paymentMethod,
+    String? cardNumber,
+    int? expiryMonth,
+    int? expiryYear,
+    String? cvv,
+    String? cardLastFour,
+    String? bankSlipPath,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/bookings/$bookingId/customer-update');
+    final dateIso = '${newDate.year.toString().padLeft(4, '0')}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}T00:00:00.000Z';
+    final startTimeStr = newStartTime.length == 5 ? '$newStartTime:00' : newStartTime;
+
+    final request = http.MultipartRequest('PUT', uri);
+    request.headers.addAll(_headers);
+    request.fields['facilityId'] = facilityId.toString();
+    request.fields['bookingDate'] = dateIso;
+    request.fields['startTime'] = startTimeStr;
+    request.fields['hoursNeeded'] = hoursNeeded.toString();
+
+    if (paymentMethod != null && paymentMethod.isNotEmpty) {
+      request.fields['paymentMethod'] = paymentMethod;
+      if (paymentMethod == 'Card') {
+        if (cardNumber != null && cardNumber.isNotEmpty) request.fields['cardNumber'] = cardNumber;
+        if (expiryMonth != null) request.fields['expiryMonth'] = expiryMonth.toString();
+        if (expiryYear != null) request.fields['expiryYear'] = expiryYear.toString();
+        if (cvv != null && cvv.isNotEmpty) request.fields['cvv'] = cvv;
+        if (cardLastFour != null && cardLastFour.isNotEmpty) request.fields['cardLastFour'] = cardLastFour;
+      }
+    }
+
+    if (bankSlipPath != null && bankSlipPath.isNotEmpty) {
+      request.files.add(await http.MultipartFile.fromPath('bankSlip', bankSlipPath));
+    }
+
+    try {
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 20));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        return Booking.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      } else {
+        throw Exception(_extractErrorMessage(response));
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<Booking> updateBookingStatus(int bookingId, String status, {String? reason}) async {
     final uri = Uri.parse('$_baseUrl/api/bookings/$bookingId/status');
     try {

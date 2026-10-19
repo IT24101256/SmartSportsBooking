@@ -1,5 +1,6 @@
 import { getFacilityIcon } from '../utils/facilityImages'
 import TicketQRCode from './TicketQRCode'
+import { formatBookingSession, canCustomerUpdate } from '../utils/bookingUtils'
 
 function getGateForVenue(name = '') {
   const lower = (name || '').toLowerCase()
@@ -12,7 +13,7 @@ function getGateForVenue(name = '') {
   return 'MAIN GATE'
 }
 
-export default function BookingList({ bookings = [], onReview, onCancel, onReschedule, emptyMessage }) {
+export default function BookingList({ bookings = [], onReview, onCancel, onReschedule, onUpdate, emptyMessage }) {
   const isBookingExpired = (booking) => {
     if (booking?.isExpired !== undefined && typeof booking.isExpired === 'boolean') {
       return booking.isExpired
@@ -150,7 +151,7 @@ export default function BookingList({ bookings = [], onReview, onCancel, onResch
                   <span className="cell-label">SESSION DATE & TIME</span>
                   <div className="cell-value date-value">
                     <span className="cell-icon">📅</span>
-                    <strong>{booking.date}</strong>
+                    <strong>{formatBookingSession(booking)}</strong>
                   </div>
                 </div>
 
@@ -336,6 +337,20 @@ export default function BookingList({ bookings = [], onReview, onCancel, onResch
                   </button>
                 ) : (
                   <>
+                    {/* CUSTOMER UPDATE BOOKING: Allowed only >= 24h prior to booking time */}
+                    {canCustomerUpdate(booking) && onUpdate && (
+                      <button
+                        type="button"
+                        className="primary-btn stub-btn update-booking-btn"
+                        id={`update-booking-btn-${booking.id}`}
+                        onClick={() => onUpdate(booking)}
+                        style={{ background: '#059669', borderColor: '#047857' }}
+                        title="Update facility, date, time, and duration (Available until 24h before match)"
+                      >
+                        ✏️ Update Booking
+                      </button>
+                    )}
+
                     {!isCancelled && onCancel && (
                       <button
                         type="button"

@@ -1012,7 +1012,7 @@ class _BookWithAiSheetState extends State<BookWithAiSheet> {
                         const SizedBox(height: 12),
                         _SummaryRow(label: '🏟️ Venue', value: '${_summary!['facilityName']}'),
                         _SummaryRow(label: '📅 Date', value: '${_summary!['bookingDate']}'),
-                        _SummaryRow(label: '⏰ Time', value: '${_summary!['startTime']} – ${_summary!['endTime']} (${_summary!['hoursNeeded']} hr)'),
+                        _SummaryRow(label: '⏰ Time', value: '${_summary!['startTime']} – ${_summary!['endTime']} (${_summary!['hoursNeeded']} ${_summary!['hoursNeeded'] == 1 ? 'hour' : 'hours'})'),
                         _SummaryRow(label: '👤 Player', value: '${_summary!['customerName']} (${_summary!['contactNumber']})'),
                         const Divider(color: Colors.white10, height: 16),
                         Row(

@@ -23,6 +23,7 @@ import EquipmentsPage from './pages/EquipmentsPage'
 import SportCategoriesPage from './pages/SportCategoriesPage'
 import FloatingAiChat from './components/FloatingAiChat'
 import BookWithAiModal from './components/BookWithAiModal'
+import { formatBookingSession, canCustomerUpdate } from './utils/bookingUtils'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5187/api'
 const localDateString = (date = new Date()) => {
@@ -271,7 +272,7 @@ function App() {
     facility: booking.facility,
     facilityName: booking.facility?.name ?? 'Facility',
     name: `${booking.facility?.name ?? 'Facility'} • booking`,
-    date: `${new Date(booking.bookingDate).toLocaleDateString()} • ${booking.startTime.slice(0, 5)}`,
+    date: formatBookingSession(booking),
     status: booking.status,
     paymentMethod: booking.paymentMethod,
     paymentStatus: booking.paymentStatus,
@@ -293,6 +294,7 @@ function App() {
     refundConfirmedBy: booking.refundConfirmedBy,
     refundNotes: booking.refundNotes,
     isExpired: isBookingExpired(booking),
+    canCustomerUpdate: booking.canCustomerUpdate !== undefined ? booking.canCustomerUpdate : canCustomerUpdate(booking),
     isRescheduleRequested: Boolean(booking.isRescheduleRequested || booking.status === 'RescheduleRequested'),
     rescheduleReason: booking.rescheduleReason,
     rescheduleRequestedAt: booking.rescheduleRequestedAt,
@@ -1058,6 +1060,9 @@ function App() {
           onViewSlip={viewBankSlip}
           onReview={openReview}
           onAddAdditionalEquipment={addAdditionalEquipment}
+          onCustomerUpdate={async () => {
+            if (authToken) await loadBookings(authToken)
+          }}
         />
       )
     }
@@ -1133,6 +1138,9 @@ function App() {
         onViewSlip={viewBankSlip}
         onReview={openReview}
         onAddAdditionalEquipment={addAdditionalEquipment}
+        onCustomerUpdate={async () => {
+          if (authToken) await loadBookings(authToken)
+        }}
       />
     )
     if (activeTab === 'Support') return selectedSupportRequest ? (

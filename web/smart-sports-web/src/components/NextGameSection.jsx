@@ -1,5 +1,6 @@
 import { getFacilityIcon } from '../utils/facilityImages'
 import TicketQRCode from './TicketQRCode'
+import { formatBookingSession, canCustomerUpdate } from '../utils/bookingUtils'
 
 function getGateForVenue(name = '') {
   const lower = (name || '').toLowerCase()
@@ -19,6 +20,7 @@ export default function NextGameSection({
   onReview,
   onCancel,
   onReschedule,
+  onUpdate,
 }) {
   // Helper to check if a booking's session has already ended/passed
   const isBookingExpired = (booking) => {
@@ -175,7 +177,7 @@ export default function NextGameSection({
                     <span className="cell-label">SESSION DATE & TIME</span>
                     <div className="cell-value date-value">
                       <span className="cell-icon">📅</span>
-                      <strong>{nextBooking.date} • {nextBooking.startTime || '18:00'}</strong>
+                      <strong>{formatBookingSession(nextBooking)}</strong>
                     </div>
                   </div>
 
@@ -268,6 +270,17 @@ export default function NextGameSection({
                   >
                     View booking details
                   </button>
+                  {canCustomerUpdate(nextBooking) && onUpdate && (
+                    <button
+                      type="button"
+                      className="primary-btn stub-btn"
+                      id={`next-game-update-btn-${nextBooking.id}`}
+                      onClick={() => onUpdate(nextBooking)}
+                      style={{ background: '#059669', borderColor: '#047857' }}
+                    >
+                      ✏️ Update Booking
+                    </button>
+                  )}
                   {isConfirmed && onReview && (
                     <button
                       type="button"

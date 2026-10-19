@@ -167,6 +167,7 @@ class Booking {
   final String? rescheduleReason;
   final DateTime? rescheduleRequestedAt;
   final List<EquipmentPaymentItem> equipmentPayments;
+  final String? cardLastFour;
   final BookingReviewItem? review;
 
   Booking({
@@ -186,6 +187,7 @@ class Booking {
     required this.paymentMethod,
     required this.paymentStatus,
     this.bankSlipFileName,
+    this.cardLastFour,
     this.cancellationReason,
     this.refundAmount,
     this.refundPercentage,
@@ -207,10 +209,22 @@ class Booking {
   bool get isRescheduleOffer => isRescheduleRequested || status == 'RescheduleRequested';
 
   bool get isToRefund =>
-      isCancelled &&
-      (refundStatus == 'To Refund' || ((refundAmount ?? 0) > 0 && refundStatus != 'Refunded'));
+      refundStatus == 'To Refund' ||
+      (isCancelled && ((refundAmount ?? 0) > 0 && refundStatus != 'Refunded'));
 
   bool get isRefunded => refundStatus == 'Refunded';
+
+  bool get canCustomerUpdate {
+    if (isCancelled || isExpired) return false;
+    try {
+      final sHour = int.tryParse(startTime.length >= 2 ? startTime.substring(0, 2) : '8') ?? 8;
+      final sMin = int.tryParse(startTime.length >= 5 ? startTime.substring(3, 5) : '0') ?? 0;
+      final sessionStart = DateTime(bookingDate.year, bookingDate.month, bookingDate.day, sHour, sMin);
+      return sessionStart.difference(DateTime.now()).inHours >= 24;
+    } catch (_) {
+      return false;
+    }
+  }
 
   bool get isExpired {
     try {
@@ -245,7 +259,19 @@ class Booking {
   }
 
   String get formattedDate => DateFormat('EEE, MMM d, yyyy').format(bookingDate);
-  String get formattedTimeSlot => '${startTime.length >= 5 ? startTime.substring(0, 5) : startTime} - ${endTime.length >= 5 ? endTime.substring(0, 5) : endTime}';
+
+  String get formattedEndTime {
+    if (endTime.startsWith('1.') || endTime.startsWith('24')) {
+      return '24:00';
+    }
+    return endTime.length >= 5 ? endTime.substring(0, 5) : endTime;
+  }
+
+  String get durationString => '($hoursNeeded ${hoursNeeded == 1 ? 'hour' : 'hours'})';
+
+  String get formattedTimeSlot => '${startTime.length >= 5 ? startTime.substring(0, 5) : startTime} - $formattedEndTime';
+
+  String get formattedTimeSlotWithDuration => '$formattedTimeSlot $durationString';
 
   factory Booking.fromJson(Map<String, dynamic> json, {BookingReviewItem? attachedReview}) {
     final id = json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0;
@@ -302,6 +328,7 @@ class Booking {
       paymentMethod: json['paymentMethod']?.toString() ?? 'Card',
       paymentStatus: json['paymentStatus']?.toString() ?? 'Pending',
       bankSlipFileName: json['bankSlipFileName']?.toString(),
+      cardLastFour: json['cardLastFour']?.toString() ?? json['CardLastFour']?.toString(),
       cancellationReason: json['cancellationReason']?.toString(),
       refundAmount: json['refundAmount'] != null ? (json['refundAmount'] as num).toDouble() : null,
       refundPercentage: json['refundPercentage'] != null ? (json['refundPercentage'] as num).toInt() : null,
@@ -322,6 +349,7 @@ class Booking {
     BookingReviewItem? review,
     String? status,
     String? paymentStatus,
+    String? cardLastFour,
   }) {
     return Booking(
       id: id,
@@ -340,6 +368,7 @@ class Booking {
       paymentMethod: paymentMethod,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       bankSlipFileName: bankSlipFileName,
+      cardLastFour: cardLastFour ?? this.cardLastFour,
       cancellationReason: cancellationReason,
       refundAmount: refundAmount,
       refundPercentage: refundPercentage,

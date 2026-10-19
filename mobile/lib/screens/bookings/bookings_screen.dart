@@ -12,6 +12,7 @@ import '../../widgets/admin_refund_modal.dart';
 import '../../widgets/add_equipment_modal.dart';
 import '../../widgets/review_modal.dart';
 import '../../widgets/bank_slip_modal.dart';
+import '../../widgets/user_update_booking_modal.dart';
 
 class BookingsScreen extends StatefulWidget {
   final List<Booking> bookings;
@@ -236,7 +237,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${b.formattedDate} • ${b.formattedTimeSlot} (${b.hoursNeeded} hr)',
+                        '${b.formattedDate} • ${b.formattedTimeSlotWithDuration}',
                         style: const TextStyle(color: AppTheme.textMuted, fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 10),
@@ -365,6 +366,15 @@ class _BookingsScreenState extends State<BookingsScreen> {
                               style: ElevatedButton.styleFrom(backgroundColor: AppTheme.purple, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                             ),
 
+                          // 2b. Customer Update Booking (Visible until 24h prior)
+                          if (!isStaff && b.canCustomerUpdate)
+                            ElevatedButton.icon(
+                              onPressed: () => UserUpdateBookingModal.show(context, b, widget.onRefresh),
+                              icon: const Icon(Icons.edit, size: 16),
+                              label: const Text('Update Booking'),
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                            ),
+
                           // 3. Admin: Offer weather reschedule
                           if (isStaff && !b.isCancelled && !b.isExpired && !b.isRescheduleOffer)
                             OutlinedButton.icon(
@@ -388,13 +398,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
                             ElevatedButton.icon(
                               onPressed: () => AdminRefundModal.show(context, b, widget.onRefresh),
                               icon: const Icon(Icons.verified, size: 16),
-                              label: const Text('Confirm Refund'),
+                              label: Text('Confirm Refund (LKR ${currencyFmt.format(b.refundAmount ?? 0)})'),
                               style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                             ),
 
                           // 6. Bank Slip Verification & Viewer
                           if (b.paymentMethod == 'BankTransfer') ...[
-                            if (isStaff && !b.isConfirmed && !b.isCancelled)
+                            if (isStaff && (!b.isConfirmed || b.paymentStatus == 'Pending') && !b.isCancelled)
                               ElevatedButton.icon(
                                 onPressed: () => BankSlipModal.show(context, b, widget.onRefresh),
                                 icon: const Icon(Icons.verified_outlined, size: 16),
