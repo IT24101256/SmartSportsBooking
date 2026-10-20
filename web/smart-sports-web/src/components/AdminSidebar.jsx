@@ -360,7 +360,7 @@ export default function AdminSidebar({
     },
   ]
 
-  // Manager only has access to Bookings, Support, and Feedbacks tabs
+  // Manager only has access to Bookings and Support tabs
   const navSections = isManager
     ? [
         {
@@ -369,7 +369,7 @@ export default function AdminSidebar({
         },
         {
           label: 'COMMUNICATION',
-          items: fullNavSections[1].items.filter((item) => item.id === 'Support' || item.id === 'Feedbacks'),
+          items: fullNavSections[1].items.filter((item) => item.id === 'Support'),
         },
       ]
     : fullNavSections

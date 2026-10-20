@@ -36,7 +36,7 @@ const localDateString = (date = new Date()) => {
 
 const baseNavItems = ['Overview', 'Facilities', 'Bookings', 'Support']
 const adminNavItems = [...baseNavItems, 'Equipments', 'Sport Categories', 'Revenue', 'Members', 'Feedbacks']
-const managerNavItems = ['Bookings', 'Support', 'Feedbacks']
+const managerNavItems = ['Bookings', 'Support']
 
 const initialBookingForm = {
   facility: 'Badminton Court',
